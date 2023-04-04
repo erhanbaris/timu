@@ -6,11 +6,11 @@ mod parser;
 mod ast;
 mod codegen;
 
-
 fn main() {
     let code = "@use(std) as s;
+
 fun test() {
-    let a = 123;
+    a = 123;
     @print(\"merhaba dünya\" * 2);
     print(true);
 }

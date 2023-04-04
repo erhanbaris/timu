@@ -1,4 +1,40 @@
-pub trait Ast { }
+pub enum TimuAst {
+    Ident(String),
+    String(String),
+    Bool(bool),
+    I32(i32),
+    FunctionCall {
+        compiler: bool,
+        name: String,
+        args: Vec<Box<TimuAst>>
+    },
+    BinaryOperation {
+        left: Box<TimuAst>,
+        operator: char,
+        right: Box<TimuAst>
+    },
+    FunctionDefinition {
+        access: AccessType,
+        name: String,
+        args: Vec<FuncArg>,
+        return_type: String,
+        body: Box<TimuAst>
+    },
+    Block {
+        statements: Vec<Box<TimuAst>>
+    },
+    Import {
+        path: Vec<String>,
+        name: String
+    },
+    File {
+        statements: Vec<Box<TimuAst>>
+    },
+    Assignment {
+        variable: Box<TimuAst>,
+        data: Box<TimuAst>
+    }
+}
 
 #[derive(Debug)]
 pub struct FuncArg {
@@ -11,72 +47,3 @@ pub enum AccessType {
     Public,
     Private
 }
-
-#[derive(Debug)]
-pub enum PrimativeAst {
-    String(String),
-    Bool(bool),
-    I32(i32)
-}
-
-#[derive(Debug)]
-pub struct FunctionCallAst {
-    pub compiler: bool,
-    pub name: String,
-    pub args: Vec<Box<ExpressionAst>>
-}
-
-#[derive(Debug)]
-pub struct BinaryOperationAst {
-    pub left: Box<ExpressionAst>,
-    pub operator: char,
-    pub right: Box<ExpressionAst>
-}
-
-#[derive(Debug)]
-pub enum ExpressionAst {
-    Primative(Box<PrimativeAst>),
-    FunctionCall(Box<FunctionCallAst>),
-    BinaryOperation(Box<BinaryOperationAst>)
-}
-
-#[derive(Debug)]
-pub enum StatementAst {
-    Primative(Box<PrimativeAst>),
-    FunctionCall(Box<FunctionCallAst>)
-}
-
-#[derive(Debug)]
-pub struct FunctionDefinitionAst {
-    pub access: AccessType,
-    pub name: String,
-    pub args: Vec<FuncArg>,
-    pub return_type: String,
-    pub body: Box<BlockAst>
-}
-
-#[derive(Debug)]
-pub struct BlockAst {
-    pub statements: Vec<Box<StatementAst>>
-}
-
-#[derive(Debug)]
-pub struct FileAst {
-    pub functions: Vec<Box<FunctionDefinitionAst>>
-}
-
-impl Ast for PrimativeAst { }
-
-impl Ast for FunctionCallAst { }
-
-impl Ast for FunctionDefinitionAst { }
-
-impl Ast for FileAst { }
-
-impl Ast for BlockAst { }
-
-impl Ast for ExpressionAst { }
-
-impl Ast for StatementAst { }
-
-impl Ast for BinaryOperationAst { }
