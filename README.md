@@ -138,6 +138,12 @@ var new_pointer: *string  = @get_ptr(new_pointer); // checked pointer and if the
 secure_ptr
 unsecure_ptr
 
+fun test() {
+
+}
 
 // Error result
 // Null result
+
+
+$ENV:LLVM_SYS_150_PREFIX = 'C:\llvm'

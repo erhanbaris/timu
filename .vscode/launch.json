@@ -7,39 +7,45 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'tim'",
+            "name": "Debug executable 'timu'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=tim",
-                    "--package=tim"
+                    "--bin=timu",
+                    "--package=timu"
                 ],
                 "filter": {
-                    "name": "tim",
+                    "name": "timu",
                     "kind": "bin"
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LLVM_SYS_150_PREFIX": "C:\\llvm"
+            }
         },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'tim'",
+            "name": "Debug unit tests in executable 'timu'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=tim",
-                    "--package=tim"
+                    "--bin=timu",
+                    "--package=timu"
                 ],
                 "filter": {
-                    "name": "tim",
+                    "name": "timu",
                     "kind": "bin"
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LLVM_SYS_150_PREFIX": "C:\\llvm"
+            }
         }
     ]
 }

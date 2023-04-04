@@ -1,6 +1,6 @@
-use inkwell::context::Context;
+//use inkwell::context::Context;
 
-use crate::{parser::parser, codegen::CodeGen};
+use crate::parser::parser;
 
 mod parser;
 mod ast;
@@ -8,20 +8,23 @@ mod codegen;
 
 
 fn main() {
-    let ast = parser("fun test() {
-    @print(\"merhaba dünya\");
+    let code = "@use(std) as s;
+fun test() {
+    let a = 123;
+    @print(\"merhaba dünya\" * 2);
+    print(true);
 }
-");
+";
+    let ast = parser(code);
 
-    let context = Context::create();
-    let builder = context.create_builder();
-    let module = context.create_module("__general__");
-    let compiler = CodeGen {
-        context: &context,
-        builder,
-        module
-    };
+    if let Err(error) = ast {
+        error.print(code);
+    }
 
-    compiler.compile(ast);
-    compiler.dump();
+    // print!("AST: {:#?}", &ast);
+
+    // let compiler = CodeGen { };
+
+    //compiler.compile(ast);
+    //compiler.dump();
 }
