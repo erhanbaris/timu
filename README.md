@@ -147,3 +147,8 @@ fun test() {
 
 
 $ENV:LLVM_SYS_150_PREFIX = 'C:\llvm'
+
+
+Here is the some link to check.
+- https://github.com/bytecodealliance/cranelift-jit-demo
+- https://gitlab.com/jimsy/outrun/-/blob/main/outrun-compiler/src/grammar/grammar.pest
