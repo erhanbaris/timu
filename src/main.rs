@@ -7,21 +7,21 @@ mod ast;
 mod codegen;
 
 fn main() {
-    let code = "@use(std) as s;
+    let code = "
+@use(std);    
+@use(std) as s;
 
-fun test() {
-    a = 123;
-    @print(\"merhaba dünya\" * 2);
-    print(true);
+func data(data: i32): test.test {
+
 }
 ";
     let ast = parser(code);
 
-    if let Err(error) = ast {
+    if let Err(error) = &ast {
         error.print(code);
     }
 
-    // print!("AST: {:#?}", &ast);
+    print!("AST: {:#?}", &ast);
 
     // let compiler = CodeGen { };
 
