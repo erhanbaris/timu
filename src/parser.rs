@@ -1,6 +1,6 @@
 use core::panic;
 
-use pest::{Parser, iterators::Pair, error::LineColLocation};
+use pest::{Parser, iterators::{Pair, Pairs}, error::LineColLocation};
 use pest_derive::Parser;
 
 use crate::ast::{AccessType, FuncArg, TimuAst};
@@ -54,31 +54,41 @@ fn parse_import(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
 
     for rule in inner_rules {
         match rule.as_rule() {
-            Rule::import_path => path.push(rule.as_str().to_string()),
-            Rule::import_name => name = rule.as_str().to_string(),
+            Rule::importproperties => {
+                for property in rule.into_inner() {
+                    path.push(property.as_str().to_string())
+                }
+            },
+            Rule::importname  => name = rule.as_str().to_string(),
             _ => return Err(TimuParserError::new(rule, "could not parse import statement"))
         }
+    }
+
+    if name.is_empty() {
+        name = path.last().unwrap().to_string();
     }
 
     Ok(Box::new(TimuAst::Import { path, name }))
 }
 
-fn parse_file(pairs: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+fn parse_file(pairs: Pairs<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     let mut statements = Vec::new();
-    let inner_rules = pairs.into_inner();
 
-    for pair in inner_rules {
+    println!("{:#?}", &pairs);
+
+    for pair in pairs {
         match pair.as_rule() {
-            Rule::func_def => statements.push(parse_func(pair)?),
+            Rule::def => statements.push(parse_func(pair)?),
             Rule::import => statements.push(parse_import(pair)?),
-            Rule::assign_stmt => statements.push(parse_assignment(pair)?),
+            Rule::EOI => {},
+            //Rule::assign_stmt => statements.push(parse_assignment(pair)?),
             _ => return Err(TimuParserError::new(pair, "unknown syntax"))
         }
     }
 
     Ok(Box::new(TimuAst::File { statements }))
 }
-
+/*
 fn parse_assignment(pairs: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     let mut rule = pairs.into_inner();
     let variable = rule.next().unwrap();
@@ -174,37 +184,47 @@ fn parse_statement(rule: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError
         _ => panic!("parse_function_call, {:#?}", rule)
     }
 }
+*/
 
-fn parse_func(pairs: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
-    let inner_rules = pairs.into_inner();
+fn parse_type_annotation(pair: Pair<'_, Rule>) -> Vec<String>  {
+    let mut type_info = Vec::new();
+
+    for type_rule in pair.into_inner() {
+        type_info.push(type_rule.as_str().to_string());
+    }
+
+    type_info
+}
+
+fn parse_func(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
+    let inner_rules = pair.into_inner();
     let mut access = AccessType::Private;
     let mut name = String::new();
-    let mut return_type = "_".to_string();
+    let mut return_type = Vec::new();
     let mut args = Vec::new();
     let mut statements = Vec::new();
 
     for rule in inner_rules {
 
         match rule.as_rule() {
-            Rule::func_return_type => return_type = rule.as_str().to_string(),
-            Rule::func_name => name = rule.as_str().to_string(),
-            Rule::keyword_public => access = AccessType::Public,
-            Rule::func_arg => {
-                let mut rules = rule.into_inner();
+            Rule::maybe_type_annotation => return_type = parse_type_annotation(rule),
+            Rule::ident => name = rule.as_str().to_string(),
+            //Rule::keyword_public => access = AccessType::Public,
+            Rule::defarguments => {
                 
-                args.push(FuncArg {
-                    name: rules.next().unwrap().as_str().to_string(),
-                    arg_type: rules.next().unwrap().as_str().to_string()
-                })
+                for arg_rule in rule.into_inner() {
+                    println!("{:?}", arg_rule);                    
+                }
             }
-            Rule::func_body => {
+            Rule::body_block => {
                 let rules = rule.into_inner();
                 
                 for rule in rules {
-                    match rule.as_rule() {
+                    println!("{:?}", rule);
+                    /*match rule.as_rule() {
                         Rule::statement => statements.push(parse_statement(rule.into_inner().peek().unwrap())?),
                         _ => ()
-                    }
+                    }*/
                 }
             }
             _ => {}
@@ -217,7 +237,7 @@ fn parse_func(pairs: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
 
 pub fn parser(code: &str) -> Result<Box<TimuAst>, TimuParserError> {
     match TimuParser::parse(Rule::file, code) {
-        Ok(mut parse) => parse_file(parse.nth(0).unwrap()),
+        Ok(parse) => parse_file(parse),
         Err(err) => {
             let (line, column) = match err.line_col {
                 LineColLocation::Pos((line, column)) => (line, column),

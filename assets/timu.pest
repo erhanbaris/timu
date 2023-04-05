@@ -1,82 +1,151 @@
-file       =  { SOI ~ (anything)* ~ EOI }
-anything   = _{ import | func_def | assign_stmt }
-WHITESPACE = _{ " " | "\t" | NEWLINE }
+file                        = _{ SOI ~ module* ~ EOI }
+input                       = _{ SOI ~ body_expression+ ~ EOI }
 
-// Keywords
-keyword_public   = _{ "pub" }
-keyword_use      = _{ "use" }
-keyword_function = _{ "fun" }
-keyword_as       = _{ "as" }
-keyword_true     = _{ "true" }
-keyword_false    = _{ "false" }
+WHITESPACE                  = _{ WHITE_SPACE }
+COMMENT                     = _{ comment_block | comment_line }
+comment_block               = @{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+comment_line                = @{ "//" ~ (!("\r" | "\n") ~ ANY)* }
+documentation               = ${ "/*doc" ~ documentation_content ~ "*/"}
+documentation_content       =  { (!"*/" ~ ANY)* }
 
-// Symbols
-symbol_none           =  { "_" }
-symbol_compile_time   = _{ "@" }
-symbol_assign         = _{ "=" }
-symbol_line_finish    = _{ ";" }
-symbol_array_start    = _{ "[" }
-symbol_array_end      = _{ "]" }
-symbol_parant_start   = _{ "(" }
-symbol_parant_end     = _{ ")" }
-symbol_term_seperator = _{ "," }
-symbol_add            =  { "+" }
-symbol_subtract       =  { "-" }
-symbol_multiply       =  { "*" }
-symbol_divide         =  { "/" }
+import                      =  { "@use" ~ "(" ~ importproperties ~ ")" ~ ("as" ~ importname)? ~ ";" }
+importproperties            =  { importproperty ~ ("." ~ importproperty)* }
+importproperty              =  { typename_name }
+importname                  =  { typename_name }
 
-// Compiler attribute
-compiler_attr = { symbol_compile_time ~ var_name }
+module                      = _{ import | documentation | defclass | def }
 
-// Assignment
-assign_name = { var_name }
-assign_type = { var_type }
-assign_stmt = { compiler_attr* ~ assign_name ~ symbol_assign ~ primative ~ symbol_line_finish }
+defclass                    =  { "class" ~ typename ~ defclassfields? ~ defclassproperties }
+defclassfields             =  { ("(" ~ (defclassfield  ~ ("," ~ defclassfield)*)? ~ ")")? }
+defclassfield              =  { keyword ~ (typeunion | typename) }
+defclassproperties         =  { ("," ~ defclassproperty)* }
+defclassproperty           =  { keyword ~ (typeblock | typeunion | typename) }
 
-// primatives
-primative_string_inner =  { ("\"\"" | (!"\"" ~ ANY))* }
-primative_string       = ${ "\"" ~ primative_string_inner ~ "\"" }
-primative_integer      = @{ "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) }
-primative_float        = @{ primative_integer ~ ("." ~ ASCII_DIGIT*) ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)? }
-primative_bool         =  { keyword_true | keyword_false }
-primative_array        =  { symbol_array_start ~ (primative ~ ("," ~ primative)*)? ~ symbol_array_end }
-primative              =  { primative_bool | primative_float | primative_integer | primative_string | primative_array }
+defprotocol                 =  { "protocol" ~ typename ~ defprotocolproperties }
+defprotocolproperties       =  { ("," ~ defprotocolproperty)* }
+defprotocolproperty         =  { keyword ~ (typeblock | typeunion | typename) }
 
-binary_operator  = _{ symbol_add | symbol_subtract | symbol_multiply | symbol_divide }
-atom             = _{ primative | func_call }
-binary_operation =  { atom ~ (binary_operator ~ atom)+ }
-expression       =  { binary_operation | atom }
+defimpl                     =  { "impl" ~ typename ~ defimplproperties }
+defimplproperties           =  { ("," ~ defimplproperty)* }
+defimplproperty             =  { keyword ~ (typeblock | typeunion | typename) }
 
-// Comments
-comment_multiline = @{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
-comment_line      = @{ "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
-COMMENT           = _{ comment_multiline }
+defuse                      =  { "use" ~ typename ~ defuseproperties }
+defuseproperties            =  { ("," ~ defuseproperty)* }
+defuseproperty              =  { keyword ~ typename }
 
-// Definitions
-var_name  = @{ "_"* ~ ASCII_ALPHA+ ~ (ASCII_ALPHA+ | NUMBER+ | "_")* }
-var_type  = ${ "_"* ~ ASCII_ALPHA+ ~ (ASCII_ALPHA+ | NUMBER+ | "_")* }
-comp_sign = _{ "@" }
+typeunion                   =  { typename ~ (plus ~ typename)+ }
+typeblock                   =  { "{" ~ typeblockcontents* ~ "}" }
+typeblockcontents           = _{ documentation | def }
 
-// Imports
-import_name =  { var_name }
-import_path = @{ ("_"* ~ ASCII_ALPHA+ ~ (ASCII_ALPHA+ | NUMBER+ | "_")*) | "*" }
-import_use  = _{ comp_sign ~ keyword_use ~ "(" ~ (import_path ~ ("." ~ import_path)*) ~ ")" }
-import      =  { import_use ~ (keyword_as ~ import_name)? ~ ";" }
+def                         =  { "func" ~ ident ~ defarguments ~ maybe_type_annotation ~ body_block }
+defarguments                =  { ( "(" ~ (defargument ~ ("," ~ defargument)*)? ~ ")" )? }
+defargument                 =  { keyword ~ typename }
+defproperties               =  { ("," ~ defproperty)* }
+defproperty                 =  { keyword ~ (body_block | body_expression) }
 
-statement  =  { assign_stmt | (func_call ~ ";") }
-statements = _{ statement* }
+body_block                  =  { "{" ~ body_expression* ~ "}" }
+body_expression             = _{ let_binding | expression }
 
-func_name        = @{ "_"* ~ ASCII_ALPHA+ ~ (ASCII_ALPHA+ | NUMBER+ | "_")* }
-func_seperator   = _{ ":" }
-func_return_type =  { func_seperator ~ var_type }
-func_body        =  { ("{" ~ statements? ~ "}") | (func_seperator ~ statement) }
+expression                  = _{ infix | expression_inner }
+call_remote                 =  { typename ~ "." ~ ident ~ "(" ~ call_args ~ ")" }
+call_local                  =  { local ~ "(" ~ call_args ~ ")" }
+index                       =  { (local | literal | braced_expression) ~ "." ~ ident }
+infix                       =  { expression_inner ~ (binary_operator ~ expression_inner)+ }
+expression_inner            = _{ call_remote | call_local | index | unary | literal | local | braced_expression }
+call_args                   = _{ (expression ~ ("," ~ expression)*)? }
+braced_expression           = _{ "(" ~ expression ~ ")" }
+let_binding                 =  { "let" ~ ident ~ maybe_type_annotation ~ "=" ~ expression }
+unary                       =  { unary_operator ~ (literal | local | braced_expression) }
+literal                     = _{ string | atom | boolean | float | integer | string | array | map | constructor }
 
-func_arg  =  { var_name ~ ":" ~ var_type }
-func_args = _{ func_arg ~ ("," ~ func_arg)* }
-func_def  =  {
-    keyword_public? ~ keyword_function ~ func_name ~ "(" ~ func_args? ~ ")" ~ func_return_type? ~ func_body
-}
+ident                       = @{ ("_" | LOWERCASE_LETTER) ~ (LETTER | NUMBER | "_")* ~ ("?")? }
+keyword                     = ${ ident ~ ":" }
+maybe_type_annotation       =  { ( ":" ~ typename )? }
 
-func_call_compiler = { symbol_compile_time }
-func_call_args     = { expression ~ (symbol_term_seperator ~ expression)* }
-func_call          = { func_call_compiler? ~ var_name ~ symbol_parant_start ~ func_call_args? ~ symbol_parant_end }
+constructor                 =  { constructor_prefix ~ (constructor_property ~ ("," ~ constructor_property)*)? ~ "}" }
+constructor_prefix          = _{ typename ~ "{" }
+constructor_property        =  { keyword ~ expression }
+
+map                         =  { "{" ~ (map_pair ~ ("," ~ map_pair)*)? ~ "}" }
+map_pair                    =  { (keyword | (expression ~ "=>")) ~ expression }
+
+array                       =  { "[" ~ (expression ~ ("," ~ expression)*)? ~ "]" }
+
+atom                        = @{ ":" ~ atom_ident }
+atom_ident                  = ${ LETTER ~ (LETTER | NUMBER | "_")* }
+local                       =  { ident }
+
+typename                    = _{ typename_name ~ ("." ~ typename_name)* }
+typename_name               = @{ "_"* ~ LETTER ~ (LETTER | NUMBER | "_")* }
+
+float                       = ${ float_characteristic ~ "." ~ float_mantissa }
+float_characteristic        =  { "0" | (('1'..'9') ~ ('0'..'9' | "_")*) }
+float_mantissa              =  { ('0'..'9')+ }
+
+integer                     = ${ integer_hexadecimal_sigil | integer_octal_sigil | integer_binary_sigil | integer_decimal | integer_zero }
+integer_decimal             =  { '1'..'9' ~ ('0'..'9' | "_")* }
+integer_hexadecimal         =  { ('0'..'9' | 'a'..'f' | 'A'..'F') ~ ('0'..'9' | 'a'..'f' | 'A'..'F' | "_")* }
+integer_hexadecimal_sigil   = _{ "0x" ~ integer_hexadecimal }
+integer_octal               =  { ('0'..'7') ~ ('0'..'7' | "_" )* }
+integer_octal_sigil         = _{ "0o" ~ integer_octal }
+integer_binary              =  { ('0'..'1') ~ ('0'..'1' | "_")* }
+integer_binary_sigil        = _{ "0b" ~ integer_binary }
+integer_zero                =  { "0" }
+
+string                      = ${ string_single_line }
+string_single_line          = _{ string_delimiter ~ string_content ~ string_delimiter }
+string_content              = ${ (string_escape | string_unicode | string_simple)* }
+string_delimiter            = _{ "\"" }
+string_simple               = ${ (!(string_delimiter | "\\") ~ ANY)+ }
+string_unicode              = ${ "\\u" ~ ('0'..'9' | 'a'..'f' | 'A'..'F'){4} }
+string_escape               = ${ "\\" ~ ("\"" | "\\" | "a" | "b" | "f" | "n" | "r" | "t" | "v") }
+
+at                          =  { "@" }
+exponent                    =  { "**" }
+multiply                    =  { "*" }
+divide                      =  { "/" }
+modulo                      =  { "%" }
+plus                        =  { "+" }
+minus                       =  { "-" }
+shift_left                  =  { "<<" }
+shift_right                 =  { ">>" }
+less_than                   =  { "<" }
+less_than_or_equal          =  { "<=" }
+greater_than                =  { ">" }
+greater_than_or_equal       =  { ">=" }
+not_equal                   =  { "!=" }
+equal                       =  { "==" }
+logical_and                 =  { "&&" }
+logical_or                  =  { "||" }
+logical_not                 =  { "!" }
+bitwise_and                 =  { "&" }
+bitwise_or                  =  { "|" }
+bitwise_xor                 =  { "^" }
+all_operators               = _{
+                                 exponent |
+                                 multiply | divide | modulo |
+                                 plus | minus |
+                                 shift_left | shift_right |
+                                 less_than_or_equal | less_than |
+                                 greater_than_or_equal | greater_than |
+                                 not_equal | equal |
+                                 logical_and | logical_or | logical_not |
+                                 bitwise_and | bitwise_or | bitwise_xor
+                                }
+binary_operator             = _{
+                                 exponent |
+                                 multiply | divide | modulo |
+                                 plus | minus |
+                                 shift_left | shift_right |
+                                 less_than_or_equal | less_than |
+                                 greater_than_or_equal | greater_than |
+                                 not_equal | equal |
+                                 logical_and | logical_or |
+                                 bitwise_and | bitwise_or | bitwise_xor
+                               }
+unary_operator              = _{ plus | minus | logical_not }
+
+boolean                     =  { boolean_true | boolean_false }
+boolean_true                =  { "true" }
+boolean_false               =  { "false" }
+

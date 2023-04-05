@@ -1,3 +1,7 @@
+
+type TimuAstType = Vec<String>;
+
+#[derive(Debug)]
 pub enum TimuAst {
     Ident(String),
     String(String),
@@ -17,7 +21,7 @@ pub enum TimuAst {
         access: AccessType,
         name: String,
         args: Vec<FuncArg>,
-        return_type: String,
+        return_type: TimuAstType,
         body: Box<TimuAst>
     },
     Block {
@@ -39,7 +43,7 @@ pub enum TimuAst {
 #[derive(Debug)]
 pub struct FuncArg {
     pub name: String,
-    pub arg_type: String
+    pub arg_type: TimuAstType
 }
 
 #[derive(Debug)]
