@@ -1,10 +1,34 @@
-use core::panic;
-
+/* **************************************************************************************************************** */
+/* **************************************************** MODS ****************************************************** */
+/* *************************************************** IMPORTS **************************************************** */
 use pest::{Parser, iterators::{Pair, Pairs}, error::LineColLocation};
 use pest_derive::Parser;
+use pest::{
+    pratt_parser::{Assoc, Op, PrattParser},
+};
 
-use crate::ast::{AccessType, FuncArg, TimuAst};
 
+use crate::ast::{AccessType, TimuAst, FuncArg, TimuAstType, VariableType, UnaryType, PrimativeType};
+
+/* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
+lazy_static::lazy_static! {
+    pub static ref PRATT: PrattParser<Rule> = build_pratt();
+}
+
+static I8_RANGE: std::ops::Range<i128> = (i8::MIN as i128)..(i8::MAX as i128);
+static U8_RANGE: std::ops::Range<i128> = (u8::MIN as i128)..(u8::MAX as i128);
+
+static I16_RANGE: std::ops::Range<i128> = (i16::MIN as i128)..(i16::MAX as i128);
+static U16_RANGE: std::ops::Range<i128> = (u16::MIN as i128)..(u16::MAX as i128);
+
+static I32_RANGE: std::ops::Range<i128> = (i32::MIN as i128)..(i32::MAX as i128);
+static U32_RANGE: std::ops::Range<i128> = (u32::MIN as i128)..(u32::MAX as i128);
+
+static I64_RANGE: std::ops::Range<i128> = (i64::MIN as i128)..(i64::MAX as i128);
+static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..(u64::MAX as i128);
+
+/* **************************************************** MACROS **************************************************** */
+/* *************************************************** STRUCTS **************************************************** */
 #[derive(Parser)]
 #[grammar = "../assets/timu.pest"]
 pub struct TimuParser;
@@ -13,11 +37,323 @@ pub struct TimuParser;
 pub struct TimuParserError {
     pub line: usize,
     pub column: usize,
-    pub error: &'static str
+    pub error: String
 }
 
+/* **************************************************** ENUMS ***************************************************** */
+/* ************************************************** FUNCTIONS *************************************************** */
+fn build_pratt() -> PrattParser<Rule> {
+    PrattParser::new()
+        .op(Op::infix(Rule::logical_or, Assoc::Left))
+        .op(Op::infix(Rule::logical_and, Assoc::Left))
+        .op(Op::infix(Rule::equal, Assoc::Right) | Op::infix(Rule::not_equal, Assoc::Right))
+        .op(Op::infix(Rule::greater_than_or_equal, Assoc::Left)
+            | Op::infix(Rule::less_than_or_equal, Assoc::Left)
+            | Op::infix(Rule::greater_than, Assoc::Left)
+            | Op::infix(Rule::less_than, Assoc::Left))
+        .op(Op::infix(Rule::bitwise_xor, Assoc::Left) | Op::infix(Rule::bitwise_or, Assoc::Left))
+        .op(Op::infix(Rule::bitwise_and, Assoc::Left))
+        .op(Op::infix(Rule::shift_right, Assoc::Left) | Op::infix(Rule::shift_left, Assoc::Left))
+        .op(Op::infix(Rule::plus, Assoc::Left) | Op::infix(Rule::minus, Assoc::Left))
+        .op(Op::infix(Rule::modulo, Assoc::Left)
+            | Op::infix(Rule::divide, Assoc::Left)
+            | Op::infix(Rule::multiply, Assoc::Left))
+        .op(Op::infix(Rule::exponent, Assoc::Right))
+}
+
+fn check_rule(pair: &Pair<'_, Rule>, expected_rule: Rule) -> Result<(), TimuParserError> {
+    let actual_rule = pair.as_rule();
+
+    if actual_rule != expected_rule {
+        return Err(TimuParserError::new(&pair, format!("Expected '{:?}', but found '{:?}'", expected_rule, actual_rule)));
+    }
+
+    Ok(())
+}
+
+fn to_string_vector(rule: Pair<Rule>) -> Vec<String> {
+    rule.into_inner()
+        .map(|item| item.as_str().to_string())
+        .collect()
+}
+
+fn parse_import(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    let mut inner_rules = pair.into_inner();
+
+    let path = to_string_vector(inner_rules.next().unwrap());
+    let name = match inner_rules.next() {
+        Some(rule) => rule.as_str().to_string(),
+        None => path.last().unwrap().to_string()
+    };
+    
+    Ok(Box::new(TimuAst::Import { path, name }))
+}
+
+fn parse_variable_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    let mut inner_rules = pair.into_inner();
+
+    let var_type = match inner_rules.next().unwrap().as_str() {
+        "mutvar" => VariableType::Mutable,
+        _ => VariableType::Immutable
+    };
+
+    let name = inner_rules.next().unwrap().as_str().to_string();
+    let type_annotation = to_string_vector(inner_rules
+        .next()
+        .unwrap());
+
+    Ok(Box::new(TimuAst::DefAssignment {
+        r#type: var_type,
+        type_annotation,
+        name,
+        data: parse_rule(inner_rules.next().unwrap())?
+    }))
+}
+
+fn parse_variable_assign(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    let mut inner_rules = pair.into_inner();
+    let name = inner_rules.next().unwrap().as_str().to_string();
+
+    Ok(Box::new(TimuAst::Assignment {
+        name,
+        data: parse_rule(inner_rules.next().unwrap())?
+    }))
+}
+
+fn parse_file(pairs: Pairs<'_, Rule>) -> Result<TimuAst, TimuParserError> {
+    let mut statements = Vec::new();
+
+    for pair in pairs {
+
+        /* End of file */
+        if pair.as_rule() == Rule::EOI {
+            continue;
+        }
+
+        statements.push(parse_rule(pair)?);
+    }
+
+    Ok(TimuAst::File { statements })
+}
+
+fn parse_string(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    check_rule(&pair, Rule::string)?;
+    Ok(Box::new(TimuAst::Primative(PrimativeType::String(pair.as_str().to_string()))))
+}
+
+fn parse_bool(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    check_rule(&pair, Rule::boolean)?;
+    Ok(Box::new(TimuAst::Primative(PrimativeType::Bool(match pair.as_str() {
+        "true" => true,
+        _ => false
+    }))))
+}
+
+fn parse_integer(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    check_rule(&pair, Rule::integer)?;
+
+    let integer_rule = pair.into_inner().next().unwrap();
+    let integer = match integer_rule.as_rule() {
+        Rule::integer_decimal => integer_rule.as_str().replace("_", "").parse::<i128>().unwrap(),
+        Rule::integer_binary => i128::from_str_radix(integer_rule.as_str(), 2).unwrap_or_default(),
+        Rule::integer_hexadecimal => i128::from_str_radix(integer_rule.as_str(), 16).unwrap_or_default(),
+        Rule::integer_octal => i128::from_str_radix(integer_rule.as_str(), 8).unwrap_or_default(),
+        Rule::integer_zero => 0,
+        _ => 0
+    };
+
+    if I8_RANGE.contains(&integer) {
+        Ok(Box::new(TimuAst::Primative(PrimativeType::I8(integer as i8))))
+    }
+    else if U8_RANGE.contains(&integer) {
+        Ok(Box::new(TimuAst::Primative(PrimativeType::U8(integer as u8))))
+    }
+    else if I16_RANGE.contains(&integer) {
+        Ok(Box::new(TimuAst::Primative(PrimativeType::I16(integer as i16))))
+    }
+    else if U16_RANGE.contains(&integer) {
+        Ok(Box::new(TimuAst::Primative(PrimativeType::U16(integer as u16))))
+    }
+    else if I32_RANGE.contains(&integer) {
+        Ok(Box::new(TimuAst::Primative(PrimativeType::I32(integer as i32))))
+    }
+    else if U32_RANGE.contains(&integer) {
+        Ok(Box::new(TimuAst::Primative(PrimativeType::U32(integer as u32))))
+    }
+    else if I64_RANGE.contains(&integer) {
+        Ok(Box::new(TimuAst::Primative(PrimativeType::I64(integer as i64))))
+    }
+    else if U64_RANGE.contains(&integer) {
+        Ok(Box::new(TimuAst::Primative(PrimativeType::U64(integer as u64))))
+    }
+
+    else {
+        Err(TimuParserError::new(&integer_rule, "Integer type not supported".to_string()))
+    }
+}
+
+fn parse_float(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    check_rule(&pair, Rule::float)?;
+    Ok(Box::new(TimuAst::Primative(PrimativeType::Float(pair.as_str().replace("_", "").parse::<f32>().unwrap_or_default()))))
+}
+
+fn parse_array(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    check_rule(&pair, Rule::array)?;
+    let into_inner = pair.into_inner();
+    let mut array = Vec::new();
+
+    for rule in into_inner {
+        array.push(parse_rule(rule)?);
+    }
+    Ok(Box::new(TimuAst::Primative(PrimativeType::Array(array))))
+}
+
+fn parse_unary(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    check_rule(&pair, Rule::unary)?;
+    let mut into_inner = pair.into_inner();
+    
+    let unary = into_inner.next().unwrap();
+    let unary = match unary.as_str() {
+        "-" => UnaryType::Minus,
+        "+" => UnaryType::Plus,
+        "!" => UnaryType::LogicalNot,
+        _ => return Err(TimuParserError::new(&unary, "Unsupported unary type".to_string()))
+    };
+
+    let expression = parse_rule(into_inner.next().unwrap())?;
+    Ok(Box::new(TimuAst::Unary(unary, expression)))
+}
+
+fn parse_rule(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    match pair.as_rule() {
+        Rule::import => parse_import(pair),
+
+        // Primative
+        Rule::string => parse_string(pair),
+        Rule::boolean => parse_bool(pair),
+        Rule::integer => parse_integer(pair),
+        Rule::float => parse_float(pair),
+        Rule::array => parse_array(pair),
+        
+        // Unary
+        Rule::unary => parse_unary(pair),
+        Rule::infix => parse_binary_operation(pair),
+
+        Rule::deffunc => parse_function_definition(pair),
+        Rule::func_call => parse_function_call(pair),
+
+        // Assignment
+        Rule::defvariable => parse_variable_definition(pair),
+        Rule::assignvariable => parse_variable_assign(pair),
+
+        _ => return Err(TimuParserError::new(&pair, "unknown syntax".to_string()))
+    }
+}
+
+fn parse_type_annotation(pair: Pair<'_, Rule>) -> Vec<String>  {
+    let mut type_info = Vec::new();
+
+    for type_rule in pair.into_inner() {
+        type_info.push(type_rule.as_str().to_string());
+    }
+
+    type_info
+}
+
+fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
+    let inner_rules = pair.into_inner();
+    let access = AccessType::Private;
+    let mut name = String::new();
+    let mut return_type = Vec::new();
+    let mut args = Vec::new();
+    let mut statements = Vec::new();
+
+    for rule in inner_rules {
+
+        match rule.as_rule() {
+            Rule::maybe_type_annotation => return_type = parse_type_annotation(rule),
+            Rule::ident => name = rule.as_str().to_string(),
+            Rule::deffuncarguments => {
+                
+                for arg_rule in rule.into_inner() {
+                    let mut arg_rule = arg_rule.into_inner();
+
+                    let mut func_argument = FuncArg {
+                        name: arg_rule.next().unwrap().as_str().to_string(),
+                        arg_type: TimuAstType::new()
+                    };
+
+                    for item in arg_rule {
+                        func_argument.arg_type = parse_type_annotation(item)
+                    }
+                    
+                    args.push(func_argument);
+                }
+            }
+            Rule::body_block => {
+                let pairs = rule.into_inner();
+                
+                for pair in pairs {
+                    statements.push(parse_rule(pair)?);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let body = Box::new(TimuAst::Block { statements });
+    Ok(Box::new(TimuAst::FunctionDefinition { access, name, args, body, return_type }))
+}
+
+fn parse_function_call(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
+    let mut inner_rules = pair.into_inner();
+    let name = inner_rules.next().unwrap().as_str().to_string();
+    let mut args = Vec::new();
+    
+    while let Some(rule) = inner_rules.next() {
+        args.push(parse_rule(rule)?);
+    }
+
+    Ok(Box::new(TimuAst::FunctionCall { compiler: false, name, args }))
+}
+
+fn build_binary(lhs: Result<Box<TimuAst>, TimuParserError>, op: Pair<'_, Rule>, rhs: Result<Box<TimuAst>, TimuParserError>) -> Result<Box<TimuAst>, TimuParserError> {
+    Ok(Box::new(TimuAst::BinaryOperation {
+        left: lhs?,
+        operator: op.as_str().chars().nth(0).unwrap(),
+        right: rhs?
+    }))
+}
+
+fn parse_binary_operation(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
+    let node = PRATT
+        .map_primary(|rule| { parse_rule(rule) })
+        .map_infix(build_binary)
+        .parse(pair.into_inner());
+
+    Ok(node?)
+}
+
+pub fn parser(code: &str) -> Result<TimuAst, TimuParserError> {
+    match TimuParser::parse(Rule::file, code) {
+        Ok(parse) => parse_file(parse),
+        Err(err) => {
+            let (line, column) = match err.line_col {
+                LineColLocation::Pos((line, column)) => (line, column),
+                LineColLocation::Span((line, column), _) => (line, column)
+            };
+
+            Err(TimuParserError::new_with_info(line, column, "could not parsed".to_string()))
+        }
+    }
+}
+
+/* *************************************************** TRAITS ***************************************************** */
+/* ************************************************* IMPLEMENTS *************************************************** */
+
+
 impl TimuParserError {
-    pub fn new(pair: Pair<'_, Rule>, error: &'static str) -> Self {
+    pub fn new(pair: &Pair<'_, Rule>, error: String) -> Self {
         let (line, column) = pair.line_col();
         Self {
             line,
@@ -26,7 +362,7 @@ impl TimuParserError {
         }
     }
 
-    pub fn new_with_info(line: usize, column: usize, error: &'static str) -> Self {
+    pub fn new_with_info(line: usize, column: usize, error: String) -> Self {
         Self {
             line,
             column,
@@ -47,204 +383,50 @@ impl TimuParserError {
     }
 }
 
-fn parse_import(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
-    let inner_rules = pair.into_inner();
-    let mut path = Vec::new();
-    let mut name = String::new();
+/* ********************************************** TRAIT IMPLEMENTS ************************************************ */
+/* ************************************************* MACROS CALL ************************************************** */
+/* ************************************************** UNIT TESTS ************************************************** */
+/* **************************************************************************************************************** */
 
-    for rule in inner_rules {
-        match rule.as_rule() {
-            Rule::importproperties => {
-                for property in rule.into_inner() {
-                    path.push(property.as_str().to_string())
-                }
-            },
-            Rule::importname  => name = rule.as_str().to_string(),
-            _ => return Err(TimuParserError::new(rule, "could not parse import statement"))
-        }
-    }
+#[cfg(test)]
+mod test {
 
-    if name.is_empty() {
-        name = path.last().unwrap().to_string();
-    }
-
-    Ok(Box::new(TimuAst::Import { path, name }))
-}
-
-fn parse_file(pairs: Pairs<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
-    let mut statements = Vec::new();
-
-    println!("{:#?}", &pairs);
-
-    for pair in pairs {
-        match pair.as_rule() {
-            Rule::def => statements.push(parse_func(pair)?),
-            Rule::import => statements.push(parse_import(pair)?),
-            Rule::EOI => {},
-            //Rule::assign_stmt => statements.push(parse_assignment(pair)?),
-            _ => return Err(TimuParserError::new(pair, "unknown syntax"))
-        }
-    }
-
-    Ok(Box::new(TimuAst::File { statements }))
-}
-/*
-fn parse_assignment(pairs: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
-    let mut rule = pairs.into_inner();
-    let variable = rule.next().unwrap();
-    let data = parse_expression(rule.next().unwrap())?;
-
-    let variable = match variable.as_rule() {
-        Rule::assign_name => Box::new(TimuAst::Ident(variable.as_str().to_string())),
-        _ => return Err(TimuParserError::new(variable, "variable name could not parsed"))
-    };
-    
-    Ok(Box::new(TimuAst::Assignment { variable, data }))
-}
-
-fn parse_primative(rule: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
-    let rule = rule.into_inner().next().unwrap();
-    match rule.as_rule() {
-        Rule::primative_integer => {
-            Ok(Box::new(TimuAst::I32(rule.as_str().parse::<i32>().unwrap())))
-        },
-        Rule::primative_string => {
-            let rule = rule.into_inner().peek().unwrap();
-            Ok(Box::new(TimuAst::String(rule.as_str().to_string())))
-        },
-        Rule::primative_string_inner => {
-            Ok(Box::new(TimuAst::String(rule.as_str().to_string())))
-        },
-        Rule::primative_bool => {
-            Ok(Box::new(TimuAst::Bool(match rule.as_str() {
-                "true" => true,
-                "false" => false,
-                _ => return Err(TimuParserError::new(rule, "could not parsed bool type"))
-            })))
-        },
-        _ => Err(TimuParserError::new(rule, "primative type could not parsed"))
-    }
-}
-
-fn parse_expression(rule: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
-
-    match rule.as_rule() {
-        Rule::primative => parse_primative(rule),
-        Rule::func_call => parse_function_call(rule),
-        Rule::binary_operation => {
-            let mut inner = rule.into_inner();
-
-            let left = parse_expression(inner.next().unwrap())?;
-            let operator = inner.next().unwrap().as_str().chars().next().unwrap();
-            let right = parse_expression(inner.next().unwrap())?;
-    
-            Ok(Box::new(TimuAst::BinaryOperation{ left, operator, right }))
-        }
-        Rule::expression => parse_expression(rule.into_inner().next().unwrap()),
-        _ => Err(TimuParserError::new(rule, "expression could not parsed"))
-    }
-}
-
-fn parse_function_call(rules: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
-    let mut is_compiler_function = false;
-    let mut name = String::new();
-    let mut args = Vec::new();
-
-    for rule in rules.into_inner() {
-        match rule.as_rule() {
-            Rule::func_call_compiler => {
-                is_compiler_function = true;
-            },
-            Rule::var_name => {
-                name = rule.as_str().to_string();
-            },
-            Rule::func_call_args => {
-                let args_inner = rule.into_inner();
-                for arg in args_inner {
-                    args.push(parse_expression(arg)?);
-                }
-            },
-            _ => panic!("123")
-        }
-    }
-
-    Ok(Box::new(TimuAst::FunctionCall {
-        compiler: is_compiler_function,
-        name,
-        args
-    }))
-}
-
-fn parse_statement(rule: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
-    let rule_type = rule.as_rule();
-    
-    match rule_type {
-        Rule::func_call => parse_function_call(rule),
-        Rule::assign_stmt => parse_assignment(rule),
-        _ => panic!("parse_function_call, {:#?}", rule)
-    }
-}
-*/
-
-fn parse_type_annotation(pair: Pair<'_, Rule>) -> Vec<String>  {
-    let mut type_info = Vec::new();
-
-    for type_rule in pair.into_inner() {
-        type_info.push(type_rule.as_str().to_string());
-    }
-
-    type_info
-}
-
-fn parse_func(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError>  {
-    let inner_rules = pair.into_inner();
-    let mut access = AccessType::Private;
-    let mut name = String::new();
-    let mut return_type = Vec::new();
-    let mut args = Vec::new();
-    let mut statements = Vec::new();
-
-    for rule in inner_rules {
-
-        match rule.as_rule() {
-            Rule::maybe_type_annotation => return_type = parse_type_annotation(rule),
-            Rule::ident => name = rule.as_str().to_string(),
-            //Rule::keyword_public => access = AccessType::Public,
-            Rule::defarguments => {
-                
-                for arg_rule in rule.into_inner() {
-                    println!("{:?}", arg_rule);                    
-                }
+    #[macro_export]
+    macro_rules! auto_parse {
+        ($name:ident, $code: expr) => {
+            #[test]
+            fn $name () -> Result<(), super::TimuParserError>  {
+                super::parser($code)?;
+                Ok(())
             }
-            Rule::body_block => {
-                let rules = rule.into_inner();
-                
-                for rule in rules {
-                    println!("{:?}", rule);
-                    /*match rule.as_rule() {
-                        Rule::statement => statements.push(parse_statement(rule.into_inner().peek().unwrap())?),
-                        _ => ()
-                    }*/
-                }
-            }
-            _ => {}
-        }
+        };
     }
 
-    let body = Box::new(TimuAst::Block { statements });
-    Ok(Box::new(TimuAst::FunctionDefinition { access, name, args, body, return_type }))
-}
+    /* Import tests */
+    auto_parse!(import_test_1, "@use(test);");
+    auto_parse!(import_test_2, "@use(test.rrr);");
+    auto_parse!(import_test_3, "@use(test.rrr.ffff);");
+    auto_parse!(import_test_4, "@use(test.rrr.ffff) as test;");
 
-pub fn parser(code: &str) -> Result<Box<TimuAst>, TimuParserError> {
-    match TimuParser::parse(Rule::file, code) {
-        Ok(parse) => parse_file(parse),
-        Err(err) => {
-            let (line, column) = match err.line_col {
-                LineColLocation::Pos((line, column)) => (line, column),
-                LineColLocation::Span((line, column), _) => (line, column)
-            };
+    /* Function tests */
+    auto_parse!(func_test_1, "func data() {}");
+    auto_parse!(func_test_2, "func data(test:i32) {}");
+    auto_parse!(func_test_3, "func data(test1:i32, test2:i32) {}");
+    auto_parse!(func_test_4, "func data(): i32 {}");
+    auto_parse!(func_test_5, "func data(test2:i32): i32 {}");
+    auto_parse!(func_test_6, "func data(test1:i32, test2:i32): i32 {}");
 
-            Err(TimuParserError::new_with_info(line, column, "could not parsed"))
-        }
-    }
+    /* Variable tests */
+    auto_parse!(var_test_1, "var test1 = 123;");
+    auto_parse!(var_test_2, "var test1: i8 = 123;");
+    auto_parse!(var_test_3, "var test1 = \"erhanbaris\";");
+    auto_parse!(var_test_4, "mutvar test1 = 123;");
+    auto_parse!(var_test_5, "mutvar test1: i32 = 123;");
+    auto_parse!(var_test_6, "mutvar test1 = \"erhanbaris\";");
+    auto_parse!(var_test_7, "mutvar test1 = true;");
+    auto_parse!(var_test_8, "mutvar test1 = 123.321;");
+    auto_parse!(var_test_9, "mutvar test1 = [];");
+    auto_parse!(var_test_10, "mutvar test1 = [1,2,3,4];");
+    auto_parse!(var_test_11, "mutvar test1 = [1, true, false, 1.1, \"test\", []];");
+    auto_parse!(var_test_12, "mutvar test1 = [0x123, 0o123, 0b010101];");
 }
