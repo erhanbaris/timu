@@ -13,7 +13,7 @@ importproperties            =  { importproperty ~ ("." ~ importproperty)* }
 importproperty              =  { typename_name }
 importname                  =  { typename_name }
 
-module                      = _{ import | documentation | defclass | def }
+module                      = _{ import | documentation | defclass | deffunc | defvariable }
 
 defclass                    =  { "class" ~ typename ~ defclassfields? ~ defclassproperties }
 defclassfields             =  { ("(" ~ (defclassfield  ~ ("," ~ defclassfield)*)? ~ ")")? }
@@ -21,44 +21,31 @@ defclassfield              =  { keyword ~ (typeunion | typename) }
 defclassproperties         =  { ("," ~ defclassproperty)* }
 defclassproperty           =  { keyword ~ (typeblock | typeunion | typename) }
 
-defprotocol                 =  { "protocol" ~ typename ~ defprotocolproperties }
-defprotocolproperties       =  { ("," ~ defprotocolproperty)* }
-defprotocolproperty         =  { keyword ~ (typeblock | typeunion | typename) }
-
-defimpl                     =  { "impl" ~ typename ~ defimplproperties }
-defimplproperties           =  { ("," ~ defimplproperty)* }
-defimplproperty             =  { keyword ~ (typeblock | typeunion | typename) }
-
-defuse                      =  { "use" ~ typename ~ defuseproperties }
-defuseproperties            =  { ("," ~ defuseproperty)* }
-defuseproperty              =  { keyword ~ typename }
-
 typeunion                   =  { typename ~ (plus ~ typename)+ }
 typeblock                   =  { "{" ~ typeblockcontents* ~ "}" }
-typeblockcontents           = _{ documentation | def }
+typeblockcontents           = _{ documentation | deffunc }
 
-def                         =  { "func" ~ ident ~ defarguments ~ maybe_type_annotation ~ body_block }
-defarguments                =  { ( "(" ~ (defargument ~ ("," ~ defargument)*)? ~ ")" )? }
-defargument                 =  { keyword ~ typename }
-defproperties               =  { ("," ~ defproperty)* }
-defproperty                 =  { keyword ~ (body_block | body_expression) }
+deffunc                     =  { "func" ~ ident ~ deffuncarguments ~ maybe_type_annotation ~ body_block }
+deffuncarguments            =  { ( "(" ~ (deffuncargument ~ ("," ~ deffuncargument)*)? ~ ")" )? }
+deffuncargument             =  { keyword ~ typename }
 
 body_block                  =  { "{" ~ body_expression* ~ "}" }
-body_expression             = _{ let_binding | expression }
+body_expression             = _{ defvariable | assignvariable | (expression ~ ";") }
 
 expression                  = _{ infix | expression_inner }
 call_remote                 =  { typename ~ "." ~ ident ~ "(" ~ call_args ~ ")" }
-call_local                  =  { local ~ "(" ~ call_args ~ ")" }
+func_call                   =  { local ~ "(" ~ call_args ~ ")" }
 index                       =  { (local | literal | braced_expression) ~ "." ~ ident }
 infix                       =  { expression_inner ~ (binary_operator ~ expression_inner)+ }
-expression_inner            = _{ call_remote | call_local | index | unary | literal | local | braced_expression }
+expression_inner            = _{ call_remote | func_call | index | unary | literal | local | braced_expression }
 call_args                   = _{ (expression ~ ("," ~ expression)*)? }
 braced_expression           = _{ "(" ~ expression ~ ")" }
-let_binding                 =  { "let" ~ ident ~ maybe_type_annotation ~ "=" ~ expression }
+defvariable                 =  { var_type ~ ident ~ maybe_type_annotation ~ "=" ~ expression ~ ";" }
+assignvariable                 =  { ident ~ "=" ~ expression ~ ";" }
 unary                       =  { unary_operator ~ (literal | local | braced_expression) }
 literal                     = _{ string | atom | boolean | float | integer | string | array | map | constructor }
 
-ident                       = @{ ("_" | LOWERCASE_LETTER) ~ (LETTER | NUMBER | "_")* ~ ("?")? }
+ident                       = @{ ("_" | LETTER) ~ (LETTER | NUMBER | "_")* ~ ("?")? }
 keyword                     = ${ ident ~ ":" }
 maybe_type_annotation       =  { ( ":" ~ typename )? }
 
@@ -149,3 +136,5 @@ boolean                     =  { boolean_true | boolean_false }
 boolean_true                =  { "true" }
 boolean_false               =  { "false" }
 
+
+var_type                    = { "mutvar" | "var" }

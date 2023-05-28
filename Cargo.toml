@@ -10,7 +10,13 @@ pest = "2.0"
 pest_derive = "2.0"
 clap = { version = "4.2.1", features = ["derive"] }
 cranelift-codegen = "0.94.0"
-miette = "5.7.0"
+miette = { version = "5.7.0", features = ["fancy"] }
 thiserror = "1.0.40"
+anyhow = "1.0.70"
+cranelift = "0.94.0"
+cranelift-module = "0.94.0"
+cranelift-jit = "0.94.0"
+cranelift-native = "0.94.0"
+lazy_static = "1.4.0"
 
 # inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm15-0"] }

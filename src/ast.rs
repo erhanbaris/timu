@@ -1,12 +1,18 @@
 
-type TimuAstType = Vec<String>;
+pub type TimuAstType = Vec<String>;
 
 #[derive(Debug)]
 pub enum TimuAst {
+    Import {
+        path: Vec<String>,
+        name: String
+    },
+    File {
+        statements: Vec<Box<TimuAst>>
+    },
     Ident(String),
-    String(String),
-    Bool(bool),
-    I32(i32),
+    Primative(PrimativeType),
+    Unary(UnaryType, Box<TimuAst>),
     FunctionCall {
         compiler: bool,
         name: String,
@@ -27,15 +33,14 @@ pub enum TimuAst {
     Block {
         statements: Vec<Box<TimuAst>>
     },
-    Import {
-        path: Vec<String>,
-        name: String
-    },
-    File {
-        statements: Vec<Box<TimuAst>>
+    DefAssignment {
+        r#type: VariableType,
+        type_annotation: Vec<String>,
+        name: String,
+        data: Box<TimuAst>
     },
     Assignment {
-        variable: Box<TimuAst>,
+        name: String,
         data: Box<TimuAst>
     }
 }
@@ -50,4 +55,33 @@ pub struct FuncArg {
 pub enum AccessType {
     Public,
     Private
+}
+
+#[derive(Debug)]
+pub enum PrimativeType {
+    String(String),
+    Bool(bool),
+    Array(Vec<Box<TimuAst>>),
+    I8(i8),
+    U8(u8),
+    I16(i16),
+    U16(u16),
+    I32(i32),
+    U32(u32),
+    I64(i64),
+    U64(u64),
+    Float(f32),
+}
+
+#[derive(Debug)]
+pub enum VariableType {
+    Immutable,
+    Mutable
+}
+
+#[derive(Debug)]
+pub enum UnaryType {
+    Plus,
+    Minus,
+    LogicalNot
 }

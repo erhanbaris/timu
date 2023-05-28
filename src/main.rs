@@ -1,6 +1,6 @@
 //use inkwell::context::Context;
 
-use crate::parser::parser;
+use crate::{parser::parser, codegen::CodeGen};
 
 mod parser;
 mod ast;
@@ -8,23 +8,21 @@ mod codegen;
 
 fn main() {
     let code = "
-@use(std);    
-@use(std) as s;
 
-func data(data: i32): test.test {
+var test = 123;
+
+func main(a: i32, b: i16): i32 {
 
 }
 ";
     let ast = parser(code);
-
     if let Err(error) = &ast {
         error.print(code);
     }
 
-    print!("AST: {:#?}", &ast);
+    //print!("AST: {:#?}", &ast);
 
-    // let compiler = CodeGen { };
+    let compiler = CodeGen { };
 
-    //compiler.compile(ast);
-    //compiler.dump();
+    compiler.compile(ast.unwrap()).unwrap();
 }
