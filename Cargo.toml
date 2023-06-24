@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 pest = "2.7"
-pest_derive = "2.0"
+pest_derive = "2.7"
 clap = { version = "4.2.1", features = ["derive"] }
 cranelift-codegen = "0.97.1"
 miette = { version = "5.7.0", features = ["fancy"] }
