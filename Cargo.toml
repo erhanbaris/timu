@@ -9,7 +9,7 @@ edition = "2021"
 pest = "2.0"
 pest_derive = "2.0"
 clap = { version = "4.2.1", features = ["derive"] }
-cranelift-codegen = "0.94.0"
+cranelift-codegen = "0.97.1"
 miette = { version = "5.7.0", features = ["fancy"] }
 thiserror = "1.0.40"
 anyhow = "1.0.70"
