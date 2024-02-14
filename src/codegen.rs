@@ -6,7 +6,7 @@ use std::{collections::HashMap};
 use codegen::Context;
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
-use cranelift_module::{DataContext, Module, DataId};
+use cranelift_module::{DataDescription, Module, DataId};
 
 use crate::{ast::{TimuAst, VariableType, AccessType, FuncArg, TimuAstType}, parser::TimuParserError};
 
@@ -55,7 +55,7 @@ impl TimuTool {
 
 pub struct TimuModule {
     pub module: JITModule,
-    pub data_ctx: DataContext,
+    pub data_ctx: DataDescription,
     pub codegen_ctx: codegen::Context,
     pub function_builder_ctx: FunctionBuilderContext,
 }
@@ -191,7 +191,7 @@ impl CodeGen {
 
             let mut module = TimuModule {
                 module: JITModule::new(builder),
-                data_ctx: DataContext::new(),
+                data_ctx: DataDescription::new(),
                 codegen_ctx: codegen::Context::new(),
                 function_builder_ctx: FunctionBuilderContext::new()
             };

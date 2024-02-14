@@ -5,6 +5,7 @@ use crate::{parser::parser, codegen::CodeGen};
 mod parser;
 mod ast;
 mod codegen;
+mod vm;
 
 fn main() {
     let code = "
