@@ -1,3 +1,7 @@
+use std::num::ParseIntError;
+
+use thiserror::Error;
+
 
 pub const NUM_REGS: u8 = 4;
 
@@ -29,12 +33,61 @@ pub const INERTIA_CALL: u8 = 0xF; // call function
 pub struct Instruction(u32);
 
 #[derive(Debug)]
-pub enum ParserError {
+pub enum Number {
+    Register(u8),
+    Immediate(u8),
+    Memory(u8)
+}
 
+#[derive(Error, Debug)]
+pub enum ParserError {
+    #[error("ExpectedNumber")]
+    ExpectedNumber
+}
+
+
+impl From<ParseIntError> for ParserError {
+    fn from(value: ParseIntError) -> Self {
+        ParserError::ExpectedNumber
+    }
 }
 
 #[derive(Debug)]
-pub struct Context;
+pub struct ParserContext {
+    opcodes: Vec<OpCode> 
+}
+
+#[derive(Debug)]
+pub enum OpCode {
+    Add {
+        left: Number,
+        right: Number,
+        target: Number
+    },
+
+    Sub {
+        left: Number,
+        right: Number,
+        target: Number
+    },
+
+    Mul {
+        left: Number,
+        right: Number,
+        target: Number
+    },
+
+    Div {
+        left: Number,
+        right: Number,
+        target: Number
+    },
+
+    Load {
+        target: Number,
+        value: Number
+    }
+}
 
 #[derive(Debug)]
 pub struct Parser;
@@ -59,97 +112,167 @@ impl Parser {
         content
     }
 
-    fn eat_text(content: &str) -> &str {
+    fn eat_text(content: &str) -> (&str, &str) {
         for (index, ch) in content.chars().enumerate() {
             if ch == ' ' {
-                return &content[index..]
+                return (&content[..index], &content[index..])
             }
         }
 
-        content
+        (content, content)
     }
 
-    fn parser_comment(line: &str) -> bool {
-        line.starts_with('#')
+    fn eat_number(content: &str) -> Result<(Number, &str), ParserError> {
+        let (number, content) = Self::eat_text(content);
+        if number.starts_with('r') {
+            Ok((Number::Register(number[1..].parse::<u8>()?), content))
+        }
+        else if number.starts_with('#') {
+            Ok((Number::Immediate(number[1..].parse::<u8>()?), content))
+        }
+        else if number.starts_with('@') {
+            Ok((Number::Memory(number[1..].parse::<u8>()?), content))
+        } else {
+            Err(ParserError::ExpectedNumber)
+        }
     }
 
-    fn parser_add(line: &str) -> bool {
-        line.starts_with("add")
+    fn parser_comment(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with('#'))
     }
 
-    fn parser_sub(line: &str) -> bool {
-        line.starts_with("sub")
-    }
-
-    fn parser_div(line: &str) -> bool {
-        line.starts_with("div")
-    }
-
-    fn parser_mul(line: &str) -> bool {
-        line.starts_with("mul")
-    }
-
-    fn parser_ltn(line: &str) -> bool {
-        line.starts_with("ltn")
-    }
-
-    fn parser_eql(line: &str) -> bool {
-        line.starts_with("eql")
-    }
-
-    fn parser_and(line: &str) -> bool {
-        line.starts_with("and")
-    }
-
-    fn parser_not(line: &str) -> bool {
-        line.starts_with("not")
-    }
-
-    fn parser_or(line: &str) -> bool {
-        line.starts_with("or")
-    }
-
-    fn parser_inc(line: &str) -> bool {
-        line.starts_with("inc")
-    }
-
-    fn parser_dec(line: &str) -> bool {
-        line.starts_with("dec")
-    }
-
-    fn parser_print(line: &str) -> bool {
-        line.starts_with("print")
-    }
-
-    fn parser_load(line: &str) -> bool {
-        if !line.starts_with("load") {
-            return false;
+    fn parser_add(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        if !line.starts_with("add") {
+            return Ok(false);
         }
 
-        Self::eat_whitespaces(Self::eat_until_space(line));
+        let (add, line) = Self::eat_text(line);
+        debug_assert_eq!(add, "add");
 
-        true
+        let (left, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (right, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (target, _) = Self::eat_number(Self::eat_whitespaces(line))?;
+
+        opcodes.push(OpCode::Add { left, right, target });
+        Ok(true)
     }
 
-    fn parser_goto(line: &str) -> bool {
-        line.starts_with("goto")
+    fn parser_sub(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        if !line.starts_with("sub") {
+            return Ok(false);
+        }
+
+        let (sub, line) = Self::eat_text(line);
+        debug_assert_eq!(sub, "sub");
+
+        let (left, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (right, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (target, _) = Self::eat_number(Self::eat_whitespaces(line))?;
+
+        opcodes.push(OpCode::Sub { left, right, target });
+        Ok(true)
     }
 
-    fn parser_if(line: &str) -> bool {
-        line.starts_with("if")
+    fn parser_div(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        if !line.starts_with("div") {
+            return Ok(false);
+        }
+
+        let (div, line) = Self::eat_text(line);
+        debug_assert_eq!(div, "div");
+
+        let (left, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (right, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (target, _) = Self::eat_number(Self::eat_whitespaces(line))?;
+
+        opcodes.push(OpCode::Div { left, right, target });
+        Ok(true)
     }
 
-    fn parser_return(line: &str) -> bool {
-        line.starts_with("ret")
+    fn parser_mul(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        if !line.starts_with("mul") {
+            return Ok(false);
+        }
+
+        let (mul, line) = Self::eat_text(line);
+        debug_assert_eq!(mul, "mul");
+
+        let (left, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (right, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (target, _) = Self::eat_number(Self::eat_whitespaces(line))?;
+
+        opcodes.push(OpCode::Mul { left, right, target });
+        Ok(true)
     }
 
-    fn parser_call(line: &str) -> bool {
-        line.starts_with("call")
+    fn parser_ltn(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("ltn"))
     }
 
-    pub fn compile(context: &str) -> Result<Context, ParserError> {
+    fn parser_eql(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("eql"))
+    }
+
+    fn parser_and(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("and"))
+    }
+
+    fn parser_not(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("not"))
+    }
+
+    fn parser_or(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("or"))
+    }
+
+    fn parser_inc(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("inc"))
+    }
+
+    fn parser_dec(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("dec"))
+    }
+
+    fn parser_print(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("print"))
+    }
+
+    fn parser_load(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        if !line.starts_with("load") {
+            return Ok(false);
+        }
+
+        let (load, line) = Self::eat_text(line);
+        debug_assert_eq!(load, "load");
+
+        let (target, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (value, _) = Self::eat_number(Self::eat_whitespaces(line))?;
+
+        opcodes.push(OpCode::Load { target, value });
+        Ok(true)
+    }
+
+    fn parser_goto(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("goto"))
+    }
+
+    fn parser_if(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("if"))
+    }
+
+    fn parser_return(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("ret"))
+    }
+
+    fn parser_call(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        Ok(line.starts_with("call"))
+    }
+
+    pub fn compile(context: &str) -> Result<ParserContext, ParserError> {
         let lines = context.lines();
-        let parsers: Vec<(&str, fn(&str) -> bool)> = vec![
+        let mut opcodes = Vec::new();
+
+        let parsers: Vec<(&str, fn(&mut Vec<OpCode>, &str) -> Result<bool, ParserError>)> = vec![
             ("COMMENT", Self::parser_comment),
             ("ADD", Self::parser_add),
             ("SUB", Self::parser_sub),
@@ -175,7 +298,7 @@ impl Parser {
             let mut line_parsed = false;
 
             for (name, parser) in parsers.iter() {
-                if parser(line) {
+                if parser(&mut opcodes, line)? {
                     println!("{} [{}]", name, line);
                     line_parsed = true;
                     break;
@@ -187,7 +310,7 @@ impl Parser {
             }
         }
 
-        Ok(Context)
+        Ok(ParserContext { opcodes })
     }
 }
 
@@ -199,8 +322,9 @@ mod test {
         fn test_1() -> Result<(), ParserError> {
             let parser = Parser::compile("# Hello
 # world
-add
- sub")?;
+load r1 #100
+add r1 r1 r1
+sub r1 r1 r1")?;
 
             Ok(())
         }
