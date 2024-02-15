@@ -29,6 +29,60 @@ pub const INERTIA_CALL: u8 = 0xF; // call function
 // https://en.wikibooks.org/wiki/Creating_a_Virtual_Machine/Register_VM_in_C
 // https://github.com/Conceptual-Inertia/Inertia/blob/master/Testcodes/Fibonacci.txt
 
+macro_rules! build_target_left_right_parser {
+    ($opcodes: expr, $line: expr, $filter: tt, $type_name: ident) => {
+        if !$line.starts_with($filter) {
+            return Ok(false);
+        }
+
+        let (add, line) = Self::eat_text($line);
+        debug_assert_eq!(add, $filter);
+
+        let (target, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (left, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (right, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        Self::no_more_left(Self::eat_comment(line))?;
+
+        $opcodes.push(OpCode:: $type_name { target, left, right });
+        return Ok(true);
+    };
+}
+
+macro_rules! build_value_target_parser {
+    ($opcodes: expr, $line: expr, $filter: tt, $type_name: ident) => {
+        if !$line.starts_with($filter) {
+            return Ok(false);
+        }
+
+        let (add, line) = Self::eat_text($line);
+        debug_assert_eq!(add, $filter);
+
+        let (target, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        let (value, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        Self::no_more_left(Self::eat_comment(line))?;
+
+        $opcodes.push(OpCode:: $type_name { target, value });
+        return Ok(true);
+    };
+}
+
+macro_rules! build_value_parser {
+    ($opcodes: expr, $line: expr, $filter: tt, $type_name: ident) => {
+        if !$line.starts_with($filter) {
+            return Ok(false);
+        }
+
+        let (add, line) = Self::eat_text($line);
+        debug_assert_eq!(add, $filter);
+
+        let (value, line) = Self::eat_number(Self::eat_whitespaces(line))?;
+        Self::no_more_left(Self::eat_comment(line))?;
+
+        $opcodes.push(OpCode:: $type_name { value });
+        return Ok(true);
+    };
+}
+
 #[derive(Debug)]
 pub struct Instruction(u32);
 
@@ -42,7 +96,10 @@ pub enum Number {
 #[derive(Error, Debug)]
 pub enum ParserError {
     #[error("ExpectedNumber")]
-    ExpectedNumber
+    ExpectedNumber,
+
+    #[error("SyntaxError")]
+    SyntaxError
 }
 
 
@@ -60,27 +117,74 @@ pub struct ParserContext {
 #[derive(Debug)]
 pub enum OpCode {
     Add {
+        target: Number,
         left: Number,
-        right: Number,
-        target: Number
+        right: Number
     },
 
     Sub {
+        target: Number,
         left: Number,
-        right: Number,
-        target: Number
+        right: Number
     },
 
     Mul {
+        target: Number,
         left: Number,
-        right: Number,
-        target: Number
+        right: Number
     },
 
     Div {
+        target: Number,
         left: Number,
-        right: Number,
-        target: Number
+        right: Number
+    },
+
+    Ltn {
+        target: Number,
+        left: Number,
+        right: Number
+    },
+
+    Eql {
+        target: Number,
+        left: Number,
+        right: Number
+    },
+
+    And {
+        target: Number,
+        left: Number,
+        right: Number
+    },
+
+    Or {
+        target: Number,
+        left: Number,
+        right: Number
+    },
+
+    Not {
+        target: Number,
+        value: Number
+    },
+
+    Inc {
+        target: Number,
+        value: Number
+    },
+
+    Dec {
+        target: Number,
+        value: Number
+    },
+
+    Print {
+        value: Number
+    },
+
+    Goto {
+        value: Number
     },
 
     Load {
@@ -118,8 +222,25 @@ impl Parser {
                 return (&content[..index], &content[index..])
             }
         }
+        
+        let new_content = &content[content.len()..];
+        (content, new_content)
+    }
 
-        (content, content)
+    fn eat_comment(content: &str) -> &str {
+        let content = Self::eat_whitespaces(content);
+
+        match content.starts_with('\'') {
+            true => &content[content.len()..],
+            false => content
+        }
+    }
+
+    fn no_more_left(content: &str) -> Result<(), ParserError> {
+        match content.len() {
+            0 => Ok(()),
+            _ => Err(ParserError::SyntaxError)
+        }
     }
 
     fn eat_number(content: &str) -> Result<(Number, &str), ParserError> {
@@ -138,122 +259,63 @@ impl Parser {
     }
 
     fn parser_comment(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with('#'))
+        Ok(line.starts_with('\''))
     }
 
     fn parser_add(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        if !line.starts_with("add") {
-            return Ok(false);
-        }
-
-        let (add, line) = Self::eat_text(line);
-        debug_assert_eq!(add, "add");
-
-        let (left, line) = Self::eat_number(Self::eat_whitespaces(line))?;
-        let (right, line) = Self::eat_number(Self::eat_whitespaces(line))?;
-        let (target, _) = Self::eat_number(Self::eat_whitespaces(line))?;
-
-        opcodes.push(OpCode::Add { left, right, target });
-        Ok(true)
+        build_target_left_right_parser!(opcodes, line, "add", Add);
     }
 
     fn parser_sub(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        if !line.starts_with("sub") {
-            return Ok(false);
-        }
-
-        let (sub, line) = Self::eat_text(line);
-        debug_assert_eq!(sub, "sub");
-
-        let (left, line) = Self::eat_number(Self::eat_whitespaces(line))?;
-        let (right, line) = Self::eat_number(Self::eat_whitespaces(line))?;
-        let (target, _) = Self::eat_number(Self::eat_whitespaces(line))?;
-
-        opcodes.push(OpCode::Sub { left, right, target });
-        Ok(true)
+        build_target_left_right_parser!(opcodes, line, "sub", Sub);
     }
 
     fn parser_div(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        if !line.starts_with("div") {
-            return Ok(false);
-        }
-
-        let (div, line) = Self::eat_text(line);
-        debug_assert_eq!(div, "div");
-
-        let (left, line) = Self::eat_number(Self::eat_whitespaces(line))?;
-        let (right, line) = Self::eat_number(Self::eat_whitespaces(line))?;
-        let (target, _) = Self::eat_number(Self::eat_whitespaces(line))?;
-
-        opcodes.push(OpCode::Div { left, right, target });
-        Ok(true)
+        build_target_left_right_parser!(opcodes, line, "div", Div);
     }
 
     fn parser_mul(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        if !line.starts_with("mul") {
-            return Ok(false);
-        }
-
-        let (mul, line) = Self::eat_text(line);
-        debug_assert_eq!(mul, "mul");
-
-        let (left, line) = Self::eat_number(Self::eat_whitespaces(line))?;
-        let (right, line) = Self::eat_number(Self::eat_whitespaces(line))?;
-        let (target, _) = Self::eat_number(Self::eat_whitespaces(line))?;
-
-        opcodes.push(OpCode::Mul { left, right, target });
-        Ok(true)
+        build_target_left_right_parser!(opcodes, line, "mul", Mul);
     }
 
     fn parser_ltn(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with("ltn"))
+        build_target_left_right_parser!(opcodes, line, "ltn", Ltn);
     }
 
     fn parser_eql(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with("eql"))
+        build_target_left_right_parser!(opcodes, line, "eql", Eql);
     }
 
     fn parser_and(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with("and"))
-    }
-
-    fn parser_not(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with("not"))
+        build_target_left_right_parser!(opcodes, line, "and", And);
     }
 
     fn parser_or(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with("or"))
+        build_target_left_right_parser!(opcodes, line, "or", Or);
+    }
+
+    fn parser_not(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
+        build_value_target_parser!(opcodes, line, "not", Not);
     }
 
     fn parser_inc(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with("inc"))
+        build_value_target_parser!(opcodes, line, "inc", Inc);
     }
 
     fn parser_dec(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with("dec"))
+        build_value_target_parser!(opcodes, line, "dec", Dec);
     }
 
     fn parser_print(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with("print"))
+        build_value_parser!(opcodes, line, "print", Print);
     }
 
     fn parser_load(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        if !line.starts_with("load") {
-            return Ok(false);
-        }
-
-        let (load, line) = Self::eat_text(line);
-        debug_assert_eq!(load, "load");
-
-        let (target, line) = Self::eat_number(Self::eat_whitespaces(line))?;
-        let (value, _) = Self::eat_number(Self::eat_whitespaces(line))?;
-
-        opcodes.push(OpCode::Load { target, value });
-        Ok(true)
+        build_value_target_parser!(opcodes, line, "load", Load);
     }
 
     fn parser_goto(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
-        Ok(line.starts_with("goto"))
+        build_value_parser!(opcodes, line, "goto", Goto);
     }
 
     fn parser_if(opcodes: &mut Vec<OpCode>, line: &str) -> Result<bool, ParserError>  {
@@ -320,8 +382,8 @@ mod test {
 
     #[test]
         fn test_1() -> Result<(), ParserError> {
-            let parser = Parser::compile("# Hello
-# world
+            let parser = Parser::compile("' Hello
+' world
 load r1 #100
 add r1 r1 r1
 sub r1 r1 r1")?;
