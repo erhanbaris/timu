@@ -1,6 +1,13 @@
 //use inkwell::context::Context;
 
+use std::fmt::Debug;
 
+use crate::x86_doc::{AmbitiousSyntax, Welcome10};
+
+mod x86_doc;
+
+
+#[derive(Debug)]
 pub enum Register {
     Eax = 0x0000,
     Ecx = 0x0001,
@@ -12,16 +19,19 @@ pub enum Register {
     Edi = 0x0111
 }
 
+#[derive(Debug)]
 pub enum Opcode {
     Mov
 }
 
+#[derive(Debug)]
 pub struct MODR {
     pub mod_ : u32,
     pub opcode: MODROpcode,
     pub r_m: u32
 }
 
+#[derive(Debug)]
 pub enum MODROpcode {
     Reg(Register),
     Opcode(Opcode)
@@ -42,6 +52,7 @@ impl MODR {
     }
 }
 
+#[derive(Debug)]
 pub struct RexBlock {
     pub b: bool,
     pub s: bool,
@@ -49,13 +60,18 @@ pub struct RexBlock {
     pub w: bool
 }
 
-impl RexBlock {
-    pub fn parseable(ins: u32) -> bool {
+trait Parse : Debug {
+    fn parseable(ins: u32) -> bool;
+    fn parse(ins: u32) -> Self;
+}
+
+impl Parse for RexBlock {
+    fn parseable(ins: u32) -> bool {
         static MASK: u32 = 0b1111_0000;
         (ins & MASK) == 0x40
     }
 
-    pub fn parse(ins: u32) -> Self {
+    fn parse(ins: u32) -> Self {
         let b: bool = (ins >> 0 & 1) != 0;  // extend register code
         let s: bool = (ins >> 1 & 1) != 0;
         let r: bool = (ins >> 2 & 1) != 0;
@@ -65,11 +81,18 @@ impl RexBlock {
     }
 }
 
-fn main() {
-    let mut pc: usize = 0;
-    let instructions: Vec<u32> = vec![0x49, 0x89, 0xc8];
+pub enum OpcodeSize {
+    One,
+    Two
+}
 
-    let mut pick = || -> u32 {
+fn main() {
+    let json_data: Welcome10 = serde_json::from_str(x86_doc::JSON_DATA).unwrap();
+
+    let mut pc: usize = 0;
+    let instructions: Vec<u32> = vec![0x0f, 0x05];
+
+    let mut pick     = || -> u32 {
         let ins = instructions[pc];
         pc += 1;
         ins
@@ -85,6 +108,11 @@ fn main() {
 
 
     let ins : u32 = pick();
+
+    if RexBlock::parseable(ins) {
+        let rex = RexBlock::parse(ins);
+        println!("rex: {:?}", rex);
+    }
 
     let mod_ = (MODR_M_MOD & ins) >> 6;
     let reg_opcode = (MODR_M_REG_OPCODE & ins) >> 3;
@@ -107,6 +135,28 @@ fn main() {
     let w: bool = (rex >> 3 & 1) != 0; // is 64-bit
 
     println!("Value: {:08b} B: {} S: {} R: {} W: {}", rex, b, s, r, w);
+
+    let ins : u32 = pick();
+
+    for one_byte in json_data.one_byte.iter() {
+        if ins == u32::from_str_radix(&one_byte.value, 16).unwrap() {
+
+            match &one_byte.entry {
+                x86_doc::OneByteEntry::FluffyEntry(entry) => {
+
+                    let full_mod_r_m = entry.r.is_some();
+
+                    println!("{}", match &entry.syntax {
+                        AmbitiousSyntax::TentacledSyntax(syntax) => syntax.mnem.clone(),
+                        AmbitiousSyntax::PurpleSyntaxArray(syntax_list) => {
+                            syntax_list.first().unwrap().mnem.clone()
+                        }
+                    });
+                },
+                x86_doc::OneByteEntry::PurpleEntryArray(entries) => todo!(),
+            };
+        }
+    }
 
     // b >> n & 1
 }
