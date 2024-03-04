@@ -8,15 +8,34 @@ mod x86_doc;
 
 
 #[derive(Debug)]
+#[repr(u8)]
 pub enum Register {
-    Eax = 0x0000,
-    Ecx = 0x0001,
-    Edx = 0x0010,
-    Ebx = 0x0011,
-    Rsp = 0x0100,
-    Ebp = 0x0101,
-    Esi = 0x0110,
-    Edi = 0x0111
+    Eax, // 0b0000_0000
+    Ecx, // 0b0000_0001
+    Edx, // 0b0000_0010
+    Ebx, // 0b0000_0011
+    Rsp, // 0b0000_0100
+    Ebp, // 0b0000_0101
+    Esi, // 0b0000_0110
+    Edi  // 0b0000_0111
+}
+
+impl From<u8> for Register {
+    fn from(value: u8) -> Self {
+        match value {
+            0b0000_0000 => Register::Eax,
+            0b0000_0001 => Register::Ecx,
+            0b0000_0010 => Register::Edx,
+            0b0000_0011 => Register::Ebx,
+            0b0000_0100 => Register::Rsp,
+            0b0000_0101 => Register::Ebp,
+            0b0000_0110 => Register::Esi,
+            0b0000_0111 => Register::Edi,
+            
+            // Default
+            _ => Register::Eax,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -26,9 +45,9 @@ pub enum Opcode {
 
 #[derive(Debug)]
 pub struct MODR {
-    pub mod_ : u32,
+    pub mod_ : u8,
     pub opcode: MODROpcode,
-    pub r_m: u32
+    pub r_m: u8
 }
 
 #[derive(Debug)]
@@ -37,47 +56,64 @@ pub enum MODROpcode {
     Opcode(Opcode)
 }
 
-const MODR_M_MOD: u32 = 0b1100_0000;
-const MODR_M_REG_OPCODE: u32 = 0b0011_1000;
-const MODR_M_R_M: u32 = 0b0000_0111;
+const MODR_M_MOD: u8 = 0b1100_0000;
+const MODR_M_REG_OPCODE: u8 = 0b0011_1000;
+const MODR_M_R_M: u8 = 0b0000_0111;
 
 impl MODR {
-    pub fn parse(ins: u32) -> Self {
-        let mod_: u32 = (MODR_M_MOD & ins) >> 6;
+    pub fn parse(ins: u8) -> Self {
+        let mod_: u8 = (MODR_M_MOD & ins) >> 6;
+
+        println!("mod_: {:#8b}", mod_);
+
+        match mod_ {
+            0x00 => println!("mod is 00"),
+            0x01 => println!("mod is 01"),
+            0x02 => println!("mod is 10"),
+            0x03 => {
+                println!("mod is 11");
+                let reg1 = Register::from((MODR_M_REG_OPCODE & ins) >> 3);
+                let reg2 = Register::from(MODR_M_R_M & ins);
+            },
+            _ => {
+                println!("mod is other");
+            }
+        };
+
         //let opcode = (MODR_M_REG_OPCODE & ins) >> 3;
         let opcode = MODROpcode::Opcode(Opcode::Mov);
-        let r_m: u32 = MODR_M_R_M & ins;
+        let r_m: u8 = MODR_M_R_M & ins;
 
         Self { mod_, opcode, r_m }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct RexBlock {
-    pub b: bool,
-    pub s: bool,
-    pub r: bool,
-    pub w: bool
+    pub b: bool, // extension to the MODRM.rm field or the SIB.base field
+    pub x: bool, // extension to the SIB.index
+    pub r: bool, // extension to the MODRM.reg
+    pub w: bool  // 64-bit operand size is used
 }
 
 trait Parse : Debug {
-    fn parseable(ins: u32) -> bool;
-    fn parse(ins: u32) -> Self;
+    fn parseable(ins: u8) -> bool;
+    fn parse(ins: u8) -> Self;
 }
 
 impl Parse for RexBlock {
-    fn parseable(ins: u32) -> bool {
-        static MASK: u32 = 0b1111_0000;
+    fn parseable(ins: u8) -> bool {
+        static MASK: u8 = 0b1111_0000;
         (ins & MASK) == 0x40
     }
 
-    fn parse(ins: u32) -> Self {
-        let b: bool = (ins >> 0 & 1) != 0;  // extend register code
-        let s: bool = (ins >> 1 & 1) != 0;
+    fn parse(ins: u8) -> Self {
+        let b: bool = (ins >> 0 & 1) != 0; // extend register code
+        let x: bool = (ins >> 1 & 1) != 0;
         let r: bool = (ins >> 2 & 1) != 0;
         let w: bool = (ins >> 3 & 1) != 0; // is 64-bit
 
-        Self { b, s, r, w }
+        Self { b, x, r, w }
     }
 }
 
@@ -90,41 +126,44 @@ fn main() {
     let json_data: Welcome10 = serde_json::from_str(x86_doc::JSON_DATA).unwrap();
 
     let mut pc: usize = 0;
-    let instructions: Vec<u32> = vec![0x0f, 0x05];
+    let instructions: Vec<u8> = vec![0x49, 0x89, 0xc8];
 
-    let mut pick     = || -> u32 {
+    let mut pick = || -> u8 {
         let ins = instructions[pc];
         pc += 1;
         ins
     };
 
-    const MODR_M_MOD: u32 = 0b1100_0000;
-    const MODR_M_REG_OPCODE: u32 = 0b0011_1000;
-    const MODR_M_R_M: u32 = 0b0000_0111;
+    const MODR_M_MOD: u8 = 0b1100_0000;
+    const MODR_M_REG_OPCODE: u8 = 0b0011_1000;
+    const MODR_M_R_M: u8 = 0b0000_0111;
 
-    const SIB_SCALE: u32 = 0b1100_0000;
-    const SIB_INDEX: u32 = 0b0011_1000;
-    const SIB_BASE: u32 = 0b0000_0111;
+    const SIB_SCALE: u8 = 0b1100_0000;
+    const SIB_INDEX: u8 = 0b0011_1000;
+    const SIB_BASE: u8 = 0b0000_0111;
 
 
-    let ins : u32 = pick();
+    let mut ins : u8 = pick();
+    let mut rex_block = RexBlock::default();
 
     if RexBlock::parseable(ins) {
-        let rex = RexBlock::parse(ins);
-        println!("rex: {:?}", rex);
+        rex_block = RexBlock::parse(ins);
+        println!("rex: {:?}", rex_block);
+
+        ins = pick();
     }
 
     let mod_ = (MODR_M_MOD & ins) >> 6;
     let reg_opcode = (MODR_M_REG_OPCODE & ins) >> 3;
-    let r_m: u32 = MODR_M_R_M & ins;
+    let r_m: u8 = MODR_M_R_M & ins;
 
     let scale = (SIB_SCALE & ins) >> 6;
     let index = (SIB_INDEX & ins) >> 3;
-    let base: u32 = SIB_BASE & ins;
+    let base: u8 = SIB_BASE & ins;
 
 
 
-    let opcode_test : u32 = 0b0000_1111;
+    let opcode_test : u8 = 0b0000_1111;
 
     println!("Value: {:08b}", (MODR_M_REG_OPCODE & opcode_test) >> 3);
 
@@ -136,10 +175,8 @@ fn main() {
 
     println!("Value: {:08b} B: {} S: {} R: {} W: {}", rex, b, s, r, w);
 
-    let ins : u32 = pick();
-
     for one_byte in json_data.one_byte.iter() {
-        if ins == u32::from_str_radix(&one_byte.value, 16).unwrap() {
+        if ins == u8::from_str_radix(&one_byte.value, 16).unwrap() {
 
             match &one_byte.entry {
                 x86_doc::OneByteEntry::FluffyEntry(entry) => {
@@ -156,6 +193,14 @@ fn main() {
                 x86_doc::OneByteEntry::PurpleEntryArray(entries) => todo!(),
             };
         }
+    }
+
+    println!("------------------------------------------------");
+
+    if rex_block.r || rex_block.b {
+        ins = pick();
+        MODR::parse(ins);
+
     }
 
     // b >> n & 1
