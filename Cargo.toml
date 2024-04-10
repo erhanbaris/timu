@@ -12,7 +12,7 @@ edition = "2021"
 #cranelift-codegen = "0.97.1"
 # miette = { version = "5.9.0", features = ["fancy"] }
 thiserror = "1.0.40"
-anyhow = "1.0.71"
+anyhow = "1.0.82"
 # cranelift = "0.97.1"
 # cranelift-module = "0.97.1"
 # cranelift-jit = "0.97.1"
