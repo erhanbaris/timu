@@ -2,9 +2,12 @@
 
 use std::fmt::Debug;
 
+use il::{generate, InsModRM, InsModRMMode, InsOpcode, InsPrefix, Instruction};
+
 use crate::x86_doc::{AmbitiousSyntax, Welcome10};
 
 mod x86_doc;
+mod il;
 
 
 #[derive(Debug)]
@@ -123,10 +126,24 @@ pub enum OpcodeSize {
 }
 
 fn main() {
+
+    let mut inst = Instruction::default();
+    let opcode = vec![0x03];
+    inst.opcode = InsOpcode(&opcode);
+    
+    let opcode = vec![0x03];
+    // inst.prefix = InsPrefix()
+
+    let mut modrm = InsModRM::default();
+    modrm.mode = InsModRMMode::RegisterRefToRegister(il::RegisterRef(il::NewRegister::RBX), il::NewRegister::RCX);
+    inst.modrm = Some(modrm);
+    println!("Buffer: {:02X?}", inst.build());
+
+    // generate(il::OpCode::Operation { operation: il::Operation::Add, target: il::Location::Register(il::Register::Eax), left: il::Location::Number(il::Number::I32(12345)), right: il::Location::Number(il::Number::I32(12345)) });
     let json_data: Welcome10 = serde_json::from_str(x86_doc::JSON_DATA).unwrap();
 
     let mut pc: usize = 0;
-    let instructions: Vec<u8> = vec![0x49, 0x89, 0xc8];
+    let instructions: Vec<u8> = vec![0x66, 0xb8, 0x12, 0x00];
 
     let mut pick = || -> u8 {
         let ins = instructions[pc];
@@ -146,8 +163,8 @@ fn main() {
     let mut ins : u8 = pick();
     let mut rex_block = RexBlock::default();
 
-    if RexBlock::parseable(ins) {
-        rex_block = RexBlock::parse(ins);
+    if RexBlock::parseable(0x67) {
+        rex_block = RexBlock::parse(0x48);
         println!("rex: {:?}", rex_block);
 
         ins = pick();
@@ -163,11 +180,11 @@ fn main() {
 
 
 
-    let opcode_test : u8 = 0b0000_1111;
+    let opcode_test : u8 = 0x67;
 
     println!("Value: {:08b}", (MODR_M_REG_OPCODE & opcode_test) >> 3);
 
-    let rex = 0x49;
+    let rex = 0x67;
     let b: bool = (rex >> 0 & 1) != 0;  // extend register code
     let s: bool = (rex >> 1 & 1) != 0;
     let r: bool = (rex >> 2 & 1) != 0;
@@ -175,25 +192,7 @@ fn main() {
 
     println!("Value: {:08b} B: {} S: {} R: {} W: {}", rex, b, s, r, w);
 
-    for one_byte in json_data.one_byte.iter() {
-        if ins == u8::from_str_radix(&one_byte.value, 16).unwrap() {
-
-            match &one_byte.entry {
-                x86_doc::OneByteEntry::FluffyEntry(entry) => {
-
-                    let full_mod_r_m = entry.r.is_some();
-
-                    println!("{}", match &entry.syntax {
-                        AmbitiousSyntax::TentacledSyntax(syntax) => syntax.mnem.clone(),
-                        AmbitiousSyntax::PurpleSyntaxArray(syntax_list) => {
-                            syntax_list.first().unwrap().mnem.clone()
-                        }
-                    });
-                },
-                x86_doc::OneByteEntry::PurpleEntryArray(entries) => todo!(),
-            };
-        }
-    }
+    
 
     println!("------------------------------------------------");
 
