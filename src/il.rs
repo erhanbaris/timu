@@ -1,6 +1,3 @@
-use std::borrow::Borrow;
-
-
 const MODR_M_MOD: u8 = 0b1100_0000;
 const MODR_M_REG_OPCODE: u8 = 0b0011_1000;
 const MODR_M_R_M: u8 = 0b0000_0111;
@@ -172,14 +169,13 @@ impl<'a> Instruction<'a> {
                     let reg2_type = REGISTER_TYPES[reg as usize];
                     is_64bit = reg1_type == RegisterType::_64Bit || reg2_type == RegisterType::_64Bit;
                     
-                    modrm_buffer |= 0b0000_0000;
                     modrm_buffer |= REGISTER_OPCODES[reg as usize] << 3;
                     modrm_buffer |= REGISTER_OPCODES[reg_ref as usize];
                 }
             }
         }
 
-        if (is_64bit) {
+        if is_64bit {
             buffer.push(0x48);
         }
 
@@ -187,7 +183,7 @@ impl<'a> Instruction<'a> {
 
         assert!(buffer.len() < 16, "Buffer exceed 15 bytes");
 
-        if (has_modrm_buffer) {
+        if has_modrm_buffer {
             buffer.push(modrm_buffer);
         }
 
@@ -234,7 +230,6 @@ pub enum OpCode {
         right: Location
     }
 }
-
 
 pub fn generate(opcode: OpCode) {
     match opcode {
