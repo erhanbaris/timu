@@ -2,13 +2,14 @@
 
 use std::fmt::Debug;
 
+use cpu::{Bus, Cpu, Memory, MemoryBuilder};
 use il::{generate, InsModRM, InsModRMMode, InsOpcode, InsPrefix, Instruction};
 
-use crate::x86_doc::{AmbitiousSyntax, Welcome10};
+use crate::x86_doc::Welcome10;
 
 mod x86_doc;
 mod il;
-
+mod cpu;
 
 #[derive(Debug)]
 #[repr(u8)]
@@ -126,6 +127,25 @@ pub enum OpcodeSize {
 }
 
 fn main() {
+    let mut memory = MemoryBuilder::new(100);
+    memory.write8(0x48);
+    memory.write8(0xB8);
+    memory.write64(0x10);
+
+    memory.write8(0x48);
+    memory.write8(0xB9);
+    memory.write64(0x05);
+
+    memory.write8(0x01);
+    memory.write8(0xC8);
+    // memory.write8(0xF4);
+
+    let bus = Bus::new(memory.generate());
+    let mut cpu = Cpu::new(bus);
+    cpu.boot();
+    cpu.dump();
+    println!("RAX: {}", cpu.registers[0]);
+    println!("RCX: {}", cpu.registers[1]);
 
     let mut inst = Instruction::default();
     let opcode = vec![0x03];
