@@ -28,13 +28,25 @@ struct ModRM {
     pub r_m: u8
 }
 
+struct OpcodeFormat {
+    pub name: &'static str,
+    pub code: u8,
+    pub contain_reg: bool,
+    pub has_modrm: bool
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Cpu {
     pub rip: u64, // Instruction pointer
     pub rflags: u64, // Flag registers
 
     pub registers: [u64; 16],
-    pub bus: Bus
+    pub bus: Bus,
+
+    rex_b: bool, // extend r/m
+    rex_x: bool,
+    rex_r: bool,
+    rex_w: bool, // is 64-bit
 }
 
 impl Cpu {
@@ -98,19 +110,37 @@ impl Cpu {
         value
     }
 
+    #[inline(always)]
+    fn opcode_reset(&mut self) {
+        self.rex_b = false; // extend register code
+        self.rex_x = false;
+        self.rex_r = false;
+        self.rex_w = false; // is 64-bit
+    }
+
+    fn build_reg(&self, reg: &mut u8) {
+        if self.rex_b {
+            *reg |= 0b0000_1000;
+        }
+    }
+
+    fn read_rex_memory(&mut self) -> u64 {
+        match self.rex_w {
+            true => self.read64(self.rip as usize),
+            false => self.read32(self.rip as usize) as u64
+        }
+    }
+
     pub fn execute(&mut self, opcode: u8) {
         let mut opcode = opcode;
-        let mut rex_b: bool = false; // extend register code
-        let mut rex_x: bool = false;
-        let mut rex_r: bool = false;
-        let mut rex_w: bool = false; // is 64-bit
+        self.opcode_reset();
 
         // Rex opcode
         if (opcode & REX_MASK) == 0x40 {
-            rex_b = (opcode >> 0 & 1) != 0; // extend register code
-            rex_x = (opcode >> 1 & 1) != 0;
-            rex_r = (opcode >> 2 & 1) != 0;
-            rex_w = (opcode >> 3 & 1) != 0; // is 64-bit
+            self.rex_b = (opcode >> 0 & 1) != 0; // extend register code
+            self.rex_x = (opcode >> 1 & 1) != 0;
+            self.rex_r = (opcode >> 2 & 1) != 0;
+            self.rex_w = (opcode >> 3 & 1) != 0; // is 64-bit
             opcode = self.fetch();
         }
         
@@ -118,11 +148,12 @@ impl Cpu {
             0 => {
                 // Empty
             }
+
             0x01 => { // Add
                 let modrm = self.modrm();
                 match modrm.mod_ {
                     0x03 /* 0011 */ => {
-                        if rex_w {
+                        if self.rex_w {
                             self.registers[modrm.reg_opcode as usize] += self.registers[modrm.r_m as usize]
                         } else {
                             self.registers[modrm.reg_opcode as usize] = (self.registers[modrm.reg_opcode as usize] as u32 + self.registers[modrm.r_m as usize] as u32) as u64
@@ -131,17 +162,35 @@ impl Cpu {
                     _ => todo!("not implemented")
                 }
             }
+
             0xb8..=0xbf => { // Mov
                 let mut reg = 0b0000_0111 & opcode;
 
-                if rex_b {
+                if self.rex_b {
                     reg |= 0b0000_1000;
                 }
 
-                if rex_w {
-                    self.registers[reg as usize] = self.read64(self.rip as usize);
-                } else {
-                    self.registers[reg as usize] = self.read32(self.rip as usize) as u64;
+                self.registers[reg as usize] = self.read_rex_memory();
+            }
+
+            0xc7 => { // Mov
+                let mut modrm = self.modrm();
+                match modrm.mod_ {
+                    0x03 /* 0011 */ => {
+
+                        let mut reg = 0b0000_0111 & modrm.r_m;
+
+                        if self.rex_b {
+                            modrm.r_m |= 0b0000_1000;
+                        }
+
+                        if self.rex_w {
+                            self.registers[modrm.r_m as usize] += self.read64(self.rip as usize)
+                        } else {
+                            self.registers[modrm.r_m as usize] = (self.registers[modrm.r_m as usize] as u32 + self.read32(self.rip as usize)) as u64
+                        }
+                    }
+                    _ => todo!("not implemented")
                 }
             }
 
@@ -350,7 +399,7 @@ impl MemoryBuilder {
 
 #[cfg(test)]
 mod test {
-    use crate::cpu::{REGISTER_R10, REGISTER_RAX, REGISTER_RCX};
+    use crate::cpu::{REGISTER_R10, REGISTER_R9, REGISTER_RAX, REGISTER_RCX};
 
     use super::{Bus, Cpu, MemoryBuilder};
 
@@ -395,17 +444,18 @@ mod test {
     }
 
     #[test]
-    fn rex_3() {
+    fn max_u64_check() {
         let mut memory = MemoryBuilder::new(100);
         /* mov $16, %r10d */
-        memory.write8(0x01);
-        memory.write8(0xD9);
+        memory.write8(0x49);
+        memory.write8(0xC7);
+        memory.write8(0xC2);
+        memory.write64(u64::MAX);
     
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
-        cpu.registers[REGISTER_R10] = 123456;
         cpu.boot();
         
-        assert_eq!(cpu.registers[8], 0x10);
+        assert_eq!(cpu.registers[REGISTER_R10], u64::MAX);
     }
 }
