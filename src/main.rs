@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 
-use cpu::{Bus, Cpu, Memory, MemoryBuilder};
+use cpu::{bus::Bus, memory::{Memory, MemoryBuilder}, Cpu};
 use il::{generate, InsModRM, InsModRMMode, InsOpcode, InsPrefix, Instruction};
 
 use crate::x86_doc::Welcome10;
