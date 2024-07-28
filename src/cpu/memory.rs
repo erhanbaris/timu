@@ -38,8 +38,8 @@ impl Memory {
 
     #[inline(always)]
     pub fn write16(&mut self, address: usize, value: u16) {
-        self.data[address] = (value as u8) & 0xFF;
-        self.data[address + 1] = (value >> 8) as u8 & 0xFF;
+        self.data[address] = value as u8;
+        self.data[address + 1] = (value >> 8) as u8;
     }
 
     #[inline(always)]
@@ -54,10 +54,10 @@ impl Memory {
 
     #[inline(always)]
     pub fn write32(&mut self, address: usize, value: u32) {
-        self.data[address] = (value as u8) & 0xFF;
-        self.data[address + 1] = (value >> 8) as u8 & 0xFF;
-        self.data[address + 2] = (value >> (2 * 8)) as u8 & 0xFF;
-        self.data[address + 3] = (value >> (3 * 8)) as u8 & 0xFF;
+        self.data[address] = value as u8;
+        self.data[address + 1] = (value >> 8) as u8;
+        self.data[address + 2] = (value >> (2 * 8)) as u8;
+        self.data[address + 3] = (value >> (3 * 8)) as u8;
     }
 
     #[inline(always)]
@@ -76,14 +76,14 @@ impl Memory {
 
     #[inline(always)]
     pub fn write64(&mut self, address: usize, value: u64) {
-        self.data[address] = (value as u8) & 0xFF;
-        self.data[address + 1] = (value >> 8) as u8 & 0xFF;
-        self.data[address + 2] = (value >> (2 * 8)) as u8 & 0xFF;
-        self.data[address + 3] = (value >> (3 * 8)) as u8 & 0xFF;
-        self.data[address + 4] = (value >> (4 * 8)) as u8 & 0xFF;
-        self.data[address + 5] = (value >> (5 * 8)) as u8 & 0xFF;
-        self.data[address + 6] = (value >> (6 * 8)) as u8 & 0xFF;
-        self.data[address + 7] = (value >> (7 * 8)) as u8 & 0xFF;
+        self.data[address] = value as u8;
+        self.data[address + 1] = (value >> 8) as u8;
+        self.data[address + 2] = (value >> (2 * 8)) as u8;
+        self.data[address + 3] = (value >> (3 * 8)) as u8;
+        self.data[address + 4] = (value >> (4 * 8)) as u8;
+        self.data[address + 5] = (value >> (5 * 8)) as u8;
+        self.data[address + 6] = (value >> (6 * 8)) as u8;
+        self.data[address + 7] = (value >> (7 * 8)) as u8;
     }
 }
 
@@ -111,16 +111,19 @@ impl MemoryBuilder {
         self.index += 1;
     }
 
+    #[allow(dead_code)]
     pub fn write16(&mut self, value: u16) {
         self.memory.write16(self.index, value);
         self.index += 2;
     }
-
+    
+    #[allow(dead_code)]
     pub fn write32(&mut self, value: u32) {
         self.memory.write32(self.index, value);
         self.index += 4;
     }
 
+    #[allow(dead_code)]
     pub fn write64(&mut self, value: u64) {
         self.memory.write64(self.index, value);
         self.index += 8;

@@ -20,16 +20,19 @@ impl Bus {
     }
 
     #[inline(always)]
+    #[allow(dead_code)]
     pub fn write8(&mut self, address: usize, value: u8) {
         self.memory.write8(address, value)
     }
 
     #[inline(always)]
+    #[allow(dead_code)]
     pub fn read16(&self, address: usize) -> u16 {
         self.memory.read16(address)
     }
 
     #[inline(always)]
+    #[allow(dead_code)]
     pub fn write16(&mut self, address: usize, value: u16) {
         self.memory.write16(address, value)
     }
