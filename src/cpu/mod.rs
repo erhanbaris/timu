@@ -84,28 +84,9 @@ pub enum TargetOperand {
 #[derive(Debug)]
 pub enum SourceOperand {
     Register(u8, RegisterType),
-    Immediate(ImmediateValue),
+    Immediate(u64),
     RegisterMemory(u8),
     Memory(u64)
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum ImmediateValue {
-    U8(u8),
-    U16(u16),
-    U32(u32),
-    U64(u64)
-}
-
-impl ImmediateValue {
-    pub fn to_u64(self) -> u64 {
-        match self {
-            ImmediateValue::U8(value) => value as u64,
-            ImmediateValue::U16(value) => value as u64,
-            ImmediateValue::U32(value) => value as u64,
-            ImmediateValue::U64(value) => value,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -201,8 +182,10 @@ impl Cpu {
 
         /* Mov */
         self.add_8bit_opcode(Opcode::Mov, 0x88, OperatorType::FromModrmRM | OperatorType::Reg8, OperatorType::Reg8 | OperatorType::FromModrmREG);
+        self.add_opcode(Opcode::Mov, 0x89, OperatorType::FromModrmRM | *OPERATOR_TYPE_REG_16_32_64, *OPERATOR_TYPE_REG_16_32_64 | OperatorType::FromModrmREG);
         self.add_opcode(Opcode::Mov, 0xc7, OperatorType::FromModrmRM | *OPERATOR_TYPE_REG_16_32_64, *OPERATOR_TYPE_IMM_16_32_64);
         self.add_opcode_list(Opcode::Mov, 0xb8, OperatorType::FromOpcode, *OPERATOR_TYPE_IMM_16_32_64);
+        self.add_8bit_opcode_list(Opcode::Mov, 0xb0, OperatorType::FromOpcode, OperatorType::CanImmediate8);
 
         self.add_opcode(Opcode::Nop, 0xF4, OperatorType::None, OperatorType::None);
         self.add_opcode(Opcode::Nop, 0x90, OperatorType::None, OperatorType::None);
@@ -218,6 +201,10 @@ impl Cpu {
 
     fn add_opcode_list(&mut self, opcode: Opcode, code: u8, target_info: OperatorType, source_info: OperatorType) {
         self.add_opcode_format(opcode, code, true, target_info, source_info, false)
+    }
+
+    fn add_8bit_opcode_list(&mut self, opcode: Opcode, code: u8, target_info: OperatorType, source_info: OperatorType) {
+        self.add_opcode_format(opcode, code, true, target_info, source_info, true)
     }
 
     fn add_opcode_format(&mut self, opcode: Opcode, code: u8, contain_reg: bool, target_info: OperatorType, source_info: OperatorType, _is8bit: bool) {
@@ -261,7 +248,10 @@ impl Cpu {
         ModRM {
             mod_: (MODR_M_MOD & ins) >> 6,
             reg_opcode: (MODR_M_REG_OPCODE & ins) >> 3,
-            r_m: MODR_M_R_M & ins
+            r_m: match self.rex_b {
+                true => (MODR_M_R_M & ins) | 0b0000_1000,
+                false => MODR_M_R_M & ins
+            }
         }
     }
 
@@ -313,7 +303,7 @@ impl Cpu {
 
     fn process_sib_byte(&mut self, bit_mode: RegisterType, sib: Sib, modrm: &ModRM, target_info: OperatorType, source_info: OperatorType) {
         if sib.base == 0b0000_0101 {
-            let address = self.read_next64();
+            let address = self.read_next32() as u64;
 
             if target_info.intersects(OperatorType::FromModrmRM) {
                 self.target_operand = TargetOperand::Memory(address);
@@ -328,12 +318,21 @@ impl Cpu {
             } else if source_info.intersects(OperatorType::FromModrmREG) {
                 self.source_operand = SourceOperand::Register(modrm.reg_opcode, bit_mode);
             }
+        } else {
+
+        }
+    }
+
+    fn build_target_operator(&self, operator: u8) -> u8 {
+        match self.rex_b {
+            true => operator | 0b0000_1000,
+            false => operator
         }
     }
 
     fn process(&mut self, byte: u8) -> Opcode {
 
-        println!("Searching opcode: {}", byte);
+        println!("Searching opcode: 0x{:X?}", byte);
         
         let OpcodeFormat { opcode, target_info, source_info, _is8bit} = self.opcode_formats[&byte];
         
@@ -349,14 +348,17 @@ impl Cpu {
 
             let modrm = self.modrm();
             match modrm.mod_ {
-                0x00  /* 0000 */ => {
+                0x00 |
+                0x01 |
+                0x10
+                 => {
 
                     if modrm.r_m == 0b0000_0100 { // SIB calculation
                         println!("Need SIB opcode");
                         let sib = self.sib();
                         self.process_sib_byte(bit_mode, sib, &modrm, target_info, source_info);
                     } else if modrm.r_m == 0b0000_0101 { // RIP/EIP
-                        println!("Need IMMEDIATE opco|de")
+                        println!("Need IMMEDIATE opcode")
                     } else {
                         if target_info.intersects(OperatorType::FromModrmREG) {
                             self.target_operand = TargetOperand::Register(modrm.reg_opcode, bit_mode);
@@ -389,12 +391,13 @@ impl Cpu {
                         self.source_operand = SourceOperand::Register(modrm.reg_opcode, bit_mode);
                     }
                 }
-                _ => todo!("not implemented")
+
+                _ => todo!("not implemented (0x{:X?})", modrm.mod_)
             }
         }
 
         if target_info.intersects(OperatorType::FromOpcode) {
-            self.target_operand = TargetOperand::Register(0b0000_0111 & byte, bit_mode);
+            self.target_operand = TargetOperand::Register(self.build_target_operator(0b0000_0111 & byte), bit_mode);
         }
 
         // TODO: maybe not need it
@@ -403,25 +406,69 @@ impl Cpu {
         }
 
         if source_info.intersects(OperatorType::CanImmediate8) && !self.operand_16bit {
-            self.source_operand = SourceOperand::Immediate(ImmediateValue::U8(self.read_next8()))
+            self.source_operand = SourceOperand::Immediate(self.read_next8() as u64)
         }
 
         if source_info.intersects(OperatorType::CanImmediate16) && self.operand_16bit {
-            self.source_operand = SourceOperand::Immediate(ImmediateValue::U16(self.read_next16()))
+            self.source_operand = SourceOperand::Immediate(self.read_next16() as u64)
         }
 
         if source_info.intersects(OperatorType::CanImmediate32) && !self.operand_16bit {
             self.source_operand = match self.rex_w {
-                true => SourceOperand::Immediate(ImmediateValue::U64(self.read_next64())),
-                false => SourceOperand::Immediate(ImmediateValue::U32(self.read_next32()))
+                true => SourceOperand::Immediate(self.read_next64() as u64),
+                false => SourceOperand::Immediate(self.read_next32() as u64)
             }
         }
 
         if target_info.intersects(OperatorType::RAX) {
-            self.target_operand = TargetOperand::Register(0, bit_mode);
+            self.target_operand = TargetOperand::Register(self.build_target_operator(0), bit_mode);
         }
 
         opcode
+    }
+
+    fn get_source_operator(&mut self) -> u64 {
+        match self.source_operand {
+            SourceOperand::Register(source_register, bit_mode) => {
+                if bit_mode == RegisterType::_8Bit {
+                    if source_register > 3 {
+                        let value = self.registers[(source_register % 4) as usize]; // 8bit high register
+                        (value & 0x0000_0000_0000_ff00) >> 8 // We only need high bits
+                    } else {
+                        let value = self.registers[(source_register) as usize]; // 8bit low register
+                        value & 0x0000_0000_0000_00ff // We only need low bits
+                    }
+
+                } else {
+                    self.registers[source_register as usize]
+                }
+            },
+            SourceOperand::Immediate(immediate) => immediate,
+            SourceOperand::Memory(memory) => self.read64(memory),
+            SourceOperand::RegisterMemory(pointer) => self.read64(self.registers[pointer as usize]),
+        }
+    }
+
+    fn get_target_register(&mut self, register: u8, bit_mode: RegisterType, source_value: u64) -> (u8, u64) {
+        let mut register = register;
+        let mut value = self.registers[register as usize];
+        let value = match bit_mode {
+            RegisterType::_8Bit => {
+                match register > 3 {
+                    true  => {
+                        register = register % 4; // First four register are real ones
+                        value = self.registers[register as usize];                                        
+                        (value & 0xffff_ffff_ffff_00ff) | (source_value << 8)
+                    }, // High byte
+                    false => (value & 0xffff_ffff_ffff_ff00) | source_value  // Low byte
+                }
+            },
+            RegisterType::_16Bit => (value & 0xffff_ffff_ffff_0000) | source_value,
+            RegisterType::_32Bit => (value & 0xffff_ffff_0000_0000) | source_value,
+            RegisterType::_64Bit => source_value
+        };
+
+        (register, value)
     }
 
     pub fn execute(&mut self, opcode: u8) {
@@ -446,16 +493,14 @@ impl Cpu {
 
         match opcode {
             Opcode::Add => {
-                let source_value = match self.source_operand {
-                    SourceOperand::Register(source_register, bit_mode) => self.registers[source_register as usize],
-                    SourceOperand::Immediate(immediate) => immediate.to_u64(),
-                    SourceOperand::Memory(memory) => self.read64(memory),
-                    SourceOperand::RegisterMemory(pointer) => self.read64(self.registers[pointer as usize]),
-                };
+                let source_value = self.get_source_operator();
 
                 match self.target_operand {
                     TargetOperand::RegisterMemory(_) => todo!(),
-                    TargetOperand::Register(register, bit_mode) => self.registers[register as usize] +=  source_value,
+                    TargetOperand::Register(register, bit_mode) => {
+                        let (register, value) = self.get_target_register(register, bit_mode, source_value);
+                        self.registers[register as usize] +=  value
+                    },
                     TargetOperand::Memory(address) => {
                         let current = self.read64(address);
                         self.write64(address, current + source_value)
@@ -463,47 +508,12 @@ impl Cpu {
                 }
             },
             Opcode::Mov => {
-                let source_value = match self.source_operand {
-                    SourceOperand::Register(source_register, bit_mode) => {
-                        if bit_mode == RegisterType::_8Bit {
-                            if source_register > 3 {
-                                let value = self.registers[(source_register % 4) as usize]; // 8bit high register
-                                (value & 0x0000_0000_0000_ff00) >> 8 // We only need high bits
-                            } else {
-                                let value = self.registers[(source_register) as usize]; // 8bit low register
-                                value & 0x0000_0000_0000_00ff // We only need low bits
-                            }
-
-                        } else {
-                            self.registers[source_register as usize]
-                        }
-                    },
-                    SourceOperand::Immediate(immediate) => immediate.to_u64(),
-                    SourceOperand::Memory(memory) => self.read64(memory),
-                    SourceOperand::RegisterMemory(pointer) => self.read64(self.registers[pointer as usize]),
-                };
+                let source_value = self.get_source_operator();
 
                 match self.target_operand {
                     TargetOperand::RegisterMemory(_) => todo!(),
                     TargetOperand::Register(register, bit_mode) => {
-                        let mut register = register;
-                        let mut value = self.registers[register as usize];
-                        let value = match bit_mode {
-                            RegisterType::_8Bit => {
-                                match register > 3 {
-                                    true  => {
-                                        register = register % 4; // First four register are real ones
-                                        value = self.registers[register as usize];                                        
-                                        (value & 0xffff_ffff_ffff_00ff) | (source_value << 8)
-                                    }, // High byte
-                                    false => (value & 0xffff_ffff_ffff_ff00) | source_value  // Low byte
-                                }
-                            },
-                            RegisterType::_16Bit => (value & 0xffff_ffff_ffff_0000) | source_value,
-                            RegisterType::_32Bit => (value & 0xffff_ffff_0000_0000) | source_value,
-                            RegisterType::_64Bit => source_value
-                        };
-
+                        let (register, value) = self.get_target_register(register, bit_mode, source_value);
                         self.registers[register as usize] = value
                     },
                     TargetOperand::Memory(address) => self.write64(address, source_value),
