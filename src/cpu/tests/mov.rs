@@ -161,7 +161,7 @@ mod test {
     }
     
 
-    /*#[test]
+    #[test]
     fn rex_1() {
         let mut memory = MemoryBuilder::new(100);
         /* mov $16, %rax */
@@ -199,14 +199,14 @@ mod test {
         let mut memory = MemoryBuilder::new(100);
         /* mov $16, %r10d */
         memory.write8(0x41);
-        memory.write8(0xB8);
-        memory.write64(0x10);
+        memory.write8(0xBA);
+        memory.write32(0x10);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
         cpu.boot();
 
-        assert_eq!(cpu.registers[8], 0x10);
+        assert_eq!(cpu.registers[REGISTER_R10], 0x10);
     }
 
     #[test]
@@ -223,26 +223,6 @@ mod test {
         cpu.boot();
 
         assert_eq!(cpu.registers[REGISTER_R10], u64::MAX);
-    }
-
-    #[test]
-    fn max_u64_check_2() {
-        let mut memory: MemoryBuilder = MemoryBuilder::new(100);
-        /* mov $18446744073709551615, %r10d */
-        memory.write8(0x41);
-        memory.write8(0xBA);
-        memory.write64(u64::MAX);
-
-        /* mov $0, %r10d */
-        memory.write8(0x41);
-        memory.write8(0xBA);
-        memory.write64(0);
-
-        let bus = Bus::new(memory.generate());
-        let mut cpu = Cpu::new(bus);
-        cpu.boot();
-
-        assert_eq!(cpu.registers[REGISTER_R10], 0);
     }
 
     #[test]
@@ -285,5 +265,22 @@ mod test {
         cpu.boot();
 
         assert_eq!(cpu.registers[REGISTER_RSI], 30);
-    }*/
+    }
+
+    #[test]
+    fn mov_data_to_pointer() {
+        let mut memory: MemoryBuilder = MemoryBuilder::new(100);
+        /* mov $30, 10 */
+        memory.write8(0xc7);
+        memory.write8(0x04);
+        memory.write8(0x25);
+        memory.write32(22);
+        memory.write32(100);
+
+        let bus = Bus::new(memory.generate());
+        let mut cpu = Cpu::new(bus);
+        cpu.boot();
+
+        assert_eq!(cpu.bus.read64(22), 100);
+    }
 }
