@@ -471,6 +471,11 @@ impl Cpu {
         (register, value)
     }
 
+    pub fn overflow_checked_add(&mut self, left: u64, right: u64) -> u64 {
+        let (sum, overflowed) = left.overflowing_add(right);
+        sum
+    }
+
     pub fn execute(&mut self, opcode: u8) {
         let mut opcode = opcode;
         self.opcode_reset();
@@ -499,11 +504,13 @@ impl Cpu {
                     TargetOperand::RegisterMemory(_) => todo!(),
                     TargetOperand::Register(register, bit_mode) => {
                         let (register, value) = self.get_target_register(register, bit_mode, source_value);
-                        self.registers[register as usize] +=  value
+                        self.registers[register as usize] = self.overflow_checked_add(value, self.registers[register as usize])
                     },
+                    
                     TargetOperand::Memory(address) => {
                         let current = self.read64(address);
-                        self.write64(address, current + source_value)
+                        let sum = self.overflow_checked_add(current, source_value);
+                        self.write64(address, sum)
                     },
                 }
             },
