@@ -1,7 +1,8 @@
 use core::str;
 use std::{ffi::CStr, fs};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use super::{BitMode, BufferReader, Endianness};
+use super::{BinaryFormat, BinaryFormatError, BitMode, BufferReader, Endianness};
 
 #[repr(u32)]
 #[derive(Debug, Default)]
@@ -45,9 +46,17 @@ pub enum FileType {
 
 }
 
+#[repr(u32)]
+#[derive(TryFromPrimitive)]
+#[derive(Debug, Default)]
+pub enum LoadCommandType {
+    #[default]
+    Segment = 0x00000019
+}
+
 #[derive(Debug, Default)]
 pub struct LoadCommand {
-    pub command_type: u32,
+    pub command_type: LoadCommandType,
     pub command_size: u32,
 }
 
@@ -65,58 +74,59 @@ pub struct MachOHeader {
     pub load_commands: Vec<LoadCommand>
 }
 
-
 impl MachOHeader {
     pub fn build(&self) -> Vec<u8> {
         Vec::new()
     }
 
-    pub fn parse(&mut self, reader: &mut BufferReader) {
-        self.magic_number = reader.fetch_u32();
+    pub fn parse(&mut self, reader: &mut BufferReader) -> Result<(), BinaryFormatError> {
+        self.magic_number = reader.fetch_u32()?;
         self.bit_mode = match self.magic_number {
             0xfeedface => BitMode::_32,
             0xfeedfacf => BitMode::_64,
             _ => panic!("Unknown format")
         };
-        self.cpu_type = unsafe { core::mem::transmute::<u32, CpuType>((reader.fetch_u32() << 8) >> 8) };
-        self.cpu_subtype = reader.fetch_u32();
-        self.file_type = unsafe { core::mem::transmute::<u32, FileType>(reader.fetch_u32()) };
-        self.number_of_load_commands = reader.fetch_u32();
-        self.size_of_load_commands = reader.fetch_u32();
-        self.flags = reader.fetch_u32();
+        self.cpu_type = unsafe { core::mem::transmute::<u32, CpuType>((reader.fetch_u32()? << 8) >> 8) };
+        self.cpu_subtype = reader.fetch_u32()?;
+        self.file_type = unsafe { core::mem::transmute::<u32, FileType>(reader.fetch_u32()?) };
+        self.number_of_load_commands = reader.fetch_u32()?;
+        self.size_of_load_commands = reader.fetch_u32()?;
+        self.flags = reader.fetch_u32()?;
 
         if self.bit_mode == BitMode::_64 {
             reader.fetch_u32();
         }
 
         for _ in 0..self.number_of_load_commands {
-            self.load_commands.push(LoadCommand {
-                command_type: reader.fetch_u32(),
-                command_size: reader.fetch_u32()
-            })
+            let command_type = LoadCommandType::try_from(reader.fetch_u32()?).map_err(|_| BinaryFormatError::InvalidType)?;
+
+            if let command_type = LoadCommandType::Segment {
+                let command_size = reader.fetch_u32()?;
+                let segment_name = reader.fetch_slice(8, 8 + 16);
+                let address = reader.parse_size(BitMode::_64);
+            }
         }
+
+        Ok(())
     }
 }
 
 #[derive(Debug, Default)]
-pub struct MachOFormat {
-    pub header: MachOHeader
+pub struct MachOFormat<'a> {
+    pub header: MachOHeader,
+    pub buffer: &'a [u8]
 }
 
-impl MachOFormat {
-    pub fn parse(contents: &[u8]) -> Self {
+impl<'a> BinaryFormat<'a> for MachOFormat<'a> {
+    fn parse(reader: &'a mut BufferReader) -> Result<Self, super::BinaryFormatError> where Self: Sized {
         let mut header = MachOHeader::default();
-        let mut reader = BufferReader::new(contents);
+        
+        header.parse(reader);
 
-        header.parse(&mut reader);
-
-        Self { header }
+        Ok(Self { header, buffer: reader.read_remaining() })        
     }
-}
 
-pub fn parse(filename: &str) {
-    let contents = fs::read(filename).expect("Should have been able to read the file");
-
-    let elf = MachOFormat::parse(&contents);
-    println!("Elf :{:#?}", elf);
+    fn get_codes(&self) -> &'a [u8] {
+        self.buffer
+    }
 }

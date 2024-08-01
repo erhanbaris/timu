@@ -1,15 +1,19 @@
 use std::ffi::CStr;
 
 pub mod elf;
-// pub mod mach_o;
+pub mod mach_o;
 
 use elf::ElfFormat;
+use mach_o::MachOFormat;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum BinaryFormatError {
     #[error("Binary format not valid")]
     MalformedBinary(#[from] std::str::Utf8Error),
+
+    #[error("Invalid type")]
+    InvalidType,
 
     #[error("Invalid format")]
     InvalidFormat,
@@ -70,6 +74,11 @@ pub struct BufferReader<'a> {
 impl<'a> BufferReader<'a> {
     pub fn new(data: &'a [u8]) -> Self {
         Self { data, index: 0 }
+    }
+
+    pub fn fetch_slice(&mut self, start: usize, end: usize) -> Result<&'a [u8], BinaryFormatError> {
+        self.index = end + 1;
+        Ok(&self.data[start..end])
     }
 
     pub fn fetch_u8(&mut self) -> Result<u8, BinaryFormatError> {
@@ -161,7 +170,7 @@ pub trait BinaryFormat<'a> {
 pub fn parse(filename: &str) -> Vec<u8>  {
     let contents = std::fs::read(filename).expect("Should have been able to read the file");
     let mut reader = BufferReader::new(&contents[..]);
-    let binary = ElfFormat::parse(&mut reader).unwrap();
+    let binary = MachOFormat::parse(&mut reader).unwrap();
     //println!("Elf :{:#?}", &binary);
 
     binary.get_codes().to_vec()
