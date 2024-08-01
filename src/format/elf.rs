@@ -1,9 +1,8 @@
 use core::str;
-use std::fs;
 
 use crate::format::str_from_null_terminated_utf8;
 
-use super::{BitMode, BufferReader, Endianness, Size};
+use super::{BinaryFormat, BinaryFormatError, BitMode, BufferReader, Endianness, Size};
 
 
 /* Enums */
@@ -122,6 +121,76 @@ pub enum SectionHeaderFlag {
 /* Enums */
 
 #[derive(Debug, Default)]
+pub struct ElfProgramHeader {
+    pub segment: Segment,
+    pub flags: u32,
+    pub offset: Size,
+    pub virtual_address: Size,
+    pub physical_address: Size,
+    pub p_filesz: Size,
+    pub p_memsz: Size,
+    pub p_align: Size,
+}
+
+impl ElfProgramHeader {
+    pub fn parse(&mut self, bit_mode: BitMode, reader: & mut BufferReader) -> Result<(), BinaryFormatError> {
+        self.segment = unsafe { core::mem::transmute::<u32, Segment>(reader.fetch_u32()?) };
+
+        if BitMode::_64 == bit_mode {
+            self.flags = reader.fetch_u32()?;
+        }
+
+        self.offset = reader.parse_size(bit_mode)?;
+        self.virtual_address = reader.parse_size(bit_mode)?;
+        self.physical_address = reader.parse_size(bit_mode)?;
+        self.p_filesz = reader.parse_size(bit_mode)?;
+        self.p_memsz = reader.parse_size(bit_mode)?;
+        
+        if BitMode::_32 == bit_mode {
+            self.flags = reader.fetch_u32()?;
+        }
+        self.p_align = reader.parse_size(bit_mode)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ElfSectionHeader<'a> {
+    pub name: &'a str,
+    pub sh_name: u32,
+    pub sh_type: SectionHeaderType,
+    pub sh_flags: SectionHeaderFlag,
+    pub sh_offset: Size,
+    pub sh_addr: Size,
+    pub sh_size: Size,
+    pub sh_link: u32,
+    pub sh_info: u32,
+    pub sh_addralign: Size,
+    pub sh_entsize: Size
+}
+
+impl<'a> ElfSectionHeader<'a> {
+    pub fn parse(&mut self, bit_mode: BitMode, reader: & mut BufferReader) -> Result<(), BinaryFormatError> {
+        self.sh_name = reader.fetch_u32()?;
+        self.sh_type = unsafe { core::mem::transmute::<u32, SectionHeaderType>(reader.fetch_u32()?) };
+        self.sh_flags = unsafe { core::mem::transmute::<u64, SectionHeaderFlag>(match bit_mode {
+                BitMode::_32 => reader.fetch_u32()? as u64,
+                BitMode::_64 => reader.fetch_u64()?
+            })
+        };
+        self.sh_addr = reader.parse_size(bit_mode)?;
+        self.sh_offset = reader.parse_size(bit_mode)?;
+        self.sh_size = reader.parse_size(bit_mode)?;
+        self.sh_link = reader.fetch_u32()?;
+        self.sh_info = reader.fetch_u32()?;
+        self.sh_addralign = reader.parse_size(bit_mode)?;
+        self.sh_entsize = reader.parse_size(bit_mode)?;
+        Ok(())
+    }
+}
+
+
+#[derive(Debug, Default)]
 pub struct ElfHeader {
     pub bit_mode: BitMode,
     pub endianness: Endianness,
@@ -142,32 +211,56 @@ pub struct ElfHeader {
     pub e_shstrndx: u16
 }
 
-#[derive(Debug, Default)]
-pub struct ElfProgramHeader {
-    pub segment: Segment,
-    pub flags: u32,
-    pub offset: Size,
-    pub virtual_address: Size,
-    pub physical_address: Size,
-    pub p_filesz: Size,
-    pub p_memsz: Size,
-    pub p_align: Size,
+impl ElfHeader {
+    pub fn build(&self) -> Vec<u8> {
+        Vec::new()
+    }
+
+    pub fn parse(&mut self, reader: &mut BufferReader) -> Result<(), BinaryFormatError> {
+
+        if reader.fetch_u8()? != 0x7f || reader.fetch_u8()? != 0x45 || reader.fetch_u8()? != 0x4c || reader.fetch_u8()? != 0x46 {
+            return Err(BinaryFormatError::InvalidFormat);
+        }
+
+        self.bit_mode = match reader.fetch_u8()? {
+            1 => BitMode::_32,
+            _ => BitMode::_64,
+        };
+
+        self.endianness = match reader.fetch_u8()? {
+            1 => Endianness::Little,
+            _ => Endianness::Big,
+        };
+        
+        self.version = reader.fetch_u8()?;
+        self.os_abi = unsafe { core::mem::transmute::<u8, OsAbi>(reader.fetch_u8()?) };
+
+        reader.set_index(16)?;
+        self.e_type = unsafe { core::mem::transmute::<u16, ElfType>(reader.fetch_u16()?) };
+        self.e_machine = unsafe { core::mem::transmute::<u16, ISA>(reader.fetch_u16()?) };
+        self.e_version = reader.fetch_u32()?;
+
+        reader.set_index(24)?;
+        self.e_entry = reader.parse_size(self.bit_mode)?;
+        self.e_phoff = reader.parse_size(self.bit_mode)?;
+        self.e_shoff = reader.parse_size(self.bit_mode)?;
+
+        self.e_flags = reader.fetch_u32()?;
+        self.e_ehsize = reader.fetch_u16()?;
+        self.e_phentsize = reader.fetch_u16()?;
+        self.e_phnum = reader.fetch_u16()?;
+        self.e_shentsize = reader.fetch_u16()?;
+        self.e_shnum = reader.fetch_u16()?;
+        self.e_shstrndx = reader.fetch_u16()?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Default)]
-pub struct ElfSectionHeader<'a> {
-    pub name: &'a str,
-    pub sh_name: u32,
-    pub sh_type: SectionHeaderType,
-    pub sh_flags: SectionHeaderFlag,
-    pub sh_offset: Size,
-    pub sh_addr: Size,
-    pub sh_size: Size,
-    pub sh_link: u32,
-    pub sh_info: u32,
-    pub sh_addralign: Size,
-    pub sh_entsize: Size
-
+pub struct ElfRela {
+    pub offset: u64,
+    pub info: u64,
+    pub addend: u64
 }
 
 #[derive(Debug, Default)]
@@ -175,144 +268,104 @@ pub struct ElfFormat<'a> {
     pub elf_header: ElfHeader,
     pub program_header: ElfProgramHeader,
     pub section_headers: Vec<ElfSectionHeader<'a>>,
+    pub codes: &'a [u8]
 }
 
-impl ElfProgramHeader {
-    pub fn parse(&mut self, bit_mode: BitMode, reader: & mut BufferReader) {
-        self.segment = unsafe { core::mem::transmute::<u32, Segment>(reader.as_u32()) };
-
-        if BitMode::_64 == bit_mode {
-            self.flags = reader.as_u32();
-        }
-
-        self.offset = reader.parse_size(bit_mode);
-        self.virtual_address = reader.parse_size(bit_mode);
-        self.physical_address = reader.parse_size(bit_mode);
-        self.p_filesz = reader.parse_size(bit_mode);
-        self.p_memsz = reader.parse_size(bit_mode);
-        
-        if BitMode::_32 == bit_mode {
-            self.flags = reader.as_u32();
-        }
-        self.p_align = reader.parse_size(bit_mode);
-    }
-}
-
-impl<'a> ElfSectionHeader<'a> {
-    pub fn parse(&mut self, bit_mode: BitMode, reader: & mut BufferReader) {
-        self.sh_name = reader.as_u32();
-        self.sh_type = unsafe { core::mem::transmute::<u32, SectionHeaderType>(reader.as_u32()) };
-        self.sh_flags = unsafe { core::mem::transmute::<u64, SectionHeaderFlag>(match bit_mode {
-                BitMode::_32 => reader.as_u32() as u64,
-                BitMode::_64 => reader.as_u64()
-            })
-        };
-        self.sh_addr = reader.parse_size(bit_mode);
-        self.sh_offset = reader.parse_size(bit_mode);
-        self.sh_size = reader.parse_size(bit_mode);
-        self.sh_link = reader.as_u32();
-        self.sh_info = reader.as_u32();
-        self.sh_addralign = reader.parse_size(bit_mode);
-        self.sh_entsize = reader.parse_size(bit_mode);
-    }
-}
-
-impl ElfHeader {
-    pub fn build(&self) -> Vec<u8> {
-        Vec::new()
-    }
-
-    pub fn parse(&mut self, reader: &mut BufferReader) {
-        reader.set_index(3);
-
-        self.bit_mode = match reader.as_u8() {
-            1 => BitMode::_32,
-            _ => BitMode::_64,
-        };
-        self.endianness = match reader.as_u8() {
-            1 => Endianness::Little,
-            _ => Endianness::Big,
-        };
-        self.version = reader.as_u8();
-        self.os_abi = unsafe { core::mem::transmute::<u8, OsAbi>(reader.as_u8()) };
-
-        reader.set_index(16);
-        self.e_type = unsafe { core::mem::transmute::<u16, ElfType>(reader.as_u16()) };
-        self.e_machine = unsafe { core::mem::transmute::<u16, ISA>(reader.as_u16()) };
-        self.e_version = reader.as_u32();
-
-        reader.set_index(24);
-        self.e_entry = reader.parse_size(self.bit_mode);
-        self.e_phoff = reader.parse_size(self.bit_mode);
-        self.e_shoff = reader.parse_size(self.bit_mode);
-
-        self.e_flags = reader.as_u32();
-        self.e_ehsize = reader.as_u16();
-        self.e_phentsize = reader.as_u16();
-        self.e_phnum = reader.as_u16();
-        self.e_shentsize = reader.as_u16();
-        self.e_shnum = reader.as_u16();
-        self.e_shstrndx = reader.as_u16();
-    }
-}
-
-impl<'a> ElfFormat<'a> {
-    pub fn parse(contents: &'a [u8]) -> Self {
+impl<'a> BinaryFormat<'a> for ElfFormat<'a> {
+    fn parse(reader: &'a mut BufferReader) -> Result<Self, BinaryFormatError> {
         let mut elf_header = ElfHeader::default();
         let mut program_header = ElfProgramHeader::default();
         let mut section_headers = Vec::default();
 
-        let mut reader = BufferReader::new(contents);
-
-        elf_header.parse(&mut reader);
+        elf_header.parse(reader)?;
 
         reader.set_index(match elf_header.e_phoff {
             Size::None => todo!("elf_header could not parsed"),
             Size::u32(size) => size as usize,
             Size::u64(size) => size as usize,
-        });
+        })?;
 
-        program_header.parse(elf_header.bit_mode, &mut reader);
+        program_header.parse(elf_header.bit_mode, reader)?;
 
         /* Lets do calculation about sh_offset */
         reader.set_index(usize::from(elf_header.e_shoff) + (elf_header.e_shentsize * elf_header.e_shstrndx) as usize + match elf_header.bit_mode {
             BitMode::_32 => 0x10,
             BitMode::_64 => 0x18
-        });
+        })?;
 
         let string_offset = match elf_header.bit_mode {
-            BitMode::_32 => reader.as_u32() as usize,
-            BitMode::_64 => reader.as_u64() as usize
+            BitMode::_32 => reader.fetch_u32()? as usize,
+            BitMode::_64 => reader.fetch_u64()? as usize
         };
 
-        reader.set_index(string_offset);
+        reader.set_index(string_offset)?;
         let string_data = reader.read_remaining();
         
         /* Parse section headers */
-        reader.set_index(elf_header.e_shoff.into());
+        reader.set_index(elf_header.e_shoff.into())?;
 
         for _ in 0..elf_header.e_shnum {
             let mut section_header = ElfSectionHeader::default();
-            section_header.parse(elf_header.bit_mode, &mut reader);
-            section_header.name = unsafe { str_from_null_terminated_utf8(&string_data[(section_header.sh_name as usize)..]) };
+            section_header.parse(elf_header.bit_mode, reader)?;
+            section_header.name = unsafe { str_from_null_terminated_utf8(&string_data[(section_header.sh_name as usize)..])? };
+            println!("Section: {:#?}", &section_header);
+
             section_headers.push(section_header);
         }
 
         let text_section = section_headers.iter().find(|section| section.name == ".text");
-        if let Some(section) = text_section {
-            reader.set_index(section.sh_offset.into());
-        }
-        
-        let machine_codes = reader.read_remaining();
-        println!("machine_codes: {:?}", machine_codes);
+        let codes = match text_section {
+            Some(section) => {
+                reader.set_index(section.sh_offset.into())?;
+                let size: usize = section.sh_size.into();
+                let machine_codes = reader.read_remaining();
 
-        Self { elf_header, program_header, section_headers }
+                println!("Text offset {}", usize::from(section.sh_offset));
+                println!("Text section {:#?}", &section);
+                let text_relas = Self::find_rela(&section_headers, elf_header.bit_mode, ".rela.text", reader)?;
+
+                &machine_codes[0..size]
+            }
+            None => return Err(BinaryFormatError::NoCode)
+        };
+
+        Ok(Self { elf_header, program_header, section_headers, codes })
+    }
+    
+    fn get_codes(&self) -> &'a [u8] {
+        self.codes
     }
 }
 
-pub fn parse(filename: &str) {
-    let contents = fs::read(filename).expect("Should have been able to read the file");
 
-    let elf = ElfFormat::parse(&contents);
-    println!("Elf :{:#?}", elf);
+impl<'a> ElfFormat<'_> {
+    fn find_rela(section_headers: &Vec<ElfSectionHeader>, bit_mode: BitMode, name: &str, reader: &mut BufferReader) -> Result<Option<Vec<ElfRela>>, BinaryFormatError> {
+        let rela_section = section_headers.iter().find(|section| section.name == name);
+        match rela_section {
+            Some(section) => {
+                reader.set_index(section.sh_offset.into())?;
+                let entry_count = usize::from(section.sh_size) / usize::from(section.sh_entsize);
+                let mut relas = Vec::new();
+
+                for _ in 0..entry_count {
+                    let rela = ElfRela {
+                        offset: reader.fetch_u64()?,
+                        info: reader.fetch_u64()?,
+                        addend: reader.fetch_u64()?
+                    };
+
+                    let data = ((rela.info << 32) >> 40);
+                    let id = ((rela.info << 56) >> 56);
+
+                    let sym = rela.info >> 32;
+                    let type_ = rela.info as u32;
+
+                    relas.push(rela);
+                }
+
+                Ok(Some(relas))
+            }
+            None => Ok(None)
+        }
+    }
 }

@@ -72,27 +72,27 @@ impl MachOHeader {
     }
 
     pub fn parse(&mut self, reader: &mut BufferReader) {
-        self.magic_number = reader.as_u32();
+        self.magic_number = reader.fetch_u32();
         self.bit_mode = match self.magic_number {
             0xfeedface => BitMode::_32,
             0xfeedfacf => BitMode::_64,
             _ => panic!("Unknown format")
         };
-        self.cpu_type = unsafe { core::mem::transmute::<u32, CpuType>((reader.as_u32() << 8) >> 8) };
-        self.cpu_subtype = reader.as_u32();
-        self.file_type = unsafe { core::mem::transmute::<u32, FileType>(reader.as_u32()) };
-        self.number_of_load_commands = reader.as_u32();
-        self.size_of_load_commands = reader.as_u32();
-        self.flags = reader.as_u32();
+        self.cpu_type = unsafe { core::mem::transmute::<u32, CpuType>((reader.fetch_u32() << 8) >> 8) };
+        self.cpu_subtype = reader.fetch_u32();
+        self.file_type = unsafe { core::mem::transmute::<u32, FileType>(reader.fetch_u32()) };
+        self.number_of_load_commands = reader.fetch_u32();
+        self.size_of_load_commands = reader.fetch_u32();
+        self.flags = reader.fetch_u32();
 
         if self.bit_mode == BitMode::_64 {
-            reader.as_u32();
+            reader.fetch_u32();
         }
 
         for _ in 0..self.number_of_load_commands {
             self.load_commands.push(LoadCommand {
-                command_type: reader.as_u32(),
-                command_size: reader.as_u32()
+                command_type: reader.fetch_u32(),
+                command_size: reader.fetch_u32()
             })
         }
     }
