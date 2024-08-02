@@ -25,6 +25,7 @@ mod test {
         memory.write8(0x48);
         memory.write8(0x01);
         memory.write8(0xc8);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -44,6 +45,56 @@ mod test {
     }
 
     #[test]
+    fn add_00_test() {
+        let mut memory = MemoryBuilder::new(100);
+
+        /* add %cl, %al */
+        memory.write8(0x00);
+        memory.write8(0xc8);
+        memory.write8(0x90);
+
+        let bus = Bus::new(memory.generate());
+        let mut cpu = Cpu::new(bus);
+        cpu.registers[REGISTER_RAX] = 0xCCCC_CCCC_CCCC_CCBB;
+        cpu.registers[REGISTER_RCX] = 0x1111_1111_1111_1111;
+
+        cpu.add_hook(|cpu| {
+            println!(
+                "RAX: {}, RCX: {}",
+                cpu.registers[REGISTER_RAX], cpu.registers[REGISTER_RCX]
+            )
+        });
+        //cpu.boot();
+
+        //assert_eq!(cpu.registers[REGISTER_RAX], 0xCCCC_CCCC_CCCC_CCCC);
+        //assert_eq!(cpu.registers[REGISTER_RCX], 0x1111_1111_1111_1111);
+
+        
+        let mut memory: MemoryBuilder = MemoryBuilder::new(100);
+
+        /* add %cl, %ah */
+        memory.write8(0x00);
+        memory.write8(0xcc);
+        memory.write8(0x90);
+
+        let bus = Bus::new(memory.generate());
+        let mut cpu = Cpu::new(bus);
+        cpu.registers[REGISTER_RAX] = 0xCCCC_CCCC_CCCC_BBCC;
+        cpu.registers[REGISTER_RCX] = 0x1111_1111_1111_1111;
+
+        cpu.add_hook(|cpu| {
+            println!(
+                "RAX: {}, RCX: {}",
+                cpu.registers[REGISTER_RAX], cpu.registers[REGISTER_RCX]
+            )
+        });
+        cpu.boot();
+
+        assert_eq!(cpu.registers[REGISTER_RAX], 0xCCCC_CCCC_CCCC_CCCC);
+        assert_eq!(cpu.registers[REGISTER_RCX], 0x1111_1111_1111_1111);
+    }
+
+    #[test]
     fn add_01_test() {
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
 
@@ -51,6 +102,7 @@ mod test {
         memory.write8(0x48);
         memory.write8(0x01);
         memory.write8(0xc8);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -68,7 +120,6 @@ mod test {
         assert_eq!(cpu.registers[REGISTER_RAX], 15);
         assert_eq!(cpu.registers[REGISTER_RCX], 5);
     }
-
     
     fn add_01_test_2() {
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
@@ -82,6 +133,7 @@ mod test {
         memory.write8(0x41);
         memory.write8(0x01);
         memory.write8(0xc1);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -109,6 +161,7 @@ mod test {
         memory.write8(0x04);
         memory.write8(0x25);
         memory.write32(10);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -127,25 +180,15 @@ mod test {
     fn add_04_test() {
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
 
-        /* add %rcx, %rax */
-        memory.write8(0x04);
-        memory.write8(0xFF);
-
-        let bus = Bus::new(memory.generate());
-        let mut cpu = Cpu::new(bus);
-        cpu.boot();
-
-        assert_eq!(cpu.registers[REGISTER_RAX], 0x0000_00FF);
-        let mut memory: MemoryBuilder = MemoryBuilder::new(100);
-
         /* mov $0xFF00, %ecx */
         memory.write8(0xb9);
-        memory.write32(0xFF00);
+        memory.write32(0x0000_FF00);
 
         /* add $0x00FF, %ecx */
         memory.write8(0x81);
         memory.write8(0xC1);
-        memory.write32(0x00FF);
+        memory.write32(0x0000_00FF);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -167,6 +210,7 @@ mod test {
         memory.write8(0x81);
         memory.write8(0xc1);
         memory.write32(u32::MAX);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -181,14 +225,15 @@ mod test {
         memory.write8(0x48);
         memory.write8(0x81);
         memory.write8(0xc1);
-        memory.write32(u32::MAX);
+        memory.write64(u64::MAX);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
 
         cpu.boot();
 
-        assert_eq!(cpu.registers[REGISTER_RCX], u32::MAX as u64);
+        assert_eq!(cpu.registers[REGISTER_RCX], u64::MAX as u64);
     }
     
 
@@ -202,6 +247,7 @@ mod test {
         memory.write8(0x08);
         memory.write8(0x90); // Nop
         memory.write64(2000);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -223,6 +269,7 @@ mod test {
         memory.write8(0x83);
         memory.write8(0xc0);
         memory.write8(0x0a);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -239,6 +286,7 @@ mod test {
         /* add $0xffff, %eax */
         memory.write8(0x05);
         memory.write32(0xffff);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -251,6 +299,7 @@ mod test {
         memory.write8(0x48);
         memory.write8(0x05);
         memory.write64(0xfffffff);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -259,10 +308,11 @@ mod test {
         assert_eq!(cpu.registers[REGISTER_RAX], 0xfffffff);
 
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
-        /* add $0xfffffff, %rax */
+        /* add $0xf000ffff, %ax */
         memory.write8(0x66);
         memory.write8(0x05);
-        memory.write32(0xf000ffff);
+        memory.write16(0xffff);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -280,6 +330,7 @@ mod test {
         memory.write8(0x4C);
         memory.write8(0x58);
         memory.write8(0x10);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);

@@ -224,12 +224,14 @@ impl ElfHeader {
 
         self.bit_mode = match reader.fetch_u8()? {
             1 => BitMode::_32,
-            _ => BitMode::_64,
+            2 => BitMode::_64,
+            _ => return Err(BinaryFormatError::InvalidFormat)
         };
 
         self.endianness = match reader.fetch_u8()? {
             1 => Endianness::Little,
-            _ => Endianness::Big,
+            2 => Endianness::Big,
+            _ => return Err(BinaryFormatError::InvalidFormat)
         };
         
         self.version = reader.fetch_u8()?;
@@ -280,7 +282,7 @@ impl<'a> BinaryFormat<'a> for ElfFormat<'a> {
         elf_header.parse(reader)?;
 
         reader.set_index(match elf_header.e_phoff {
-            Size::None => todo!("elf_header could not parsed"),
+            Size::None => return Err(BinaryFormatError::InvalidFormat),
             Size::u32(size) => size as usize,
             Size::u64(size) => size as usize,
         })?;
@@ -308,7 +310,7 @@ impl<'a> BinaryFormat<'a> for ElfFormat<'a> {
             let mut section_header = ElfSectionHeader::default();
             section_header.parse(elf_header.bit_mode, reader)?;
             section_header.name = unsafe { str_from_null_terminated_utf8(&string_data[(section_header.sh_name as usize)..])? };
-            println!("Section: {:#?}", &section_header);
+            // println!("Section: {:#?}", &section_header);
 
             section_headers.push(section_header);
         }
@@ -320,8 +322,8 @@ impl<'a> BinaryFormat<'a> for ElfFormat<'a> {
                 let size: usize = section.sh_size.into();
                 let machine_codes = reader.read_remaining();
 
-                println!("Text offset {}", usize::from(section.sh_offset));
-                println!("Text section {:#?}", &section);
+                // println!("Text offset {}", usize::from(section.sh_offset));
+                // println!("Text section {:#?}", &section);
                 let text_relas = Self::find_rela(&section_headers, elf_header.bit_mode, ".rela.text", reader)?;
 
                 &machine_codes[0..size]
