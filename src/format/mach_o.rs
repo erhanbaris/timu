@@ -84,7 +84,7 @@ impl MachOHeader {
         self.bit_mode = match self.magic_number {
             0xfeedface => BitMode::_32,
             0xfeedfacf => BitMode::_64,
-            _ => panic!("Unknown format")
+            _ => return Err(BinaryFormatError::InvalidFormat)
         };
         self.cpu_type = unsafe { core::mem::transmute::<u32, CpuType>((reader.fetch_u32()? << 8) >> 8) };
         self.cpu_subtype = reader.fetch_u32()?;
@@ -121,7 +121,7 @@ impl<'a> BinaryFormat<'a> for MachOFormat<'a> {
     fn parse(reader: &'a mut BufferReader) -> Result<Self, super::BinaryFormatError> where Self: Sized {
         let mut header = MachOHeader::default();
         
-        header.parse(reader);
+        header.parse(reader)?;
 
         Ok(Self { header, buffer: reader.read_remaining() })        
     }

@@ -15,6 +15,7 @@ mod test {
         /* mov %al, %ch */
         memory.write8(0x88);
         memory.write8(0xc5);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -31,11 +32,12 @@ mod test {
     fn mov_c7_test() {
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
 
-        /* mov %al, %ch */
+        /* mov $0x1234, %RAX */
         memory.write8(0x48);
         memory.write8(0xc7);
         memory.write8(0xc0);
-        memory.write32(0x1234);
+        memory.write64(0x1234);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -56,6 +58,7 @@ mod test {
         /* mov $0x22222222, %eax */
         memory.write8(0xb8);
         memory.write32(0x22222222);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -83,6 +86,7 @@ mod test {
         /* mov %al, %cl */
         memory.write8(0x88);
         memory.write8(0xc1);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -110,6 +114,7 @@ mod test {
         /* mov %ah, %ch */
         memory.write8(0x88);
         memory.write8(0xe5);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -131,6 +136,7 @@ mod test {
         /* mov %ah, %al */
         memory.write8(0x88);
         memory.write8(0xe0);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -152,6 +158,7 @@ mod test {
         /* mov %ah, %al */
         memory.write8(0x88);
         memory.write8(0xc4);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -178,6 +185,7 @@ mod test {
         memory.write8(0x48);
         memory.write8(0x01);
         memory.write8(0xC1);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -201,6 +209,7 @@ mod test {
         memory.write8(0x41);
         memory.write8(0xBA);
         memory.write32(0x10);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -217,6 +226,7 @@ mod test {
         memory.write8(0xC7);
         memory.write8(0xC2);
         memory.write64(u64::MAX);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -249,6 +259,7 @@ mod test {
         memory.write8(0x48);
         memory.write8(0x89);
         memory.write8(0xc6);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
@@ -276,6 +287,7 @@ mod test {
         memory.write8(0x25);
         memory.write32(22);
         memory.write32(100);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);

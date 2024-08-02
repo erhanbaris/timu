@@ -24,9 +24,6 @@ pub enum BinaryFormatError {
     #[error("No code found")]
     NoCode,
 
-    #[error("data store disconnected")]
-    Disconnect(#[from] std::io::Error),
-
     #[error("unknown error")]
     Unknown,
 }
@@ -170,7 +167,7 @@ pub trait BinaryFormat<'a> {
 pub fn parse(filename: &str) -> Vec<u8>  {
     let contents = std::fs::read(filename).expect("Should have been able to read the file");
     let mut reader = BufferReader::new(&contents[..]);
-    let binary = MachOFormat::parse(&mut reader).unwrap();
+    let binary = ElfFormat::parse(&mut reader).unwrap();
     //println!("Elf :{:#?}", &binary);
 
     binary.get_codes().to_vec()

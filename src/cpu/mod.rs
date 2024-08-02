@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 use bus::Bus;
 
+use crate::format::BitMode;
+
 pub mod tests;
 pub mod bus;
 pub mod memory;
@@ -175,10 +177,13 @@ impl Cpu {
         self.add_8bit_opcode(Opcode::Add, 0x04, OperatorType::RAX, OperatorType::CanImmediate8);
         self.add_opcode(Opcode::Add, 0x05, OperatorType::RAX, OperatorType::CanImmediate16 | OperatorType::CanImmediate32);
         self.add_8bit_opcode(Opcode::Add, 0x80, OperatorType::FromModrmRM, OperatorType::CanImmediate8);
-        self.add_opcode(Opcode::Add, 0x01, OperatorType::FromModrmRM, OperatorType::FromModrmREG);
-        self.add_opcode(Opcode::Add, 0x03, OperatorType::FromModrmREG, OperatorType::FromModrmRM);
         self.add_opcode(Opcode::Add, 0x81, OperatorType::FromModrmRM, OperatorType::CanImmediate32);
         self.add_8bit_opcode(Opcode::Add, 0x83, OperatorType::FromModrmRM, OperatorType::CanImmediate8);
+        
+        self.add_8bit_opcode(Opcode::Add, 0x00, OperatorType::FromModrmRM, OperatorType::FromModrmREG);
+        self.add_opcode(Opcode::Add, 0x01, OperatorType::FromModrmRM, OperatorType::FromModrmREG);
+        self.add_8bit_opcode(Opcode::Add, 0x02, OperatorType::FromModrmREG, OperatorType::FromModrmRM);
+        self.add_opcode(Opcode::Add, 0x03, OperatorType::FromModrmREG, OperatorType::FromModrmRM);
 
         /* Mov */
         self.add_8bit_opcode(Opcode::Mov, 0x88, OperatorType::FromModrmRM | OperatorType::Reg8, OperatorType::Reg8 | OperatorType::FromModrmREG);
@@ -234,8 +239,6 @@ impl Cpu {
         let memory_len = self.bus.len() as u64;
         while self.rip < memory_len {
             let opcode = self.fetch();
-
-            if opcode == 0 { break; }
             self.execute(opcode);
             self.execute_hooks();
         }
@@ -449,7 +452,7 @@ impl Cpu {
         }
     }
 
-    fn get_target_register(&mut self, register: u8, bit_mode: RegisterType, source_value: u64) -> (u8, u64) {
+    fn get_target_register(&mut self, register: u8, bit_mode: RegisterType) -> (u8, u64) {
         let mut register = register;
         let mut value = self.registers[register as usize];
         let value = match bit_mode {
@@ -457,23 +460,59 @@ impl Cpu {
                 match register > 3 {
                     true  => {
                         register = register % 4; // First four register are real ones
-                        value = self.registers[register as usize];                                        
-                        (value & 0xffff_ffff_ffff_00ff) | (source_value << 8)
+                        value = self.registers[register as usize];
+                        value
                     }, // High byte
-                    false => (value & 0xffff_ffff_ffff_ff00) | source_value  // Low byte
+                    false => value // Low byte
                 }
             },
-            RegisterType::_16Bit => (value & 0xffff_ffff_ffff_0000) | source_value,
-            RegisterType::_32Bit => (value & 0xffff_ffff_0000_0000) | source_value,
-            RegisterType::_64Bit => source_value
+            RegisterType::_16Bit => value,
+            RegisterType::_32Bit => value,
+            RegisterType::_64Bit => value
         };
 
         (register, value)
     }
 
-    pub fn overflow_checked_add(&mut self, left: u64, right: u64) -> u64 {
-        let (sum, overflowed) = left.overflowing_add(right);
+    pub fn overflow_checked_add(&mut self, is_high_bits: bool, left: u64, right: u64, register_type: RegisterType) -> u64 {
+        let (sum, overflowed) = match register_type {
+            RegisterType::_8Bit => {
+                match is_high_bits {
+                    true  => {
+                        let (sum, overflowed) = (((left & 0x0000_0000_0000_ff00) >> 8) as u8).overflowing_add(right as u8);
+                        ((left & 0xffff_ffff_ffff_00ff) | ((sum as u64) << 8), overflowed)
+                    }, // High byte
+                    false => {
+                        let (sum, overflowed) = (left as u8).overflowing_add(right as u8);
+                        ((left & 0xffff_ffff_ffff_ff00) | sum as u64, overflowed)
+                    } // Low byte
+                }
+            },
+            RegisterType::_16Bit => {
+                let (sum, overflowed) = (left as u16).overflowing_add(right as u16);
+                ((left & 0xffff_ffff_ffff_0000) | sum as u64, overflowed)
+            },
+            RegisterType::_32Bit => {
+                let (sum, overflowed) = (left as u32).overflowing_add(right as u32);
+                ((left & 0xffff_ffff_0000_0000) | sum as u64, overflowed)
+            },
+            RegisterType::_64Bit => left.overflowing_add(right),
+        };
         sum
+    }
+
+    pub fn move_data(&mut self, is_high_bits: bool, left: u64, right: u64, register_type: RegisterType) -> u64 {
+        match register_type {
+            RegisterType::_8Bit => {
+                match is_high_bits {
+                    true  => (left & 0xffff_ffff_ffff_00ff) | ((right as u64) << 8), // High byte
+                    false => (left & 0xffff_ffff_ffff_ff00) | right as u64 // Low byte
+                }
+            },
+            RegisterType::_16Bit => (left & 0xffff_ffff_ffff_0000) | right as u64,
+            RegisterType::_32Bit => (left & 0xffff_ffff_0000_0000) | right as u64,
+            RegisterType::_64Bit => right
+        }
     }
 
     pub fn execute(&mut self, opcode: u8) {
@@ -503,13 +542,13 @@ impl Cpu {
                 match self.target_operand {
                     TargetOperand::RegisterMemory(_) => todo!(),
                     TargetOperand::Register(register, bit_mode) => {
-                        let (register, value) = self.get_target_register(register, bit_mode, source_value);
-                        self.registers[register as usize] = self.overflow_checked_add(value, self.registers[register as usize])
+                        let (new_register, target_value) = self.get_target_register(register, bit_mode);
+                        self.registers[new_register as usize] = self.overflow_checked_add(register != new_register, target_value, source_value, bit_mode)
                     },
                     
                     TargetOperand::Memory(address) => {
                         let current = self.read64(address);
-                        let sum = self.overflow_checked_add(current, source_value);
+                        let sum = self.overflow_checked_add(false, current, source_value, RegisterType::_64Bit);
                         self.write64(address, sum)
                     },
                 }
@@ -520,8 +559,8 @@ impl Cpu {
                 match self.target_operand {
                     TargetOperand::RegisterMemory(_) => todo!(),
                     TargetOperand::Register(register, bit_mode) => {
-                        let (register, value) = self.get_target_register(register, bit_mode, source_value);
-                        self.registers[register as usize] = value
+                        let (new_register, target_value) = self.get_target_register(register, bit_mode);
+                        self.registers[new_register as usize] = self.move_data(register != new_register, target_value, source_value, bit_mode)
                     },
                     TargetOperand::Memory(address) => self.write64(address, source_value),
                 }
