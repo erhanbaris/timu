@@ -140,6 +140,7 @@ pub struct Cpu {
     rex_x: bool,
     rex_r: bool,
     rex_w: bool, // is 64-bit
+    rex_used: bool,
 
     operand_16bit: bool
 }
@@ -155,6 +156,7 @@ impl Default for Cpu {
             rex_r: false,
             rex_w: false,
             rex_x: false,
+            rex_used: false,
             rflags: 0,
             rip: 0,
             target_operand: TargetOperand::RegisterMemory(0),
@@ -275,6 +277,7 @@ impl Cpu {
         self.rex_x = false;
         self.rex_r = false;
         self.rex_w = false; // is 64-bit
+        self.rex_used = false;
 
         self.operand_16bit = false;
     }
@@ -434,7 +437,7 @@ impl Cpu {
         match self.source_operand {
             SourceOperand::Register(source_register, bit_mode) => {
                 if bit_mode == RegisterType::_8Bit {
-                    if source_register > 3 {
+                    if source_register > 3 && !self.rex_used {
                         let value = self.registers[(source_register % 4) as usize]; // 8bit high register
                         (value & 0x0000_0000_0000_ff00) >> 8 // We only need high bits
                     } else {
@@ -457,7 +460,7 @@ impl Cpu {
         let mut value = self.registers[register as usize];
         let value = match bit_mode {
             RegisterType::_8Bit => {
-                match register > 3 {
+                match register > 3 && !self.rex_used {
                     true  => {
                         register = register % 4; // First four register are real ones
                         value = self.registers[register as usize];
@@ -525,6 +528,7 @@ impl Cpu {
             self.rex_x = (opcode >> 1 & 1) != 0;
             self.rex_r = (opcode >> 2 & 1) != 0;
             self.rex_w = (opcode >> 3 & 1) != 0; // is 64-bit
+            self.rex_used = true;
             opcode = self.fetch();
         }
 
@@ -627,10 +631,41 @@ impl Cpu {
         self.bus.write64(address as usize, value)
     }
 
-    pub fn dump(&self) {
-        println!("rip: {}", self.rip);
-        for reg in self.registers.iter() {
-            println!("{}", reg);
+    pub fn dump(&mut self) {
+        let memory_len = self.bus.len() as u64;
+        while self.rip < memory_len {
+            let mut opcode = self.fetch();
+            self.opcode_reset();
+
+            // Rex opcode
+            if (opcode & REX_MASK) == 0x40 {
+                self.rex_b = opcode & 1        != 0; // extend register code
+                self.rex_x = (opcode >> 1 & 1) != 0;
+                self.rex_r = (opcode >> 2 & 1) != 0;
+                self.rex_w = (opcode >> 3 & 1) != 0; // is 64-bit
+                self.rex_used = true;
+                opcode = self.fetch();
+            }
+
+            if opcode == OPERAND_SIZE_OVERWRITE_PREFIX {
+                self.operand_16bit = true;
+                opcode = self.fetch();
+            }
+
+            let opcode = self.process(opcode);
+
+            match opcode {
+                Opcode::Add => {
+                    println!("add")
+                }
+                Opcode::Mov => {
+                    println!("mov")
+                },
+                Opcode::Nop => {
+                    println!("nop");
+                    break;                    
+                }
+            }
         }
     }
 }

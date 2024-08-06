@@ -167,6 +167,22 @@ mod test {
         assert_eq!(cpu.registers[REGISTER_RAX], 0x3434);
     }
     
+    #[test]
+    fn mov_al_to_dil() {
+        let mut memory: MemoryBuilder = MemoryBuilder::new(100);
+
+        /* mov %al, %dil */
+        memory.write8(0x40);
+        memory.write8(0x88);
+        memory.write8(0xc7);
+
+        let bus = Bus::new(memory.generate());
+        let mut cpu = Cpu::new(bus);
+        cpu.boot();
+
+        //assert_eq!(cpu.registers[REGISTER_RAX], 0x3434);
+    }
+    
 
     #[test]
     fn rex_1() {
