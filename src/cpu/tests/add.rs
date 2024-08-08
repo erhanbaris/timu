@@ -64,10 +64,10 @@ mod test {
                 cpu.registers[REGISTER_RAX], cpu.registers[REGISTER_RCX]
             )
         });
-        //cpu.boot();
+        cpu.boot();
 
-        //assert_eq!(cpu.registers[REGISTER_RAX], 0xCCCC_CCCC_CCCC_CCCC);
-        //assert_eq!(cpu.registers[REGISTER_RCX], 0x1111_1111_1111_1111);
+        assert_eq!(cpu.registers[REGISTER_RAX], 0xCCCC_CCCC_CCCC_CCCC);
+        assert_eq!(cpu.registers[REGISTER_RCX], 0x1111_1111_1111_1111);
 
         
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
@@ -178,6 +178,17 @@ mod test {
 
     #[test]
     fn add_04_test() {
+        let mut memory: MemoryBuilder = MemoryBuilder::new(100);
+        /* add $0xff, %al */
+        memory.write8(0x04);
+        memory.write8(0xFF);
+        memory.write8(0x90);
+
+        let bus = Bus::new(memory.generate());
+        let mut cpu = Cpu::new(bus);
+        cpu.boot();
+
+        assert_eq!(cpu.registers[REGISTER_RAX], 0x0000_00FF);
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
 
         /* mov $0xFF00, %ecx */

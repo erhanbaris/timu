@@ -3,8 +3,7 @@ mod test {
     use std::u32;
 
     use crate::cpu::{
-        bus::Bus, memory::MemoryBuilder, Cpu, REGISTER_R10, REGISTER_RAX, REGISTER_RCX,
-        REGISTER_RSI,
+        bus::Bus, memory::MemoryBuilder, Cpu, REGISTER_R10, REGISTER_RAX, REGISTER_RCX, REGISTER_RDI, REGISTER_RSI
     };
 
 
@@ -175,12 +174,14 @@ mod test {
         memory.write8(0x40);
         memory.write8(0x88);
         memory.write8(0xc7);
+        memory.write8(0x90);
 
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
+        cpu.registers[REGISTER_RAX] = 0x0000_0000_0000_CCff;
         cpu.boot();
 
-        //assert_eq!(cpu.registers[REGISTER_RAX], 0x3434);
+        assert_eq!(cpu.registers[REGISTER_RDI], 0xff);
     }
     
 
