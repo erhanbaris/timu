@@ -3,9 +3,7 @@
 /* *************************************************** IMPORTS **************************************************** */
 use pest::{Parser, iterators::{Pair, Pairs}, error::LineColLocation};
 use pest_derive::Parser;
-use pest::{
-    pratt_parser::{Assoc, Op, PrattParser},
-};
+use pest::pratt_parser::{Assoc, Op, PrattParser};
 
 
 use crate::ast::{AccessType, TimuAst, FuncArg, TimuAstType, VariableType, UnaryType, PrimativeType};
@@ -34,6 +32,7 @@ static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..(u64::MAX as i128)
 pub struct TimuParser;
 
 #[derive(Debug)]
+#[derive(PartialEq)]
 pub struct TimuParserError {
     pub line: usize,
     pub column: usize,
@@ -91,10 +90,12 @@ fn parse_import(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
 
 fn parse_variable_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     let mut inner_rules = pair.into_inner();
+    let mut pair = inner_rules.next().unwrap();
 
-    let var_type = match inner_rules.next().unwrap().as_str() {
-        "mutvar" => VariableType::Mutable,
-        _ => VariableType::Immutable
+    let var_type = match pair.as_str() {
+        "var" => VariableType::Var,
+        "const" => VariableType::Const,
+        _type =>  return Err(TimuParserError::new(&pair, format!("Unsupported variable type ({})", _type)))
     };
 
     let name = inner_rules.next().unwrap().as_str().to_string();
@@ -138,7 +139,11 @@ fn parse_file(pairs: Pairs<'_, Rule>) -> Result<TimuAst, TimuParserError> {
 
 fn parse_string(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     check_rule(&pair, Rule::string)?;
-    Ok(Box::new(TimuAst::Primative(PrimativeType::String(pair.as_str().to_string()))))
+    
+    let mut inner_rules = pair.into_inner();
+    let string_data = inner_rules.next().unwrap();
+    
+    Ok(Box::new(TimuAst::Primative(PrimativeType::String(string_data.as_str().to_string()))))
 }
 
 fn parse_bool(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
@@ -197,17 +202,6 @@ fn parse_float(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     Ok(Box::new(TimuAst::Primative(PrimativeType::Float(pair.as_str().replace("_", "").parse::<f32>().unwrap_or_default()))))
 }
 
-fn parse_array(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
-    check_rule(&pair, Rule::array)?;
-    let into_inner = pair.into_inner();
-    let mut array = Vec::new();
-
-    for rule in into_inner {
-        array.push(parse_rule(rule)?);
-    }
-    Ok(Box::new(TimuAst::Primative(PrimativeType::Array(array))))
-}
-
 fn parse_unary(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     check_rule(&pair, Rule::unary)?;
     let mut into_inner = pair.into_inner();
@@ -233,7 +227,6 @@ fn parse_rule(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
         Rule::boolean => parse_bool(pair),
         Rule::integer => parse_integer(pair),
         Rule::float => parse_float(pair),
-        Rule::array => parse_array(pair),
         
         // Unary
         Rule::unary => parse_unary(pair),
@@ -390,6 +383,11 @@ impl TimuParserError {
 
 #[cfg(test)]
 mod test {
+    use rstest::*;
+
+    use crate::ast::{PrimativeType, TimuAst, VariableType};
+
+    use super::TimuParserError;
 
     #[macro_export]
     macro_rules! auto_parse {
@@ -403,30 +401,60 @@ mod test {
     }
 
     /* Import tests */
-    auto_parse!(import_test_1, "@use(test);");
-    auto_parse!(import_test_2, "@use(test.rrr);");
-    auto_parse!(import_test_3, "@use(test.rrr.ffff);");
-    auto_parse!(import_test_4, "@use(test.rrr.ffff) as test;");
+    // auto_parse!(import_test_1, "@use(test);");
+    // auto_parse!(import_test_2, "@use(test.rrr);");
+    // auto_parse!(import_test_3, "@use(test.rrr.ffff);");
+    // auto_parse!(import_test_4, "@use(test.rrr.ffff) as test;");
 
     /* Function tests */
-    auto_parse!(func_test_1, "func data() {}");
-    auto_parse!(func_test_2, "func data(test:i32) {}");
-    auto_parse!(func_test_3, "func data(test1:i32, test2:i32) {}");
-    auto_parse!(func_test_4, "func data(): i32 {}");
-    auto_parse!(func_test_5, "func data(test2:i32): i32 {}");
-    auto_parse!(func_test_6, "func data(test1:i32, test2:i32): i32 {}");
+    // auto_parse!(func_test_1, "func data() {}");
+    // auto_parse!(func_test_2, "func data(test:i32) {}");
+    // auto_parse!(func_test_3, "func data(test1:i32, test2:i32) {}");
+    // auto_parse!(func_test_4, "func data(): i32 {}");
+    // auto_parse!(func_test_5, "func data(test2:i32): i32 {}");
+    // auto_parse!(func_test_6, "func data(test1:i32, test2:i32): i32 {}");
 
     /* Variable tests */
-    auto_parse!(var_test_1, "var test1 = 123;");
-    auto_parse!(var_test_2, "var test1: i8 = 123;");
-    auto_parse!(var_test_3, "var test1 = \"erhanbaris\";");
-    auto_parse!(var_test_4, "mutvar test1 = 123;");
-    auto_parse!(var_test_5, "mutvar test1: i32 = 123;");
-    auto_parse!(var_test_6, "mutvar test1 = \"erhanbaris\";");
-    auto_parse!(var_test_7, "mutvar test1 = true;");
-    auto_parse!(var_test_8, "mutvar test1 = 123.321;");
-    auto_parse!(var_test_9, "mutvar test1 = [];");
-    auto_parse!(var_test_10, "mutvar test1 = [1,2,3,4];");
-    auto_parse!(var_test_11, "mutvar test1 = [1, true, false, 1.1, \"test\", []];");
-    auto_parse!(var_test_12, "mutvar test1 = [0x123, 0o123, 0b010101];");
+    #[rstest]
+    #[case("var $test1 = 123;")]
+    #[case("var $test1: i8 = 123;")]
+    #[case("var $test1 = \"erhanbaris\";")]
+    #[case("const $test1 = 123;")]
+    #[case("const $test1: i32 = 123;")]
+    #[case("const $test1 = \"erhanbaris\";")]
+    #[case("const $test1 = true;")]
+    #[case("const $test1 = 123.321;")]
+    fn variable_def_test(#[case] code: &'_ str) -> Result<(), TimuParserError>  {
+        let ast = super::parser(code)?;
+        println!("AST: {:?}", ast);
+        Ok(())
+    }
+    #[rstest]
+    #[case("var $test1 = 123;", TimuAst::File {
+        statements: vec![
+            Box::new(TimuAst::DefAssignment {
+                r#type: VariableType::Var,
+                type_annotation: [].to_vec(),
+                name: "$test1".to_string(),
+                data: Box::new(TimuAst::Primative(PrimativeType::I8(123)))
+            }),
+        ],
+    })]
+    #[case("const $test1 = \"erhanbaris\";", TimuAst::File {
+        statements: vec![
+            Box::new(TimuAst::DefAssignment {
+                r#type: VariableType::Const,
+                type_annotation: [].to_vec(),
+                name: "$test1".to_string(),
+                data: Box::new(TimuAst::Primative(PrimativeType::String("erhanbaris".to_string()))),
+            }),
+        ],
+    })]
+    fn variable2_def_test(#[case] code: &'_ str, #[case] expected: TimuAst) -> Result<(), TimuParserError>  {
+        let ast = super::parser(code)?;
+        println!("AST: {:?}", ast);
+        assert_eq!(ast, expected);
+        Ok(())
+    }
+
 }

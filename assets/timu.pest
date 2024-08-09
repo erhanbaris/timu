@@ -13,13 +13,7 @@ importproperties            =  { importproperty ~ ("." ~ importproperty)* }
 importproperty              =  { typename_name }
 importname                  =  { typename_name }
 
-module                      = _{ import | documentation | defclass | deffunc | defvariable }
-
-defclass                    =  { "class" ~ typename ~ defclassfields? ~ defclassproperties }
-defclassfields             =  { ("(" ~ (defclassfield  ~ ("," ~ defclassfield)*)? ~ ")")? }
-defclassfield              =  { keyword ~ (typeunion | typename) }
-defclassproperties         =  { ("," ~ defclassproperty)* }
-defclassproperty           =  { keyword ~ (typeblock | typeunion | typename) }
+module                      = _{ import | documentation | deffunc | defvariable }
 
 typeunion                   =  { typename ~ (plus ~ typename)+ }
 typeblock                   =  { "{" ~ typeblockcontents* ~ "}" }
@@ -36,30 +30,20 @@ expression                  = _{ infix | expression_inner }
 call_remote                 =  { typename ~ "." ~ ident ~ "(" ~ call_args ~ ")" }
 func_call                   =  { local ~ "(" ~ call_args ~ ")" }
 index                       =  { (local | literal | braced_expression) ~ "." ~ ident }
-infix                       =  { expression_inner ~ (binary_operator ~ expression_inner)+ }
-expression_inner            = _{ call_remote | func_call | index | unary | literal | local | braced_expression }
+infix                       = _{ expression_inner ~ binary_operator ~ expression_inner }
+expression_inner            = _{ call_remote | func_call | index | unary | literal | defvariable_name | local | braced_expression }
 call_args                   = _{ (expression ~ ("," ~ expression)*)? }
 braced_expression           = _{ "(" ~ expression ~ ")" }
-defvariable                 =  { var_type ~ ident ~ maybe_type_annotation ~ "=" ~ expression ~ ";" }
-assignvariable                 =  { ident ~ "=" ~ expression ~ ";" }
-unary                       =  { unary_operator ~ (literal | local | braced_expression) }
-literal                     = _{ string | atom | boolean | float | integer | string | array | map | constructor }
+defvariable                 =  { var_type ~ defvariable_name ~ maybe_type_annotation ~ "=" ~ expression ~ ";" }
+defvariable_name            =  { "$" ~ ident }
+assignvariable              =  { defvariable_name ~ "=" ~ expression ~ ";" }
+unary                       =  { unary_operator ~ (literal | defvariable_name | braced_expression) }
+literal                     = _{ string | boolean | float | integer | string }
 
 ident                       = @{ ("_" | LETTER) ~ (LETTER | NUMBER | "_")* ~ ("?")? }
 keyword                     = ${ ident ~ ":" }
 maybe_type_annotation       =  { ( ":" ~ typename )? }
 
-constructor                 =  { constructor_prefix ~ (constructor_property ~ ("," ~ constructor_property)*)? ~ "}" }
-constructor_prefix          = _{ typename ~ "{" }
-constructor_property        =  { keyword ~ expression }
-
-map                         =  { "{" ~ (map_pair ~ ("," ~ map_pair)*)? ~ "}" }
-map_pair                    =  { (keyword | (expression ~ "=>")) ~ expression }
-
-array                       =  { "[" ~ (expression ~ ("," ~ expression)*)? ~ "]" }
-
-atom                        = @{ ":" ~ atom_ident }
-atom_ident                  = ${ LETTER ~ (LETTER | NUMBER | "_")* }
 local                       =  { ident }
 
 typename                    = _{ typename_name ~ ("." ~ typename_name)* }
@@ -89,25 +73,25 @@ string_escape               = ${ "\\" ~ ("\"" | "\\" | "a" | "b" | "f" | "n" | "
 
 at                          =  { "@" }
 exponent                    =  { "**" }
-multiply                    =  { "*" }
-divide                      =  { "/" }
-modulo                      =  { "%" }
-plus                        =  { "+" }
-minus                       =  { "-" }
-shift_left                  =  { "<<" }
-shift_right                 =  { ">>" }
-less_than                   =  { "<" }
-less_than_or_equal          =  { "<=" }
-greater_than                =  { ">" }
-greater_than_or_equal       =  { ">=" }
-not_equal                   =  { "!=" }
-equal                       =  { "==" }
-logical_and                 =  { "&&" }
-logical_or                  =  { "||" }
-logical_not                 =  { "!" }
-bitwise_and                 =  { "&" }
-bitwise_or                  =  { "|" }
-bitwise_xor                 =  { "^" }
+multiply                    =  { "mul" }
+divide                      =  { "div" }
+modulo                      =  { "mod" }
+plus                        =  { "sum" }
+minus                       =  { "sub" }
+shift_left                  =  { "lshift" }
+shift_right                 =  { "rshift" }
+less_than                   =  { "less" }
+less_than_or_equal          =  { "eless" }
+greater_than                =  { "bigger" }
+greater_than_or_equal       =  { "ebigger" }
+not_equal                   =  { "neq" }
+equal                       =  { "eq" }
+logical_and                 =  { "and" }
+logical_or                  =  { "or" }
+logical_not                 =  { "not" }
+bitwise_and                 =  { "band" }
+bitwise_or                  =  { "bor" }
+bitwise_xor                 =  { "xor" }
 all_operators               = _{
                                  exponent |
                                  multiply | divide | modulo |
@@ -137,4 +121,4 @@ boolean_true                =  { "true" }
 boolean_false               =  { "false" }
 
 
-var_type                    = { "mutvar" | "var" }
+var_type                    = { "var" | "const" }
