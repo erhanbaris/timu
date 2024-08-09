@@ -2,6 +2,7 @@
 pub type TimuAstType = Vec<String>;
 
 #[derive(Debug)]
+#[derive(PartialEq)]
 pub enum TimuAst {
     Import {
         path: Vec<String>,
@@ -45,18 +46,21 @@ pub enum TimuAst {
     }
 }
 
+#[derive(PartialEq)]
 #[derive(Debug)]
 pub struct FuncArg {
     pub name: String,
     pub arg_type: TimuAstType
 }
 
+#[derive(PartialEq)]
 #[derive(Debug)]
 pub enum AccessType {
     Public,
     Private
 }
 
+#[derive(PartialEq)]
 #[derive(Debug)]
 pub enum PrimativeType {
     String(String),
@@ -73,12 +77,14 @@ pub enum PrimativeType {
     Float(f32),
 }
 
+#[derive(PartialEq)]
 #[derive(Debug)]
 pub enum VariableType {
-    Immutable,
-    Mutable
+    Const,
+    Var
 }
 
+#[derive(PartialEq)]
 #[derive(Debug)]
 pub enum UnaryType {
     Plus,

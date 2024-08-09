@@ -4,6 +4,9 @@ use cpu::{bus::Bus, memory::MemoryBuilder, Cpu};
 
 mod cpu;
 mod format;
+mod parser;
+mod ast;
+mod jit;
 
 fn main() {
     let mut memory = MemoryBuilder::new(100);
