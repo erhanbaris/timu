@@ -8,9 +8,9 @@ comment_line                = @{ "//" ~ (!("\r" | "\n") ~ ANY)* }
 documentation               = ${ "/*doc" ~ documentation_content ~ "*/"}
 documentation_content       =  { (!"*/" ~ ANY)* }
 
-import                      =  { "@use" ~ "(" ~ importproperties ~ ")" ~ ("as" ~ importname)? ~ ";" }
+import                      =  { at ~ "use" ~ "(" ~ importproperties ~ ")" ~ ("as" ~ importname)? ~ ";" }
 importproperties            =  { importproperty ~ ("." ~ importproperty)* }
-importproperty              =  { typename_name }
+importproperty              =  { typename_name | "*" }
 importname                  =  { typename_name }
 
 module                      = _{ import | documentation | deffunc | defvariable }
@@ -34,11 +34,13 @@ infix                       = _{ expression_inner ~ binary_operator ~ expression
 expression_inner            = _{ call_remote | func_call | index | unary | literal | defvariable_name | local | braced_expression }
 call_args                   = _{ (expression ~ ("," ~ expression)*)? }
 braced_expression           = _{ "(" ~ expression ~ ")" }
-defvariable                 =  { var_type ~ defvariable_name ~ maybe_type_annotation ~ "=" ~ expression ~ ";" }
-defvariable_name            =  { "$" ~ ident }
+defvariable                 =  { meta? ~ static? ~ var_type? ~ defvariable_name ~ maybe_type_annotation ~ "=" ~ expression ~ ";" }
+defvariable_name            =  { ident }
 assignvariable              =  { defvariable_name ~ "=" ~ expression ~ ";" }
 unary                       =  { unary_operator ~ (literal | defvariable_name | braced_expression) }
 literal                     = _{ string | boolean | float | integer | string }
+static                      = _{ "static" }
+meta                        = _{ "@" ~ ident }
 
 ident                       = @{ ("_" | LETTER) ~ (LETTER | NUMBER | "_")* ~ ("?")? }
 keyword                     = ${ ident ~ ":" }
@@ -73,25 +75,25 @@ string_escape               = ${ "\\" ~ ("\"" | "\\" | "a" | "b" | "f" | "n" | "
 
 at                          =  { "@" }
 exponent                    =  { "**" }
-multiply                    =  { "mul" }
-divide                      =  { "div" }
-modulo                      =  { "mod" }
-plus                        =  { "sum" }
-minus                       =  { "sub" }
-shift_left                  =  { "lshift" }
-shift_right                 =  { "rshift" }
-less_than                   =  { "less" }
-less_than_or_equal          =  { "eless" }
-greater_than                =  { "bigger" }
-greater_than_or_equal       =  { "ebigger" }
-not_equal                   =  { "neq" }
-equal                       =  { "eq" }
-logical_and                 =  { "and" }
-logical_or                  =  { "or" }
-logical_not                 =  { "not" }
-bitwise_and                 =  { "band" }
-bitwise_or                  =  { "bor" }
-bitwise_xor                 =  { "xor" }
+multiply                    =  { "*" }
+divide                      =  { "/" }
+modulo                      =  { "%" }
+plus                        =  { "+" }
+minus                       =  { "-" }
+shift_left                  =  { "<<" }
+shift_right                 =  { ">>" }
+less_than                   =  { "<" }
+less_than_or_equal          =  { "<=" }
+greater_than                =  { ">" }
+greater_than_or_equal       =  { ">=" }
+not_equal                   =  { "!=" }
+equal                       =  { "==" }
+logical_and                 =  { "&&" }
+logical_or                  =  { "||" }
+logical_not                 =  { "!" }
+bitwise_and                 =  { "&" }
+bitwise_or                  =  { "|" }
+bitwise_xor                 =  { "^" }
 all_operators               = _{
                                  exponent |
                                  multiply | divide | modulo |
