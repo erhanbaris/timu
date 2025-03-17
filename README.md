@@ -1,6 +1,71 @@
 # timu
-Timu Programming Language
 
+### General design
+At sign (@) used for compiler macros. There are many inbuild macros defined and user can create it is own macro.
+Question mark (?) used for nulltypes.
+<type> used for type interferance. It is available on compile time.
+
+### Nullable type
+The nullable types starts with question mark (?). The variable may have a value or empty. The compiler gives guarantee about variable has value or not.
+@is_some macro check for value and return true if has it, otherwise return false
+@is_none macro check for value and return false if has it, otherwise return true
+
+### Macros
+## #some and #none
+It is used for nullable type. It checks for is value available or not.
+Example:
+
+```timu
+func main () {
+    var a: ?int = @none
+    var b: ?int = 1024
+    var c: ?int = @some(1024)
+    var d: bool = @is_some(1024)
+
+    if @some(1024) == c {
+
+    } else {
+
+    }
+}
+```
+
+
+### Type 
+
+```timu
+type data {
+    a: i32 = 100,
+    b: string,
+    c: ?string,
+
+    func init(): data {
+        !data
+    }
+}
+
+type data {
+    func print(self) {
+        return self.a
+    }
+}
+
+interface IData: Clone {
+    func hello()
+    func world()
+}
+
+
+type data: IData {
+
+}
+
+```
+
+### Module import
+
+
+### Example code
 
 @use(std) as s;
 @use(std);
@@ -19,17 +84,23 @@ static DATA = "
 static my_list = [1,2,3,4,5];
 static my_list_2: [i32; 2] = [1,2];
 
-struct data {
+@clone
+@compare
+type data {
     a: i32 = 100,
     b: string,
-    c: ?string
+    c: ?string,
+
+    func init(): data {
+        !data
+    }
 };
 
-@onchange(data, (item: i32) {
+@on_change(data, (item: i32) {
     
 });
 
-@ondrop(data, (item: i32) {
+@on_drop(data, (item: i32) {
     
 })
 
