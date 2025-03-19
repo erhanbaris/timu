@@ -264,6 +264,7 @@ func dataHandling() {
     var intData: i32 = 1024;
     var floatData: float64 = 1024.0;
     var arrayValue: [i32] = [1, 2, 3, 4, 5];
+    processData(data: 1024)
 
     var nullableBool: ?bool = none;
 
