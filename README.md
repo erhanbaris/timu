@@ -147,7 +147,9 @@ func datas() {
 	
 	var nullable_data = @get(nullable_data) or 10;
 	var has_value = @is_empty(nullable_data);
-	@defer std.console.write("out of scope")
+    @defer {
+        std.console.write("out of scope");
+    }
 }
 
 // Integer types
@@ -206,147 +208,25 @@ unsecure_ptr
 
 
 // Error result
+func return_error() -> @result(nil, i32) {
+    return @err(1024)
+}
+
+func handle_error() {
+    var val = try return_error(1024) catch (val: i32) {
+        return 1024;
+    };
+}
+
+func custom_thread() {
+
+}
+
+func spawn_thread() {
+    var my_thread = @thread custom_thread()
+    var my_coroutine = @go custom_thread()
+}
+
+
+
 // Null result
-
-------------------------------------------------------------
-
-# Timu Programming Language (Improved)
-
-# Module Imports (Consistent and Clear)
-module std {
-    use console;
-    use math as m;  # Alias example
-    use array;
-    use integer;
-    # ... other standard modules
-}
-
-# Static Variables (Consistent Mutability and Initialization)
-static ada: float64 = 1024.1; # Type explicitly defined
-@mut static mutableData: string = "erhan"; # Clear mutability
-static constantData: string = ""; # Immutable constant
-static multiLineConstant: string = """
-This is a multi-line string.
-""";
-
-static myList: [i32] = [1, 2, 3, 4, 5];
-static fixedSizeList: [i32; 2] = [1, 2];
-
-# Struct Definition (Consistent Naming)
-struct Data {
-    a: i32 = 100,
-    b: string,
-    c: ?string, # Optional string
-}
-
-# Atomic Variables (Clear Purpose)
-@atomic static atomicBool: bool = false;
-
-# Function Definitions (Clear Scope and Naming)
-# Private function
-func calculateData(data: i32): i32 {
-    # ... implementation
-    return data * 2;
-}
-
-# Public function
-pub func processData(data: i32): i32 {
-    # ... implementation
-    return calculateData(data) + 1;
-}
-
-func dataHandling() {
-    var stringData: string = "";
-    var multiLineString: string = """
-    Multi-line variable.
-    """;
-    var boolData: bool = true;
-    var intData: i32 = 1024;
-    var floatData: float64 = 1024.0;
-    var arrayValue: [i32] = [1, 2, 3, 4, 5];
-    processData(data: 1024)
-
-    var nullableBool: ?bool = none;
-
-    var valueOrTen: i32 = @get(nullableBool) or 10; # clear variable name.
-    var isEmpty: bool = @is_empty(nullableBool);
-
-    @defer std.console.write("out of scope");
-}
-
-# Type Aliases (Clarity)
-type Int256 = i256;
-type UInt256 = u256;
-type Int128 = i128;
-type UInt128 = u128;
-type Int64 = i64;
-type UInt64 = u64;
-type Int32 = i32;
-type UInt32 = u32;
-type Int16 = i16;
-type UInt16 = u16;
-type Int8 = i8;
-type UInt8 = u8;
-type Char = char;
-type Boolean = bool;
-
-# Memory Management (Explicit and Safe)
-var dynamicInt: *i32 = @new(i32); # Checked Pointer
-var dynamicArray: !*i32 = @new_ptr(i32; 10); # Unchecked pointer.
-
-if dynamicInt != none {
-    *dynamicInt = 42; # Dereference
-    @free(dynamicInt);
-}
-
-if dynamicArray != none {
-    dynamicArray[0] = 100;
-    @free(dynamicArray);
-}
-
-# Error Handling (Example)
-func safeOperation(value: i32): Result<i32, string> {
-    if value < 0 {
-        return Err("Negative value");
-    }
-    return Ok(value * 2);
-}
-
-func exampleErrorHandling() {
-    var result = safeOperation(10);
-    match result {
-        Ok(val) => std.console.write("Result: " + val),
-        Err(err) => std.console.error("Error: " + err),
-    }
-
-    var result2 = safeOperation(-5);
-        match result2{
-                Ok(val) => std.console.write("Result: " + val),
-                Err(err) => std.console.error("Error: " + err),
-        }
-}
-
-# Clone example.
-@clone struct CloneableData{
-        value : i32,
-}
-
-func exampleClone(){
-        var original : CloneableData = CloneableData{value:10};
-        var cloned : CloneableData = @clone(original);
-        cloned.value = 20;
-        std.console.write("Original : " + original.value);
-        std.console.write("Cloned : " + cloned.value);
-}
-
-# on_change example.
-@on_change(myVariableChanged)
-var myVariable : i32 = 5;
-
-func myVariableChanged(oldValue: i32, newValue: i32){
-        std.console.write("Variable changed from " + oldValue + " to " + newValue);
-}
-
-func exampleOnChange(){
-        myVariable = 10;
-}
