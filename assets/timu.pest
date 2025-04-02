@@ -13,15 +13,20 @@ importproperties            =  { importproperty ~ ("." ~ importproperty)* }
 importproperty              =  { typename_name | "*" }
 importname                  =  { typename_name }
 
-module                      = _{ import | documentation | deffunc | defvariable }
+module                      = _{ import | documentation | deffunc | deftype | defvariable }
+
 
 typeunion                   =  { typename ~ (plus ~ typename)+ }
 typeblock                   =  { "{" ~ typeblockcontents* ~ "}" }
-typeblockcontents           = _{ documentation | deffunc }
+typeblockcontents           = _{ documentation | deffunc | deftype }
 
 deffunc                     =  { "func" ~ ident ~ deffuncarguments ~ maybe_type_annotation ~ body_block }
 deffuncarguments            =  { ( "(" ~ (deffuncargument ~ ("," ~ deffuncargument)*)? ~ ")" )? }
 deffuncargument             =  { keyword ~ typename }
+
+deftype                     =  { "type" ~ ident ~ "{" ~ deftypefields ~ "}" }
+deftypefield                =  { pub_visibility? ~ defvariable_name ~ ":" ~ nullable? ~ typename ~ "," }
+deftypefields               =  { (deffunc | deftypefield)* }
 
 body_block                  =  { "{" ~ body_expression* ~ "}" }
 body_expression             = _{ defvariable | assignvariable | (expression ~ ";") }
@@ -40,6 +45,8 @@ assignvariable              =  { defvariable_name ~ "=" ~ expression ~ ";" }
 unary                       =  { unary_operator ~ (literal | defvariable_name | braced_expression) }
 literal                     = _{ string | boolean | float | integer | string }
 static                      = _{ "static" }
+pub_visibility              =  { "pub" }
+nullable                    =  { "?" }
 meta                        = _{ "@" ~ ident }
 
 ident                       = @{ ("_" | LETTER) ~ (LETTER | NUMBER | "_")* ~ ("?")? }
