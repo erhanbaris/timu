@@ -1,4 +1,5 @@
 # timu
+This is the language for what I would like to work on in the future. It will have many missing features but will add them when needed. My goal is to design a programming language that can solve many problems at compile time. 
 
 ### General design
 At sign (@) used for compiler macros. There are many inbuild macros defined and user can create it is own macro.
@@ -17,12 +18,13 @@ Example:
 
 ```timu
 func main () {
-    var a: ?int = @none
+    var a: ?int = None
+    var a: ?int;
     var b: ?int = 1024
-    var c: ?int = @some(1024)
-    var d: bool = @is_some(1024)
+    var c: ?int = Some(1024)
+    var d: bool = IsSome(1024)
 
-    if @some(1024) == c {
+    if Some(1024) == c {
 
     } else {
 
@@ -31,33 +33,82 @@ func main () {
 ```
 
 
-### Type 
+### Type
+The types are 
 
 ```timu
-type data {
-    a: i32 = 100,
-    b: string,
-    c: ?string,
+type MyType {
+    a: i32 = 100, # with default value
+    pub b: string, # public accessible
+    c: ?string, # nullable string
 
-    func init(): data {
-        !data
+    func init(): MyType { # constructor
+        return MyType {
+            a: 100,
+            b: "erhan",
+            c: None
+        }
     }
 }
 
-type data {
+# extend the data type with functions
+extend MyType {
     func print(self) {
         return self.a
     }
 }
 
-interface IData: Clone {
-    func hello()
-    func world()
+# Type interface
+interface IData {
+    func hello();
+    func world();
 }
 
+# Implement the interface
+extend MyType with IData {
+    func hello() {
+        return "hello"
+    }
 
-type data: IData {
+    func world() {
+        return "world"
+    }
+}
 
+func func_a(a: i32): i32 {
+    return a * 2
+}
+
+func func_b(a: i32): i32 {
+    return a * 3
+}
+
+func main() {
+    var d = MyType {
+        a: 100,
+        b: "erhan",
+        c: None
+    }
+
+    var v = MyType()
+
+    d.print()
+    MyType.hello()
+    MyType.world()
+
+    var a = func_a(2) => func_b() ## a will be 12
+
+    match d.b {
+        "a": {
+            return 100
+        }
+        "b": {
+            return 200
+        }
+        _ => {
+            return 300
+        }
+    }
 }
 
 ```
@@ -143,7 +194,7 @@ func datas() {
 	var float_data = 1024.0;
 	var array_value = [1,2,3,4,5];
 	
-	var nullable_data: ?bool = none;
+	var nullable_data: ?bool = None;
 	
 	var nullable_data = @get(nullable_data) or 10;
 	var has_value = @is_empty(nullable_data);
@@ -208,8 +259,8 @@ unsecure_ptr
 
 
 // Error result
-func return_error() -> @result(nil, i32) {
-    return @err(1024)
+func return_error() -> Result(Nil, i32) {
+    return Err(1024)
 }
 
 func handle_error() {
@@ -223,8 +274,8 @@ func custom_thread() {
 }
 
 func spawn_thread() {
-    var my_thread = @thread custom_thread()
-    var my_coroutine = @go custom_thread()
+    var my_thread = thread custom_thread()
+    var my_coroutine = go custom_thread()
 }
 
 
