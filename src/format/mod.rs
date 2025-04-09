@@ -65,7 +65,7 @@ impl From<Size> for usize {
 #[derive(Debug, Default)]
 pub struct BufferReader<'a> {
     pub data: &'a [u8],
-    pub index: usize
+    pub index: usize,
 }
 
 impl<'a> BufferReader<'a> {
@@ -91,8 +91,7 @@ impl<'a> BufferReader<'a> {
     }
 
     pub fn fetch_u32(&mut self) -> Result<u32, BinaryFormatError> {
-        let value = (
-               (self.data[self.index + 3] as u32) << 24)
+        let value = ((self.data[self.index + 3] as u32) << 24)
             | ((self.data[self.index + 2] as u32) << 16)
             | ((self.data[self.index + 1] as u32) << 8)
             | self.data[self.index] as u32;
@@ -101,8 +100,7 @@ impl<'a> BufferReader<'a> {
     }
 
     pub fn fetch_u64(&mut self) -> Result<u64, BinaryFormatError> {
-        let value = (
-               (self.data[self.index + 7] as u64) << 56)
+        let value = ((self.data[self.index + 7] as u64) << 56)
             | ((self.data[self.index + 6] as u64) << 48)
             | ((self.data[self.index + 5] as u64) << 40)
             | ((self.data[self.index + 4] as u64) << 32)
@@ -115,8 +113,7 @@ impl<'a> BufferReader<'a> {
     }
 
     pub fn fetch_i64(&mut self) -> Result<i64, BinaryFormatError> {
-        let value = (
-               (self.data[self.index + 7] as i64) << 56)
+        let value = ((self.data[self.index + 7] as i64) << 56)
             | ((self.data[self.index + 6] as i64) << 48)
             | ((self.data[self.index + 5] as i64) << 40)
             | ((self.data[self.index + 4] as i64) << 32)
@@ -137,7 +134,6 @@ impl<'a> BufferReader<'a> {
     }
 
     pub fn set_index(&mut self, index: usize) -> Result<(), BinaryFormatError> {
-
         if index >= self.data.len() {
             Err(BinaryFormatError::OutOfRange)
         } else {
@@ -146,7 +142,7 @@ impl<'a> BufferReader<'a> {
         }
     }
 
-    pub fn read_remaining(&mut self) -> &'a[u8] {
+    pub fn read_remaining(&mut self) -> &'a [u8] {
         &self.data[self.index..]
     }
 }
@@ -156,15 +152,17 @@ unsafe fn str_from_null_terminated_utf8(s: &[u8]) -> Result<&str, std::str::Utf8
 }
 
 pub struct BinaryRepresentation<'a> {
-    pub codes: &'a [u8]
+    pub codes: &'a [u8],
 }
 
 pub trait BinaryFormat<'a> {
-    fn parse(reader: &'a mut BufferReader) -> Result<Self, BinaryFormatError> where Self: Sized;
+    fn parse(reader: &'a mut BufferReader) -> Result<Self, BinaryFormatError>
+    where
+        Self: Sized;
     fn get_codes(&self) -> &'a [u8];
 }
 
-pub fn parse(filename: &str) -> Vec<u8>  {
+pub fn parse(filename: &str) -> Vec<u8> {
     let contents = std::fs::read(filename).expect("Should have been able to read the file");
     let mut reader = BufferReader::new(&contents[..]);
     let binary = ElfFormat::parse(&mut reader).unwrap();

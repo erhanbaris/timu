@@ -1,5 +1,5 @@
 //use inkwell::{context::Context, module::{Module, Linkage}, builder::Builder, types::BasicMetadataTypeEnum, AddressSpace};
-//use cranelift_codegen;
+use cranelift_codegen;
 
 use std::{collections::HashMap};
 

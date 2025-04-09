@@ -1,6 +1,6 @@
 use core::str;
-use std::{ffi::CStr, fs};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use std::{ffi::CStr, fs};
 
 use super::{BinaryFormat, BinaryFormatError, BitMode, BufferReader, Endianness};
 
@@ -43,15 +43,13 @@ pub enum FileType {
     with_only_debug_sections = 0x0000000A,
     x86_64_kexts = 0x0000000B,
     composed_file = 0x0000000C,
-
 }
 
 #[repr(u32)]
-#[derive(TryFromPrimitive)]
-#[derive(Debug, Default)]
+#[derive(TryFromPrimitive, Debug, Default)]
 pub enum LoadCommandType {
     #[default]
-    Segment = 0x00000019
+    Segment = 0x00000019,
 }
 
 #[derive(Debug, Default)]
@@ -71,7 +69,7 @@ pub struct MachOHeader {
     pub size_of_load_commands: u32,
     pub flags: u32,
 
-    pub load_commands: Vec<LoadCommand>
+    pub load_commands: Vec<LoadCommand>,
 }
 
 impl MachOHeader {
@@ -84,9 +82,10 @@ impl MachOHeader {
         self.bit_mode = match self.magic_number {
             0xfeedface => BitMode::_32,
             0xfeedfacf => BitMode::_64,
-            _ => return Err(BinaryFormatError::InvalidFormat)
+            _ => return Err(BinaryFormatError::InvalidFormat),
         };
-        self.cpu_type = unsafe { core::mem::transmute::<u32, CpuType>((reader.fetch_u32()? << 8) >> 8) };
+        self.cpu_type =
+            unsafe { core::mem::transmute::<u32, CpuType>((reader.fetch_u32()? << 8) >> 8) };
         self.cpu_subtype = reader.fetch_u32()?;
         self.file_type = unsafe { core::mem::transmute::<u32, FileType>(reader.fetch_u32()?) };
         self.number_of_load_commands = reader.fetch_u32()?;
@@ -98,7 +97,8 @@ impl MachOHeader {
         }
 
         for _ in 0..self.number_of_load_commands {
-            let command_type = LoadCommandType::try_from(reader.fetch_u32()?).map_err(|_| BinaryFormatError::InvalidType)?;
+            let command_type = LoadCommandType::try_from(reader.fetch_u32()?)
+                .map_err(|_| BinaryFormatError::InvalidType)?;
 
             if let command_type = LoadCommandType::Segment {
                 let command_size = reader.fetch_u32()?;
@@ -114,16 +114,22 @@ impl MachOHeader {
 #[derive(Debug, Default)]
 pub struct MachOFormat<'a> {
     pub header: MachOHeader,
-    pub buffer: &'a [u8]
+    pub buffer: &'a [u8],
 }
 
 impl<'a> BinaryFormat<'a> for MachOFormat<'a> {
-    fn parse(reader: &'a mut BufferReader) -> Result<Self, super::BinaryFormatError> where Self: Sized {
+    fn parse(reader: &'a mut BufferReader) -> Result<Self, super::BinaryFormatError>
+    where
+        Self: Sized,
+    {
         let mut header = MachOHeader::default();
-        
+
         header.parse(reader)?;
 
-        Ok(Self { header, buffer: reader.read_remaining() })        
+        Ok(Self {
+            header,
+            buffer: reader.read_remaining(),
+        })
     }
 
     fn get_codes(&self) -> &'a [u8] {

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod test {
-    
+
     use crate::cpu::{bus::Bus, memory::Memory};
     #[test]
     fn memory_empty() {
@@ -12,15 +12,15 @@ mod test {
             assert_eq!(memory.read8(index), 0x0);
         }
 
-        for index in 0..(1024/2) {
+        for index in 0..(1024 / 2) {
             assert_eq!(memory.read16(index), 0x0);
         }
 
-        for index in 0..(1024/4) {
+        for index in 0..(1024 / 4) {
             assert_eq!(memory.read32(index), 0x0);
         }
 
-        for index in 0..(1024/8) {
+        for index in 0..(1024 / 8) {
             assert_eq!(memory.read64(index), 0x0);
         }
     }
@@ -93,7 +93,7 @@ mod test {
         assert_eq!(bus.read8(5), 0x60);
         assert_eq!(bus.read8(6), 0x70);
         assert_eq!(bus.read8(7), 0x80);
-        
+
         bus.write8(0, 0xff);
         assert_eq!(bus.read8(0), 0xff);
         assert_eq!(bus.len(), 1024);
@@ -117,7 +117,7 @@ mod test {
         assert_eq!(memory.read32(1), 0x50403020);
         assert_eq!(memory.read64(1), 0x9080706050403020);
         assert_eq!(memory.read64(0), 0x8070605040302010);
-     
+
         assert_eq!(memory.read16(2), 0x4030);
         assert_eq!(memory.read32(2), 0x60504030);
 

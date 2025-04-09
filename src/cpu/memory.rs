@@ -1,23 +1,23 @@
 #[derive(Debug, Clone, Default)]
 pub struct Memory {
     data: Vec<u8>,
-    len: usize
+    len: usize,
 }
 
 impl Memory {
     pub fn new(len: usize) -> Self {
         let mut memory = Self {
             data: Vec::new(),
-            len
+            len,
         };
         memory.data.resize(len, 0);
         memory
     }
-    
+
     pub fn len(&self) -> usize {
         self.len
     }
-    
+
     #[inline(always)]
     pub fn read8(&self, address: usize) -> u8 {
         self.data[address]
@@ -87,18 +87,17 @@ impl Memory {
     }
 }
 
-
 #[derive(Debug, Clone, Default)]
 pub struct MemoryBuilder {
     memory: Memory,
-    index: usize
+    index: usize,
 }
 
 impl MemoryBuilder {
     pub fn new(len: usize) -> Self {
         Self {
             memory: Memory::new(len),
-            index: 0
+            index: 0,
         }
     }
 
@@ -116,7 +115,7 @@ impl MemoryBuilder {
         self.memory.write16(self.index, value);
         self.index += 2;
     }
-    
+
     #[allow(dead_code)]
     pub fn write32(&mut self, value: u32) {
         self.memory.write32(self.index, value);
