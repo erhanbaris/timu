@@ -1,15 +1,15 @@
+use crate::parser::TimuTypeField;
 
 pub type TimuAstType = Vec<String>;
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum TimuAst {
     Import {
         path: Vec<String>,
-        name: String
+        name: String,
     },
     File {
-        statements: Vec<Box<TimuAst>>
+        statements: Vec<Box<TimuAst>>,
     },
     Ident(String),
     Primative(PrimativeType),
@@ -17,51 +17,52 @@ pub enum TimuAst {
     FunctionCall {
         compiler: bool,
         name: String,
-        args: Vec<Box<TimuAst>>
+        args: Vec<Box<TimuAst>>,
     },
     BinaryOperation {
         left: Box<TimuAst>,
         operator: char,
-        right: Box<TimuAst>
+        right: Box<TimuAst>,
     },
     FunctionDefinition {
         access: AccessType,
         name: String,
         args: Vec<FuncArg>,
         return_type: TimuAstType,
-        body: Box<TimuAst>
+        body: Box<TimuAst>,
     },
     Block {
-        statements: Vec<Box<TimuAst>>
+        statements: Vec<Box<TimuAst>>,
     },
     DefAssignment {
         r#type: VariableType,
         type_annotation: Vec<String>,
         name: String,
-        data: Box<TimuAst>
+        data: Box<TimuAst>,
     },
     Assignment {
         name: String,
-        data: Box<TimuAst>
-    }
+        data: Box<TimuAst>,
+    },
+    TypeDefinition {
+        name: String,
+        fields: Vec<TimuTypeField>,
+    },
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub struct FuncArg {
     pub name: String,
-    pub arg_type: TimuAstType
+    pub arg_type: TimuAstType,
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum AccessType {
     Public,
-    Private
+    Private,
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum PrimativeType {
     String(String),
     Bool(bool),
@@ -77,17 +78,15 @@ pub enum PrimativeType {
     Float(f32),
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum VariableType {
     Const,
-    Var
+    Var,
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum UnaryType {
     Plus,
     Minus,
-    LogicalNot
+    LogicalNot,
 }

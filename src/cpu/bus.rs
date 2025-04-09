@@ -2,14 +2,14 @@ use super::memory::Memory;
 
 #[derive(Debug, Clone, Default)]
 pub struct Bus {
-    memory: Memory
+    memory: Memory,
 }
 
 impl Bus {
     pub fn new(memory: Memory) -> Self {
         Self { memory }
     }
-    
+
     pub fn len(&self) -> usize {
         self.memory.len()
     }

@@ -3,9 +3,9 @@ mod test {
     use std::u32;
 
     use crate::cpu::{
-        bus::Bus, memory::MemoryBuilder, Cpu, REGISTER_R10, REGISTER_RAX, REGISTER_RCX, REGISTER_RDI, REGISTER_RSI
+        bus::Bus, memory::MemoryBuilder, Cpu, REGISTER_R10, REGISTER_RAX, REGISTER_RCX,
+        REGISTER_RDI, REGISTER_RSI,
     };
-
 
     #[test]
     fn mov_88_test() {
@@ -121,7 +121,7 @@ mod test {
 
         assert_eq!(cpu.registers[REGISTER_RCX], 0x1278);
     }
-    
+
     #[test]
     fn basic_high_to_low_assign_test() {
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
@@ -143,7 +143,7 @@ mod test {
 
         assert_eq!(cpu.registers[REGISTER_RAX], 0x1212);
     }
-    
+
     #[test]
     fn basic_low_to_high_assign_test() {
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
@@ -165,7 +165,7 @@ mod test {
 
         assert_eq!(cpu.registers[REGISTER_RAX], 0x3434);
     }
-    
+
     #[test]
     fn mov_al_to_dil() {
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
@@ -183,7 +183,6 @@ mod test {
 
         assert_eq!(cpu.registers[REGISTER_RDI], 0xff);
     }
-    
 
     #[test]
     fn rex_1() {

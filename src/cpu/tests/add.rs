@@ -69,7 +69,6 @@ mod test {
         assert_eq!(cpu.registers[REGISTER_RAX], 0xCCCC_CCCC_CCCC_CCCC);
         assert_eq!(cpu.registers[REGISTER_RCX], 0x1111_1111_1111_1111);
 
-        
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
 
         /* add %cl, %ah */
@@ -120,10 +119,10 @@ mod test {
         assert_eq!(cpu.registers[REGISTER_RAX], 15);
         assert_eq!(cpu.registers[REGISTER_RCX], 5);
     }
-    
+
     fn add_01_test_2() {
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
-        
+
         /* addl %eax, %r9d */
         memory.write8(0x41);
         memory.write8(0x01);
@@ -167,9 +166,7 @@ mod test {
         let mut cpu = Cpu::new(bus);
         cpu.registers[REGISTER_RAX] = 5;
 
-        cpu.add_hook(|cpu| {
-            println!("RAX: {}", cpu.registers[REGISTER_RAX])
-        });
+        cpu.add_hook(|cpu| println!("RAX: {}", cpu.registers[REGISTER_RAX]));
         cpu.boot();
 
         assert_eq!(cpu.bus.read64(10), 5);
@@ -204,9 +201,7 @@ mod test {
         let bus = Bus::new(memory.generate());
         let mut cpu = Cpu::new(bus);
 
-        cpu.add_hook(|cpu| {
-            println!("RCX: {}", cpu.registers[REGISTER_RCX])
-        });
+        cpu.add_hook(|cpu| println!("RCX: {}", cpu.registers[REGISTER_RCX]));
 
         cpu.boot();
 
@@ -246,7 +241,6 @@ mod test {
 
         assert_eq!(cpu.registers[REGISTER_RCX], u64::MAX as u64);
     }
-    
 
     #[test]
     fn add_03_test() {
@@ -264,13 +258,13 @@ mod test {
         let mut cpu = Cpu::new(bus);
 
         cpu.registers[REGISTER_RAX] = 4; // Pointer
-        cpu.registers[REGISTER_RCX] = 24; 
+        cpu.registers[REGISTER_RCX] = 24;
 
         cpu.boot();
 
         assert_eq!(cpu.registers[REGISTER_RCX], 2024);
     }
-    
+
     #[test]
     fn add_83_test() {
         let mut memory: MemoryBuilder = MemoryBuilder::new(100);
