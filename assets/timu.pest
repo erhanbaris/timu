@@ -20,7 +20,7 @@ typeunion                   =  { typename ~ (plus ~ typename)+ }
 typeblock                   =  { "{" ~ typeblockcontents* ~ "}" }
 typeblockcontents           = _{ documentation | deffunc | deftype }
 
-deffunc                     =  { "func" ~ ident ~ deffuncarguments ~ maybe_type_annotation ~ body_block }
+deffunc                     =  { "func" ~ ident ~ deffuncarguments ~ type_annotation ~ body_block }
 deffuncarguments            =  { ( "(" ~ (deffuncargument ~ ("," ~ deffuncargument)*)? ~ ")" )? }
 deffuncargument             =  { keyword ~ typename }
 
@@ -52,6 +52,7 @@ meta                        = _{ "@" ~ ident }
 ident                       = @{ ("_" | LETTER) ~ (LETTER | NUMBER | "_")* ~ ("?")? }
 keyword                     = ${ ident ~ ":" }
 maybe_type_annotation       =  { ( ":" ~ typename )? }
+type_annotation             = _{ ":" ~ typename }
 
 local                       =  { ident }
 
