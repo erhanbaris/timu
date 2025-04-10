@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     pub b: ?string,
     pub c: string,
     pub d: string.v1ddasdd,
-    func test() {
+    func test(): None {
     }
 }"#,
     );

@@ -142,12 +142,27 @@ fn parse_variable_assign(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
     }))
 }
 
+fn parse_function_args(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+    let mut inner_rules = pair.clone().into_inner();
+    //let mut args = Vec::new();
+    
+    for item in inner_rules.into_iter() {
+
+    }
+
+    return Err(TimuParserError::new(
+        &pair,
+        "Not valid for type definition".to_string(),
+    ))
+}
+
 fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     let mut inner_rules = pair.into_inner();
     let name = inner_rules.next().unwrap().as_str().to_string();
     let mut type_fields = inner_rules.next().unwrap().into_inner();
 
     let mut fields = Vec::new();
+    let mut functions = Vec::new();
 
     for item in type_fields.into_iter() {
         match item.as_rule() {
@@ -175,7 +190,9 @@ fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
                     type_name,
                 });
             }
-            Rule::deffunc => {}
+            Rule::deffunc => {
+                functions.push(parse_function_call(item)?);
+            }
             _ => {
                 return Err(TimuParserError::new(
                     &item,
@@ -315,7 +332,8 @@ fn parse_unary(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
 }
 
 fn parse_rule(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
-    match pair.as_rule() {
+    let rule = pair.as_rule();
+    match rule {
         Rule::import => parse_import(pair),
 
         // Primative
@@ -337,6 +355,7 @@ fn parse_rule(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
 
         // Types
         Rule::deftype => parse_type_definition(pair),
+        Rule::deffuncarguments => parse_function_args(pair),
 
         _ => return Err(TimuParserError::new(&pair, "unknown syntax".to_string())),
     }
