@@ -9,9 +9,7 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use crate::ast::{
-    AccessType, FuncArg, PrimativeType, TimuAst, TimuAstType, UnaryType, VariableType,
-};
+use crate::ast::{AccessType, FuncArg, PrimitiveType, TimuAst, UnaryType, VariableType};
 
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
 lazy_static::lazy_static! {
@@ -44,11 +42,18 @@ pub struct TimuParserError {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct TimuTypeField {
+pub struct TimuTypeField<'a> {
     pub is_pub: bool,
-    pub name: String,
+    pub name: &'a str,
     pub nullable: bool,
-    pub type_name: String,
+    pub type_name: &'a str,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TimuFunctionArg<'a> {
+    pub name: &'a str,
+    pub nullable: bool,
+    pub type_name: &'a str,
 }
 
 /* **************************************************** ENUMS ***************************************************** */
@@ -88,10 +93,8 @@ fn check_rule(pair: &Pair<'_, Rule>, expected_rule: Rule) -> Result<(), TimuPars
     Ok(())
 }
 
-fn to_string_vector(rule: Pair<Rule>) -> Vec<String> {
-    rule.into_inner()
-        .map(|item| item.as_str().to_string())
-        .collect()
+fn to_string_vector(rule: Pair<'_, Rule>) -> Vec<&'_ str> {
+    rule.into_inner().map(|item| item.as_str()).collect()
 }
 
 fn parse_import(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
@@ -99,8 +102,8 @@ fn parse_import(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
 
     let path = to_string_vector(inner_rules.next().unwrap());
     let name = match inner_rules.next() {
-        Some(rule) => rule.as_str().to_string(),
-        None => path.last().unwrap().to_string(),
+        Some(rule) => rule.as_str(),
+        None => path.last().unwrap(),
     };
 
     Ok(Box::new(TimuAst::Import { path, name }))
@@ -121,7 +124,7 @@ fn parse_variable_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuP
         }
     };
 
-    let name = inner_rules.next().unwrap().as_str().to_string();
+    let name = inner_rules.next().unwrap().as_str();
     let type_annotation = to_string_vector(inner_rules.next().unwrap());
 
     Ok(Box::new(TimuAst::DefAssignment {
@@ -134,7 +137,7 @@ fn parse_variable_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuP
 
 fn parse_variable_assign(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     let mut inner_rules = pair.into_inner();
-    let name = inner_rules.next().unwrap().as_str().to_string();
+    let name = inner_rules.next().unwrap().as_str();
 
     Ok(Box::new(TimuAst::Assignment {
         name,
@@ -142,23 +145,20 @@ fn parse_variable_assign(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
     }))
 }
 
-fn parse_function_args(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+fn parse_function_args(pair: Pair<'_, Rule>) -> Result<Vec<TimuFunctionArg>, TimuParserError> {
     let mut inner_rules = pair.clone().into_inner();
-    //let mut args = Vec::new();
-    
-    for item in inner_rules.into_iter() {
+    let mut args: Vec<_> = Vec::new();
 
+    for item in inner_rules.into_iter() {
+        println!("item: {:?}", item);
     }
 
-    return Err(TimuParserError::new(
-        &pair,
-        "Not valid for type definition".to_string(),
-    ))
+    Ok(args)
 }
 
 fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     let mut inner_rules = pair.into_inner();
-    let name = inner_rules.next().unwrap().as_str().to_string();
+    let name = inner_rules.next().unwrap().as_str();
     let mut type_fields = inner_rules.next().unwrap().into_inner();
 
     let mut fields = Vec::new();
@@ -166,14 +166,14 @@ fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
 
     for item in type_fields.into_iter() {
         match item.as_rule() {
-            Rule::deftypefield => {
+            Rule::define_type_field => {
                 let mut inner = item.into_inner();
                 let is_pub = match inner.next() {
                     Some(rule) => rule.as_str() == "pub",
                     None => false,
                 };
 
-                let name = inner.next().unwrap().as_str().to_string();
+                let name = inner.next().unwrap().as_str();
                 let nullable = if let Some(Rule::nullable) = inner.peek().map(|item| item.as_rule())
                 {
                     let _ = inner.next();
@@ -182,7 +182,7 @@ fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
                     false
                 };
 
-                let type_name = inner.next().unwrap().as_str().to_string();
+                let type_name = inner.next().unwrap().as_str();
                 fields.push(TimuTypeField {
                     is_pub,
                     name,
@@ -190,8 +190,8 @@ fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
                     type_name,
                 });
             }
-            Rule::deffunc => {
-                functions.push(parse_function_call(item)?);
+            Rule::define_function => {
+                functions.push(parse_function_definition(item)?);
             }
             _ => {
                 return Err(TimuParserError::new(
@@ -202,7 +202,11 @@ fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
         }
     }
 
-    Ok(Box::new(TimuAst::TypeDefinition { name, fields }))
+    Ok(Box::new(TimuAst::TypeDefinition {
+        name,
+        fields,
+        functions,
+    }))
 }
 
 fn parse_file(pairs: Pairs<'_, Rule>) -> Result<TimuAst, TimuParserError> {
@@ -221,19 +225,19 @@ fn parse_file(pairs: Pairs<'_, Rule>) -> Result<TimuAst, TimuParserError> {
 }
 
 fn parse_string(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
-    check_rule(&pair, Rule::string)?;
+    check_rule(&pair, Rule::primitive_type_string)?;
 
     let mut inner_rules = pair.into_inner();
     let string_data = inner_rules.next().unwrap();
 
-    Ok(Box::new(TimuAst::Primative(PrimativeType::String(
-        string_data.as_str().to_string(),
+    Ok(Box::new(TimuAst::Primitive(PrimitiveType::String(
+        string_data.as_str(),
     ))))
 }
 
 fn parse_bool(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
-    check_rule(&pair, Rule::boolean)?;
-    Ok(Box::new(TimuAst::Primative(PrimativeType::Bool(
+    check_rule(&pair, Rule::primitive_type_boolean)?;
+    Ok(Box::new(TimuAst::Primitive(PrimitiveType::Bool(
         match pair.as_str() {
             "true" => true,
             _ => false,
@@ -242,7 +246,7 @@ fn parse_bool(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
 }
 
 fn parse_integer(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
-    check_rule(&pair, Rule::integer)?;
+    check_rule(&pair, Rule::primitive_type_integer)?;
 
     let integer_rule = pair.into_inner().next().unwrap();
     let integer = match integer_rule.as_rule() {
@@ -261,35 +265,35 @@ fn parse_integer(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> 
     };
 
     if I8_RANGE.contains(&integer) {
-        Ok(Box::new(TimuAst::Primative(PrimativeType::I8(
+        Ok(Box::new(TimuAst::Primitive(PrimitiveType::I8(
             integer as i8,
         ))))
     } else if U8_RANGE.contains(&integer) {
-        Ok(Box::new(TimuAst::Primative(PrimativeType::U8(
+        Ok(Box::new(TimuAst::Primitive(PrimitiveType::U8(
             integer as u8,
         ))))
     } else if I16_RANGE.contains(&integer) {
-        Ok(Box::new(TimuAst::Primative(PrimativeType::I16(
+        Ok(Box::new(TimuAst::Primitive(PrimitiveType::I16(
             integer as i16,
         ))))
     } else if U16_RANGE.contains(&integer) {
-        Ok(Box::new(TimuAst::Primative(PrimativeType::U16(
+        Ok(Box::new(TimuAst::Primitive(PrimitiveType::U16(
             integer as u16,
         ))))
     } else if I32_RANGE.contains(&integer) {
-        Ok(Box::new(TimuAst::Primative(PrimativeType::I32(
+        Ok(Box::new(TimuAst::Primitive(PrimitiveType::I32(
             integer as i32,
         ))))
     } else if U32_RANGE.contains(&integer) {
-        Ok(Box::new(TimuAst::Primative(PrimativeType::U32(
+        Ok(Box::new(TimuAst::Primitive(PrimitiveType::U32(
             integer as u32,
         ))))
     } else if I64_RANGE.contains(&integer) {
-        Ok(Box::new(TimuAst::Primative(PrimativeType::I64(
+        Ok(Box::new(TimuAst::Primitive(PrimitiveType::I64(
             integer as i64,
         ))))
     } else if U64_RANGE.contains(&integer) {
-        Ok(Box::new(TimuAst::Primative(PrimativeType::U64(
+        Ok(Box::new(TimuAst::Primitive(PrimitiveType::U64(
             integer as u64,
         ))))
     } else {
@@ -301,8 +305,8 @@ fn parse_integer(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> 
 }
 
 fn parse_float(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
-    check_rule(&pair, Rule::float)?;
-    Ok(Box::new(TimuAst::Primative(PrimativeType::Float(
+    check_rule(&pair, Rule::primitive_type_float)?;
+    Ok(Box::new(TimuAst::Primitive(PrimitiveType::Float(
         pair.as_str()
             .replace("_", "")
             .parse::<f32>()
@@ -336,60 +340,60 @@ fn parse_rule(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     match rule {
         Rule::import => parse_import(pair),
 
-        // Primative
-        Rule::string => parse_string(pair),
-        Rule::boolean => parse_bool(pair),
-        Rule::integer => parse_integer(pair),
-        Rule::float => parse_float(pair),
+        // Primitive
+        Rule::primitive_type_string => parse_string(pair),
+        Rule::primitive_type_boolean => parse_bool(pair),
+        Rule::primitive_type_integer => parse_integer(pair),
+        Rule::primitive_type_float => parse_float(pair),
 
         // Unary
         Rule::unary => parse_unary(pair),
         Rule::infix => parse_binary_operation(pair),
 
-        Rule::deffunc => parse_function_definition(pair),
-        Rule::func_call => parse_function_call(pair),
+        Rule::define_function => parse_function_definition(pair),
+        Rule::function_call => parse_function_call(pair),
 
         // Assignment
-        Rule::defvariable => parse_variable_definition(pair),
-        Rule::assignvariable => parse_variable_assign(pair),
+        Rule::define_variable => parse_variable_definition(pair),
+        Rule::assign_variable => parse_variable_assign(pair),
 
         // Types
-        Rule::deftype => parse_type_definition(pair),
-        Rule::deffuncarguments => parse_function_args(pair),
+        Rule::define_type => parse_type_definition(pair),
 
         _ => return Err(TimuParserError::new(&pair, "unknown syntax".to_string())),
     }
 }
 
-fn parse_type_annotation(pair: Pair<'_, Rule>) -> Vec<String> {
+fn parse_type_annotation(pair: Pair<'_, Rule>) -> Vec<&'_ str> {
     let mut type_info = Vec::new();
 
     for type_rule in pair.into_inner() {
-        type_info.push(type_rule.as_str().to_string());
+        type_info.push(type_rule.as_str());
     }
 
     type_info
 }
 
-fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst<'_>>, TimuParserError> {
     let inner_rules = pair.into_inner();
-    let access = AccessType::Private;
-    let mut name = String::new();
-    let mut return_type = Vec::new();
+    let mut access = AccessType::Private;
+    let mut name = "";
+    let mut return_type = "";
     let mut args = Vec::new();
     let mut statements = Vec::new();
 
     for rule in inner_rules {
         match rule.as_rule() {
-            Rule::maybe_type_annotation => return_type = parse_type_annotation(rule),
-            Rule::ident => name = rule.as_str().to_string(),
-            Rule::deffuncarguments => {
+            Rule::pub_visibility => access = AccessType::Public,
+            Rule::define_function_return_type => return_type = rule.as_str(),
+            Rule::ident => name = rule.as_str(),
+            Rule::define_function_arguments => {
                 for arg_rule in rule.into_inner() {
                     let mut arg_rule = arg_rule.into_inner();
 
                     let mut func_argument = FuncArg {
-                        name: arg_rule.next().unwrap().as_str().to_string(),
-                        arg_type: TimuAstType::new(),
+                        name: arg_rule.next().unwrap().as_str(),
+                        arg_type: Default::default(),
                     };
 
                     for item in arg_rule {
@@ -422,7 +426,7 @@ fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuP
 
 fn parse_function_call(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     let mut inner_rules = pair.into_inner();
-    let name = inner_rules.next().unwrap().as_str().to_string();
+    let name = inner_rules.next().unwrap().as_str();
     let mut args = Vec::new();
 
     while let Some(rule) = inner_rules.next() {
@@ -436,11 +440,11 @@ fn parse_function_call(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserE
     }))
 }
 
-fn build_binary(
-    lhs: Result<Box<TimuAst>, TimuParserError>,
-    op: Pair<'_, Rule>,
-    rhs: Result<Box<TimuAst>, TimuParserError>,
-) -> Result<Box<TimuAst>, TimuParserError> {
+fn build_binary<'a>(
+    lhs: Result<Box<TimuAst<'a>>, TimuParserError>,
+    op: Pair<'a, Rule>,
+    rhs: Result<Box<TimuAst<'a>>, TimuParserError>,
+) -> Result<Box<TimuAst<'a>>, TimuParserError> {
     Ok(Box::new(TimuAst::BinaryOperation {
         left: lhs?,
         operator: op.as_str().chars().nth(0).unwrap(),
@@ -457,7 +461,7 @@ fn parse_binary_operation(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuPars
     Ok(node?)
 }
 
-pub fn parser(code: &str) -> Result<TimuAst, TimuParserError> {
+pub fn parser<'a>(code: &'a str) -> Result<TimuAst, TimuParserError> {
     match TimuParser::parse(Rule::file, code) {
         Ok(parse) => parse_file(parse),
         Err(err) => {
@@ -518,7 +522,7 @@ impl TimuParserError {
 mod test {
     use rstest::*;
 
-    use crate::ast::{PrimativeType, TimuAst, VariableType};
+    use crate::ast::{PrimitiveType, TimuAst, VariableType};
 
     use super::TimuParserError;
 
@@ -569,7 +573,7 @@ mod test {
                 r#type: VariableType::Var,
                 type_annotation: [].to_vec(),
                 name: "$test1".to_string(),
-                data: Box::new(TimuAst::Primative(PrimativeType::I8(123)))
+                data: Box::new(TimuAst::Primitive(PrimitiveType::I8(123)))
             }),
         ],
     })]
@@ -579,7 +583,7 @@ mod test {
                 r#type: VariableType::Const,
                 type_annotation: [].to_vec(),
                 name: "$test1".to_string(),
-                data: Box::new(TimuAst::Primative(PrimativeType::String("erhanbaris".to_string()))),
+                data: Box::new(TimuAst::Primitive(PrimitiveType::String("erhanbaris".to_string()))),
             }),
         ],
     })]

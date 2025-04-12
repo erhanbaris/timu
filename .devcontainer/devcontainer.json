@@ -1,0 +1,37 @@
+{
+    "name": "SmartGate",
+    "dockerComposeFile": "../docker-compose.yaml",
+    "service": "dev",
+    "workspaceFolder": "/app",
+    "remoteUser": "root",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "vadimcn.vscode-lldb",
+                "GitHub.copilot",
+                "GitHub.copilot-chat",
+                "eamodio.gitlens",
+                "rust-lang.rust-analyzer",
+                "redhat.vscode-yaml",
+                "ms-vscode.cpptools",
+                "ms-vscode.hexeditor",
+                "ms-python.vscode-pylance",
+                "alexkrechik.cucumberautocomplete",
+                "ms-vscode-remote.vscode-remote-extensionpack"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "zsh",
+                "terminal.integrated.profiles.linux": {
+                    "zsh": {
+                        "path": "zsh"
+                    },
+                    "bash": {
+                        "path": "bash",
+                        "icon": "terminal-bash"
+                    }
+                }
+            }
+        }
+    }
+}

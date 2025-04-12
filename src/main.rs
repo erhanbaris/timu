@@ -64,10 +64,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     pub c: string,
     pub d: string.v1ddasdd,
     func test(): None {
+        var a = 1;
     }
 }"#,
     );
-    println!("{:?}", parsed);
+    println!("{:#?}", parsed);
 
     let context = Context::create();
     let module = context.create_module("sum");

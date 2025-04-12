@@ -225,7 +225,7 @@ type Data {
 };
 
 
-@clone // all objects will be default non-clone. Only primative types are cloneable.
+@clone // all objects will be default non-clone. Only primitive types are cloneable.
 @atomic // set variable to atomic type
 @get // get information from variable
 @is_empty // check the variable to none
