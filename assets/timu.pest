@@ -8,42 +8,38 @@ comment_line                = @{ "//" ~ (!("\r" | "\n") ~ ANY)* }
 documentation               = ${ "/*doc" ~ documentation_content ~ "*/"}
 documentation_content       =  { (!"*/" ~ ANY)* }
 
-import                      =  { at ~ "use" ~ "(" ~ importproperties ~ ")" ~ ("as" ~ importname)? ~ ";" }
-importproperties            =  { importproperty ~ ("." ~ importproperty)* }
-importproperty              =  { typename_name | "*" }
-importname                  =  { typename_name }
+import                      =  { at ~ "use" ~ "(" ~ import_properties ~ ")" ~ ("as" ~ import_name)? ~ ";" }
+import_properties           =  { import_property ~ ("." ~ import_property)* }
+import_property             =  { typename_name | "*" }
+import_name                 =  { typename_name }
 
-module                      = _{ import | documentation | deffunc | deftype | defvariable }
+module                      = _{ import | documentation | define_function | define_type | define_variable }
 
+define_function             =  { pub_visibility? ~ "func" ~ ident ~ define_function_arguments ~ define_function_return_type ~ body_block }
+define_function_return_type =  { type_annotation }
+define_function_arguments   =  { ( "(" ~ (define_function_argument ~ ("," ~ define_function_argument)*)? ~ ")" )? }
+define_function_argument    =  { keyword ~ typename }
 
-typeunion                   =  { typename ~ (plus ~ typename)+ }
-typeblock                   =  { "{" ~ typeblockcontents* ~ "}" }
-typeblockcontents           = _{ documentation | deffunc | deftype }
-
-deffunc                     =  { "func" ~ ident ~ deffuncarguments ~ type_annotation ~ body_block }
-deffuncarguments            =  { ( "(" ~ (deffuncargument ~ ("," ~ deffuncargument)*)? ~ ")" )? }
-deffuncargument             =  { keyword ~ typename }
-
-deftype                     =  { "type" ~ ident ~ "{" ~ deftypefields ~ "}" }
-deftypefield                =  { pub_visibility? ~ defvariable_name ~ ":" ~ nullable? ~ typename }
-deftypefields               =  { (deffunc | deftypefield) ~ ("," ~ (deffunc | deftypefield))* }
+define_type                 =  { "type" ~ ident ~ "{" ~ define_type_fields ~ "}" }
+define_type_field           =  { pub_visibility? ~ define_variable_name ~ ":" ~ nullable? ~ typename }
+define_type_fields          =  { (define_function | define_type_field) ~ ("," ~ (define_function | define_type_field))* }
 
 body_block                  =  { "{" ~ body_expression* ~ "}" }
-body_expression             = _{ defvariable | assignvariable | (expression ~ ";") }
+body_expression             = _{ define_variable | assign_variable | (expression ~ ";") }
 
 expression                  = _{ infix | expression_inner }
 call_remote                 =  { typename ~ "." ~ ident ~ "(" ~ call_args ~ ")" }
-func_call                   =  { local ~ "(" ~ call_args ~ ")" }
+function_call               =  { local ~ "(" ~ call_args ~ ")" }
 index                       =  { (local | literal | braced_expression) ~ "." ~ ident }
 infix                       = _{ expression_inner ~ binary_operator ~ expression_inner }
-expression_inner            = _{ call_remote | func_call | index | unary | literal | defvariable_name | local | braced_expression }
+expression_inner            = _{ call_remote | function_call | index | unary | literal | define_variable_name | local | braced_expression }
 call_args                   = _{ (expression ~ ("," ~ expression)*)? }
 braced_expression           = _{ "(" ~ expression ~ ")" }
-defvariable                 =  { meta? ~ static? ~ var_type? ~ defvariable_name ~ maybe_type_annotation ~ "=" ~ expression ~ ";" }
-defvariable_name            =  { ident }
-assignvariable              =  { defvariable_name ~ "=" ~ expression ~ ";" }
-unary                       =  { unary_operator ~ (literal | defvariable_name | braced_expression) }
-literal                     = _{ string | boolean | float | integer | string }
+define_variable             =  { meta? ~ static? ~ var_type? ~ define_variable_name ~ maybe_type_annotation ~ "=" ~ expression ~ ";" }
+define_variable_name        =  { ident }
+assign_variable             =  { define_variable_name ~ "=" ~ expression ~ ";" }
+unary                       =  { unary_operator ~ (literal | define_variable_name | braced_expression) }
+literal                     = _{ primitive_type_string | primitive_type_boolean | primitive_type_float | primitive_type_integer | primitive_type_string }
 static                      = _{ "static" }
 pub_visibility              =  { "pub" }
 nullable                    =  { "?" }
@@ -56,14 +52,16 @@ type_annotation             = _{ ":" ~ typename }
 
 local                       =  { ident }
 
+
 typename                    = _{ typename_name ~ ("." ~ typename_name)* }
 typename_name               = @{ "_"* ~ LETTER ~ (LETTER | NUMBER | "_")* }
 
-float                       = ${ float_characteristic ~ "." ~ float_mantissa }
+// Primitive types
+primitive_type_float        = ${ float_characteristic ~ "." ~ float_mantissa }
 float_characteristic        =  { "0" | (('1'..'9') ~ ('0'..'9' | "_")*) }
 float_mantissa              =  { ('0'..'9')+ }
 
-integer                     = ${ integer_hexadecimal_sigil | integer_octal_sigil | integer_binary_sigil | integer_decimal | integer_zero }
+primitive_type_integer       = ${ integer_hexadecimal_sigil | integer_octal_sigil | integer_binary_sigil | integer_decimal | integer_zero }
 integer_decimal             =  { '1'..'9' ~ ('0'..'9' | "_")* }
 integer_hexadecimal         =  { ('0'..'9' | 'a'..'f' | 'A'..'F') ~ ('0'..'9' | 'a'..'f' | 'A'..'F' | "_")* }
 integer_hexadecimal_sigil   = _{ "0x" ~ integer_hexadecimal }
@@ -73,7 +71,7 @@ integer_binary              =  { ('0'..'1') ~ ('0'..'1' | "_")* }
 integer_binary_sigil        = _{ "0b" ~ integer_binary }
 integer_zero                =  { "0" }
 
-string                      = ${ string_single_line }
+primitive_type_string       = ${ string_single_line }
 string_single_line          = _{ string_delimiter ~ string_content ~ string_delimiter }
 string_content              = ${ (string_escape | string_unicode | string_simple)* }
 string_delimiter            = _{ "\"" }
@@ -126,7 +124,7 @@ binary_operator             = _{
                                }
 unary_operator              = _{ plus | minus | logical_not }
 
-boolean                     =  { boolean_true | boolean_false }
+primitive_type_boolean      =  { boolean_true | boolean_false }
 boolean_true                =  { "true" }
 boolean_false               =  { "false" }
 

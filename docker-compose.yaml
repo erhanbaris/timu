@@ -1,0 +1,14 @@
+services:
+  dev:
+    cap_add:
+      - NET_ADMIN
+    build:
+      context: .
+      dockerfile: dev.Dockerfile
+    volumes:
+      - ./:/app/
+      - home:/root/
+    command: /bin/sh -c "while sleep infinity; do :; done"
+
+volumes:
+  home:
