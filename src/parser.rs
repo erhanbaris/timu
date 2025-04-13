@@ -46,7 +46,7 @@ pub struct TimuTypeField<'a> {
     pub is_pub: bool,
     pub name: &'a str,
     pub nullable: bool,
-    pub type_name: &'a str,
+    pub type_name: TimuTypeUsageName<'a>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -55,6 +55,8 @@ pub struct TimuFunctionArg<'a> {
     pub nullable: bool,
     pub type_name: &'a str,
 }
+
+type TimuTypeUsageName<'a> = Vec<&'a str>;
 
 /* **************************************************** ENUMS ***************************************************** */
 /* ************************************************** FUNCTIONS *************************************************** */
@@ -156,48 +158,51 @@ fn parse_function_args(pair: Pair<'_, Rule>) -> Result<Vec<TimuFunctionArg>, Tim
     Ok(args)
 }
 
+fn check_and_consume<'a>(pairs: &mut Pairs<'a, Rule>, expected: Rule) -> Option<Pair<'a, Rule>> {
+    match pairs.peek().map(|item| item.as_rule()) {
+        Some(rule) if rule == expected => {
+            pairs.next()
+        }
+        _ => None
+    }
+}
+
 fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
     let mut inner_rules = pair.into_inner();
-    let name = inner_rules.next().unwrap().as_str();
-    let mut type_fields = inner_rules.next().unwrap().into_inner();
-
     let mut fields = Vec::new();
     let mut functions = Vec::new();
+    let name: &str = inner_rules.next().unwrap().as_str();
 
-    for item in type_fields.into_iter() {
-        match item.as_rule() {
-            Rule::define_type_field => {
-                let mut inner = item.into_inner();
-                let is_pub = match inner.next() {
-                    Some(rule) => rule.as_str() == "pub",
-                    None => false,
-                };
+    /* Fields or function definitions on the type */
+    if let Some(fields_rule) = inner_rules.next() {
+        let mut type_fields = fields_rule.into_inner();
 
-                let name = inner.next().unwrap().as_str();
-                let nullable = if let Some(Rule::nullable) = inner.peek().map(|item| item.as_rule())
-                {
-                    let _ = inner.next();
-                    true
-                } else {
-                    false
-                };
+        for item in type_fields.into_iter() {
+            match item.as_rule() {
+                Rule::define_type_field => {
+                    let mut inner = item.into_inner();
 
-                let type_name = inner.next().unwrap().as_str();
-                fields.push(TimuTypeField {
-                    is_pub,
-                    name,
-                    nullable,
-                    type_name,
-                });
-            }
-            Rule::define_function => {
-                functions.push(parse_function_definition(item)?);
-            }
-            _ => {
-                return Err(TimuParserError::new(
-                    &item,
-                    "Not valid for type definition".to_string(),
-                ))
+                    let is_pub = check_and_consume(&mut inner, Rule::pub_visibility).is_some();
+                    let name = inner.next().unwrap().as_str();
+                    let nullable = check_and_consume(&mut inner, Rule::nullable).is_some();
+                    let type_name = to_string_vector(inner.next().unwrap());
+
+                    fields.push(TimuTypeField {
+                        is_pub,
+                        name,
+                        nullable,
+                        type_name,
+                    });
+                }
+                Rule::define_function => {
+                    functions.push(parse_function_definition(item)?);
+                }
+                _ => {
+                    return Err(TimuParserError::new(
+                        &item,
+                        "Not valid for type definition".to_string(),
+                    ))
+                }
             }
         }
     }
@@ -528,9 +533,9 @@ mod test {
 
     #[macro_export]
     macro_rules! auto_parse {
-        ($name:ident, $code: expr) => {
+        ($name:ident, code: expr) => {
             #[test]
-            fn $name() -> Result<(), super::TimuParserError> {
+            fn name() -> Result<(), super::TimuParserError> {
                 super::parser($code)?;
                 Ok(())
             }
@@ -553,37 +558,37 @@ mod test {
 
     /* Variable tests */
     #[rstest]
-    #[case("var $test1 = 123;")]
-    #[case("var $test1: i8 = 123;")]
-    #[case("var $test1 = \"erhanbaris\";")]
-    #[case("const $test1 = 123;")]
-    #[case("const $test1: i32 = 123;")]
-    #[case("const $test1 = \"erhanbaris\";")]
-    #[case("const $test1 = true;")]
-    #[case("const $test1 = 123.321;")]
+    #[case("var test1 = 123;")]
+    #[case("var test1: i8 = 123;")]
+    #[case("var test1 = \"erhanbaris\";")]
+    #[case("const test1 = 123;")]
+    #[case("const test1: i32 = 123;")]
+    #[case("const test1 = \"erhanbaris\";")]
+    #[case("const test1 = true;")]
+    #[case("const test1 = 123.321;")]
     fn variable_def_test(#[case] code: &'_ str) -> Result<(), TimuParserError> {
         let ast = super::parser(code)?;
         println!("AST: {:?}", ast);
         Ok(())
     }
     #[rstest]
-    #[case("var $test1 = 123;", TimuAst::File {
+    #[case("var test1 = 123;", TimuAst::File {
         statements: vec![
             Box::new(TimuAst::DefAssignment {
                 r#type: VariableType::Var,
                 type_annotation: [].to_vec(),
-                name: "$test1".to_string(),
+                name: "test1",
                 data: Box::new(TimuAst::Primitive(PrimitiveType::I8(123)))
             }),
         ],
     })]
-    #[case("const $test1 = \"erhanbaris\";", TimuAst::File {
+    #[case("const test1 = \"erhanbaris\";", TimuAst::File {
         statements: vec![
             Box::new(TimuAst::DefAssignment {
                 r#type: VariableType::Const,
                 type_annotation: [].to_vec(),
-                name: "$test1".to_string(),
-                data: Box::new(TimuAst::Primitive(PrimitiveType::String("erhanbaris".to_string()))),
+                name: "test1",
+                data: Box::new(TimuAst::Primitive(PrimitiveType::String("erhanbaris"))),
             }),
         ],
     })]

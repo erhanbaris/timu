@@ -20,7 +20,7 @@ define_function_return_type =  { type_annotation }
 define_function_arguments   =  { ( "(" ~ (define_function_argument ~ ("," ~ define_function_argument)*)? ~ ")" )? }
 define_function_argument    =  { keyword ~ typename }
 
-define_type                 =  { "type" ~ ident ~ "{" ~ define_type_fields ~ "}" }
+define_type                 =  { "type" ~ ident ~ "{" ~ define_type_fields? ~ "}" }
 define_type_field           =  { pub_visibility? ~ define_variable_name ~ ":" ~ nullable? ~ typename }
 define_type_fields          =  { (define_function | define_type_field) ~ ("," ~ (define_function | define_type_field))* }
 
@@ -53,7 +53,7 @@ type_annotation             = _{ ":" ~ typename }
 local                       =  { ident }
 
 
-typename                    = _{ typename_name ~ ("." ~ typename_name)* }
+typename                    =  { typename_name ~ ("." ~ typename_name)* }
 typename_name               = @{ "_"* ~ LETTER ~ (LETTER | NUMBER | "_")* }
 
 // Primitive types
