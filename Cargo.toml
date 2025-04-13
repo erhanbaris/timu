@@ -9,7 +9,7 @@ edition = "2021"
 pest = "2.8"
 pest_derive = "2.8"
 # miette = { version = "5.9.0", features = ["fancy"] }
-thiserror = "1.0.40"
+thiserror = "2.0.0"
 anyhow = "1.0.71"
 bitmask-enum = "2.2.4"
 num_enum = "0.7.3"
