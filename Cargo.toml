@@ -13,7 +13,11 @@ thiserror = "1.0.40"
 anyhow = "1.0.71"
 bitmask-enum = "2.2.4"
 num_enum = "0.7.3"
-rstest = "0.22.0"
 lazy_static = "1.5.0"
 os_info = { version = "3", default-features = false }
 inkwell = { version =  "0.5.0", features = ["llvm18-0"] }
+
+
+[dev-dependencies]
+rstest = "0.22.0"
+pretty_assertions = "1.4.1"
