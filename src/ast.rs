@@ -1,16 +1,20 @@
 use core::str;
+use std::rc::Rc;
 
 use pest::iterators::Pair;
 
-use crate::parser::{Rule, TimuTypeField};
+use crate::{
+    file::SourceFile,
+    parser::{Rule, TimuTypeField},
+    span::Spanned,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct TimuTypeDefinitionAst<'a> {
-    pub name: &'a str,
+    pub name: Spanned<'a, &'a str>,
     pub fields: Vec<TimuTypeField<'a>>,
-    pub functions: Vec<TimuFunctionDefinitionAst<'a>>,
+    pub functions: Vec<Spanned<'a, TimuFunctionDefinitionAst<'a>>>,
 }
-
 
 #[derive(Debug, PartialEq)]
 pub struct TimuBodyBlock<'a> {
@@ -20,10 +24,16 @@ pub struct TimuBodyBlock<'a> {
 #[derive(Debug, PartialEq)]
 pub struct TimuFunctionDefinitionAst<'a> {
     pub access: AccessType,
-    pub name: &'a str,
+    pub name: Spanned<'a, &'a str>,
     pub args: Vec<FuncArg<'a>>,
-    pub return_type: &'a str,
+    pub return_type: Spanned<'a, &'a str>,
     pub body: TimuBodyBlock<'a>,
+}
+
+#[derive(Debug)]
+pub struct TimuFileAst<'a> {
+    pub file: Rc<SourceFile<'a>>,
+    pub statements: Vec<Spanned<'a, TimuFileStatementAst<'a>>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -63,6 +73,12 @@ pub enum TimuAst<'a> {
         data: Box<TimuAst<'a>>,
     },
     TypeDefinition(TimuTypeDefinitionAst<'a>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TimuFileStatementAst<'a> {
+    FunctionDefinition(Spanned<'a, TimuFunctionDefinitionAst<'a>>),
+    TypeDefinition(Spanned<'a, TimuTypeDefinitionAst<'a>>),
 }
 
 pub struct TimuAstInfo<'a, T> {

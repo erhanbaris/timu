@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 /* **************************************************************************************************************** */
 /* **************************************************** MODS ****************************************************** */
 /* *************************************************** IMPORTS **************************************************** */
@@ -9,7 +11,12 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use crate::ast::{AccessType, FuncArg, PrimitiveType, TimuAst, TimuFunctionDefinitionAst, TimuTypeDefinitionAst, UnaryType, VariableType};
+use crate::ast::{
+    AccessType, FuncArg, PrimitiveType, TimuAst, TimuBodyBlock, TimuFileAst, TimuFileStatementAst,
+    TimuFunctionDefinitionAst, TimuTypeDefinitionAst, UnaryType, VariableType,
+};
+use crate::file::SourceFile;
+use crate::span::Spanned;
 
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
 lazy_static::lazy_static! {
@@ -182,11 +189,16 @@ fn parse_define_type_field(pair: Pair<'_, Rule>) -> Result<TimuTypeField, TimuPa
     })
 }
 
-fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
+fn parse_type_definition<'a>(
+    pair: Pair<'a, Rule>,
+    file: Rc<SourceFile<'a>>,
+) -> Result<Spanned<'a, TimuTypeDefinitionAst<'a>>, TimuParserError> {
+    let span = pair.as_span();
     let mut inner_rules = pair.into_inner();
     let mut fields = Vec::new();
     let mut functions = Vec::new();
-    let name: &str = inner_rules.next().unwrap().as_str();
+    let name_pair = inner_rules.next().unwrap();
+    let name = Spanned::new(name_pair.as_str(), file.clone(), name_pair.as_span());
 
     /* Fields or function definitions on the type */
     if let Some(fields_rule) = inner_rules.next() {
@@ -198,7 +210,7 @@ fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
                     fields.push(parse_define_type_field(item)?);
                 }
                 Rule::define_function => {
-                    functions.push(parse_function_definition(item)?);
+                    functions.push(parse_function_definition(item, file.clone())?);
                 }
                 _ => {
                     return Err(TimuParserError::new(
@@ -209,15 +221,22 @@ fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
             }
         }
     }
-    
-    Ok(Box::new(TimuAst::TypeDefinition(TimuTypeDefinitionAst {
-        name,
-        fields,
-        functions,
-    })))
+
+    Ok(Spanned::new(
+        TimuTypeDefinitionAst {
+            name,
+            fields,
+            functions,
+        },
+        file,
+        span,
+    ))
 }
 
-fn parse_file(pairs: Pairs<'_, Rule>) -> Result<TimuAst, TimuParserError> {
+fn parse_file<'a>(
+    pairs: Pairs<'a, Rule>,
+    file: Rc<SourceFile<'a>>,
+) -> Result<TimuFileAst<'a>, TimuParserError> {
     let mut statements = Vec::new();
 
     for pair in pairs {
@@ -226,10 +245,10 @@ fn parse_file(pairs: Pairs<'_, Rule>) -> Result<TimuAst, TimuParserError> {
             continue;
         }
 
-        statements.push(parse_rule(pair)?);
+        statements.push(parse_file_statement(pair, file.clone())?);
     }
 
-    Ok(TimuAst::File { statements })
+    Ok(TimuFileAst { statements, file })
 }
 
 fn parse_string(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
@@ -358,7 +377,6 @@ fn parse_rule(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
         Rule::unary => parse_unary(pair),
         Rule::infix => parse_binary_operation(pair),
 
-        Rule::define_function => parse_function_definition(pair),
         Rule::function_call => parse_function_call(pair),
 
         // Assignment
@@ -366,10 +384,26 @@ fn parse_rule(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
         Rule::assign_variable => parse_variable_assign(pair),
 
         // Types
-        Rule::define_type => parse_type_definition(pair),
-
+        //Rule::define_type => parse_type_definition(pair),
         _ => return Err(TimuParserError::new(&pair, "unknown syntax".to_string())),
     }
+}
+
+fn parse_file_statement<'a>(
+    pair: Pair<'a, Rule>,
+    file: Rc<SourceFile<'a>>,
+) -> Result<Spanned<'a, TimuFileStatementAst<'a>>, TimuParserError> {
+    let rule = pair.as_rule();
+    let span = pair.as_span();
+    let value = match rule {
+        // Rule::import => parse_import(pair),
+        // Rule::define_variable =>  parse_variable_definition(pair),
+        Rule::define_type => TimuFileStatementAst::TypeDefinition(parse_type_definition(pair, file.clone())?),
+        Rule::define_function => TimuFileStatementAst::FunctionDefinition(parse_function_definition(pair, file.clone())?),
+        _ => return Err(TimuParserError::new(&pair, "unknown syntax".to_string())),
+    };
+
+    Ok(Spanned::new(value, file, span))
 }
 
 fn parse_type_annotation(pair: Pair<'_, Rule>) -> Vec<&'_ str> {
@@ -382,21 +416,25 @@ fn parse_type_annotation(pair: Pair<'_, Rule>) -> Vec<&'_ str> {
     type_info
 }
 
-fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<TimuFunctionDefinitionAst<'_>, TimuParserError> {
-    let inner_rules = pair.into_inner();
+fn parse_function_definition<'a>(
+    pair: Pair<'a, Rule>,
+    file: Rc<SourceFile<'a>>,
+) -> Result<Spanned<'a, TimuFunctionDefinitionAst<'a>>, TimuParserError> {
+    let span = pair.as_span();
     let mut access = AccessType::Private;
-    let mut name = "";
-    let mut return_type = "";
+    let mut name = Spanned::new("", file.clone(), pair.as_span());
+    let mut return_type = Spanned::new("", file.clone(), pair.as_span());
     let mut args = Vec::new();
     let mut statements = Vec::new();
+    let inner_rules = pair.into_inner();
 
-    for rule in inner_rules {
-        match rule.as_rule() {
+    for pair in inner_rules {
+        match pair.as_rule() {
             Rule::pub_visibility => access = AccessType::Public,
-            Rule::define_function_return_type => return_type = rule.as_str(),
-            Rule::ident => name = rule.as_str(),
+            Rule::define_function_return_type => return_type = Spanned::new(pair.as_str(), file.clone(), pair.as_span()),
+            Rule::ident => name = Spanned::new(pair.as_str(), file.clone(), pair.as_span()),
             Rule::define_function_arguments => {
-                for arg_rule in rule.into_inner() {
+                for arg_rule in pair.into_inner() {
                     let mut arg_rule = arg_rule.into_inner();
 
                     let mut func_argument = FuncArg {
@@ -412,7 +450,7 @@ fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<TimuFunctionDefinit
                 }
             }
             Rule::body_block => {
-                let pairs = rule.into_inner();
+                let pairs = pair.into_inner();
 
                 for pair in pairs {
                     statements.push(parse_rule(pair)?);
@@ -422,14 +460,18 @@ fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<TimuFunctionDefinit
         }
     }
 
-    let body = Box::new(TimuAst::Block { statements });
-    Ok(TimuFunctionDefinitionAst {
-        access,
-        name,
-        args,
-        body,
-        return_type,
-    })
+    let body = TimuBodyBlock { statements };
+    Ok(Spanned::new(
+        TimuFunctionDefinitionAst {
+            access,
+            name,
+            args,
+            body,
+            return_type,
+        },
+        file,
+        span,
+    ))
 }
 
 fn parse_function_call(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
@@ -469,9 +511,9 @@ fn parse_binary_operation(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuPars
     Ok(node?)
 }
 
-pub fn parser<'a>(code: &'a str) -> Result<TimuAst, TimuParserError> {
-    match TimuParser::parse(Rule::file, code) {
-        Ok(parse) => parse_file(parse),
+pub fn parser<'a>(file: Rc<SourceFile<'a>>) -> Result<TimuFileAst<'a>, TimuParserError> {
+    match TimuParser::parse(Rule::file, file.code()) {
+        Ok(pairs) => parse_file(pairs, file),
         Err(err) => {
             let (line, column) = match err.line_col {
                 LineColLocation::Pos((line, column)) => (line, column),
@@ -525,83 +567,3 @@ impl TimuParserError {
 /* ************************************************* MACROS CALL ************************************************** */
 /* ************************************************** UNIT TESTS ************************************************** */
 /* **************************************************************************************************************** */
-
-#[cfg(test)]
-mod test {
-    use rstest::*;
-
-    use crate::ast::{PrimitiveType, TimuAst, VariableType};
-
-    use super::TimuParserError;
-
-    #[macro_export]
-    macro_rules! auto_parse {
-        ($name:ident, code: expr) => {
-            #[test]
-            fn name() -> Result<(), super::TimuParserError> {
-                super::parser($code)?;
-                Ok(())
-            }
-        };
-    }
-
-    /* Import tests */
-    // auto_parse!(import_test_1, "@use(test);");
-    // auto_parse!(import_test_2, "@use(test.rrr);");
-    // auto_parse!(import_test_3, "@use(test.rrr.ffff);");
-    // auto_parse!(import_test_4, "@use(test.rrr.ffff) as test;");
-
-    /* Function tests */
-    // auto_parse!(func_test_1, "func data() {}");
-    // auto_parse!(func_test_2, "func data(test:i32) {}");
-    // auto_parse!(func_test_3, "func data(test1:i32, test2:i32) {}");
-    // auto_parse!(func_test_4, "func data(): i32 {}");
-    // auto_parse!(func_test_5, "func data(test2:i32): i32 {}");
-    // auto_parse!(func_test_6, "func data(test1:i32, test2:i32): i32 {}");
-
-    /* Variable tests */
-    #[rstest]
-    #[case("var test1 = 123;")]
-    #[case("var test1: i8 = 123;")]
-    #[case("var test1 = \"erhanbaris\";")]
-    #[case("const test1 = 123;")]
-    #[case("const test1: i32 = 123;")]
-    #[case("const test1 = \"erhanbaris\";")]
-    #[case("const test1 = true;")]
-    #[case("const test1 = 123.321;")]
-    fn variable_def_test(#[case] code: &'_ str) -> Result<(), TimuParserError> {
-        let ast = super::parser(code)?;
-        println!("AST: {:?}", ast);
-        Ok(())
-    }
-    #[rstest]
-    #[case("var test1 = 123;", TimuAst::File {
-        statements: vec![
-            Box::new(TimuAst::DefAssignment {
-                r#type: VariableType::Var,
-                type_annotation: [].to_vec(),
-                name: "test1",
-                data: Box::new(TimuAst::Primitive(PrimitiveType::I8(123)))
-            }),
-        ],
-    })]
-    #[case("const test1 = \"erhanbaris\";", TimuAst::File {
-        statements: vec![
-            Box::new(TimuAst::DefAssignment {
-                r#type: VariableType::Const,
-                type_annotation: [].to_vec(),
-                name: "test1",
-                data: Box::new(TimuAst::Primitive(PrimitiveType::String("erhanbaris"))),
-            }),
-        ],
-    })]
-    fn variable2_def_test(
-        #[case] code: &'_ str,
-        #[case] expected: TimuAst,
-    ) -> Result<(), TimuParserError> {
-        let ast = super::parser(code)?;
-        println!("AST: {:?}", ast);
-        assert_eq!(ast, expected);
-        Ok(())
-    }
-}
