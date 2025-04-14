@@ -1,4 +1,30 @@
-use crate::parser::TimuTypeField;
+use core::str;
+
+use pest::iterators::Pair;
+
+use crate::parser::{Rule, TimuTypeField};
+
+#[derive(Debug, PartialEq)]
+pub struct TimuTypeDefinitionAst<'a> {
+    pub name: &'a str,
+    pub fields: Vec<TimuTypeField<'a>>,
+    pub functions: Vec<TimuFunctionDefinitionAst<'a>>,
+}
+
+
+#[derive(Debug, PartialEq)]
+pub struct TimuBodyBlock<'a> {
+    pub statements: Vec<Box<TimuAst<'a>>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TimuFunctionDefinitionAst<'a> {
+    pub access: AccessType,
+    pub name: &'a str,
+    pub args: Vec<FuncArg<'a>>,
+    pub return_type: &'a str,
+    pub body: TimuBodyBlock<'a>,
+}
 
 #[derive(Debug, PartialEq)]
 pub enum TimuAst<'a> {
@@ -22,13 +48,7 @@ pub enum TimuAst<'a> {
         operator: char,
         right: Box<TimuAst<'a>>,
     },
-    FunctionDefinition {
-        access: AccessType,
-        name: &'a str,
-        args: Vec<FuncArg<'a>>,
-        return_type: &'a str,
-        body: Box<TimuAst<'a>>,
-    },
+    FunctionDefinition(TimuFunctionDefinitionAst<'a>),
     Block {
         statements: Vec<Box<TimuAst<'a>>>,
     },
@@ -42,11 +62,30 @@ pub enum TimuAst<'a> {
         name: &'a str,
         data: Box<TimuAst<'a>>,
     },
-    TypeDefinition {
-        name: &'a str,
-        fields: Vec<TimuTypeField<'a>>,
-        functions: Vec<Box<TimuAst<'a>>>,
-    },
+    TypeDefinition(TimuTypeDefinitionAst<'a>),
+}
+
+pub struct TimuAstInfo<'a, T> {
+    pub pair: Pair<'a, Rule>,
+    pub line: usize,
+    pub column: usize,
+    pub ast: T,
+}
+
+impl<'a, T> TimuAstInfo<'a, T> {
+    pub fn new(pair: Pair<'a, Rule>, ast: T) -> Self {
+        let (line, column) = pair.line_col();
+        Self {
+            pair,
+            ast,
+            line,
+            column,
+        }
+    }
+
+    pub fn ast(&self) -> &T {
+        &self.ast
+    }
 }
 
 #[derive(PartialEq, Debug)]
