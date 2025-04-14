@@ -19,5 +19,5 @@ os_info = { version = "3", default-features = false }
 
 
 [dev-dependencies]
-rstest = "0.22.0"
+rstest = "0.25.0"
 pretty_assertions = "1.4.1"

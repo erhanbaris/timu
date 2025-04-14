@@ -9,7 +9,7 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use crate::ast::{AccessType, FuncArg, PrimitiveType, TimuAst, UnaryType, VariableType};
+use crate::ast::{AccessType, FuncArg, PrimitiveType, TimuAst, TimuFunctionDefinitionAst, TimuTypeDefinitionAst, UnaryType, VariableType};
 
 /* ******************************************** STATICS/CONSTS/TYPES ********************************************** */
 lazy_static::lazy_static! {
@@ -33,6 +33,7 @@ static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..(u64::MAX as i128)
 #[derive(Parser)]
 #[grammar = "../assets/timu.pest"]
 pub struct TimuParser;
+impl TimuParser {}
 
 #[derive(Debug, PartialEq)]
 pub struct TimuParserError {
@@ -160,11 +161,25 @@ fn parse_function_args(pair: Pair<'_, Rule>) -> Result<Vec<TimuFunctionArg>, Tim
 
 fn check_and_consume<'a>(pairs: &mut Pairs<'a, Rule>, expected: Rule) -> Option<Pair<'a, Rule>> {
     match pairs.peek().map(|item| item.as_rule()) {
-        Some(rule) if rule == expected => {
-            pairs.next()
-        }
-        _ => None
+        Some(rule) if rule == expected => pairs.next(),
+        _ => None,
     }
+}
+
+fn parse_define_type_field(pair: Pair<'_, Rule>) -> Result<TimuTypeField, TimuParserError> {
+    let mut inner = pair.into_inner();
+
+    let is_pub = check_and_consume(&mut inner, Rule::pub_visibility).is_some();
+    let name = inner.next().unwrap().as_str();
+    let nullable = check_and_consume(&mut inner, Rule::nullable).is_some();
+    let type_name = to_string_vector(inner.next().unwrap());
+
+    Ok(TimuTypeField {
+        is_pub,
+        name,
+        nullable,
+        type_name,
+    })
 }
 
 fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {
@@ -180,19 +195,7 @@ fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
         for item in type_fields.into_iter() {
             match item.as_rule() {
                 Rule::define_type_field => {
-                    let mut inner = item.into_inner();
-
-                    let is_pub = check_and_consume(&mut inner, Rule::pub_visibility).is_some();
-                    let name = inner.next().unwrap().as_str();
-                    let nullable = check_and_consume(&mut inner, Rule::nullable).is_some();
-                    let type_name = to_string_vector(inner.next().unwrap());
-
-                    fields.push(TimuTypeField {
-                        is_pub,
-                        name,
-                        nullable,
-                        type_name,
-                    });
+                    fields.push(parse_define_type_field(item)?);
                 }
                 Rule::define_function => {
                     functions.push(parse_function_definition(item)?);
@@ -206,12 +209,12 @@ fn parse_type_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParse
             }
         }
     }
-
-    Ok(Box::new(TimuAst::TypeDefinition {
+    
+    Ok(Box::new(TimuAst::TypeDefinition(TimuTypeDefinitionAst {
         name,
         fields,
         functions,
-    }))
+    })))
 }
 
 fn parse_file(pairs: Pairs<'_, Rule>) -> Result<TimuAst, TimuParserError> {
@@ -379,7 +382,7 @@ fn parse_type_annotation(pair: Pair<'_, Rule>) -> Vec<&'_ str> {
     type_info
 }
 
-fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst<'_>>, TimuParserError> {
+fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<TimuFunctionDefinitionAst<'_>, TimuParserError> {
     let inner_rules = pair.into_inner();
     let mut access = AccessType::Private;
     let mut name = "";
@@ -420,13 +423,13 @@ fn parse_function_definition(pair: Pair<'_, Rule>) -> Result<Box<TimuAst<'_>>, T
     }
 
     let body = Box::new(TimuAst::Block { statements });
-    Ok(Box::new(TimuAst::FunctionDefinition {
+    Ok(TimuFunctionDefinitionAst {
         access,
         name,
         args,
         body,
         return_type,
-    }))
+    })
 }
 
 fn parse_function_call(pair: Pair<'_, Rule>) -> Result<Box<TimuAst>, TimuParserError> {

@@ -21,7 +21,7 @@ fn custom_type_test(
     let ast = parser(code)?;
 
     if let TimuAst::File { statements } = ast {
-        assert_eq!(statements[0].as_ref(), &expected);
+        assert_eq!(statements[0].as_ref(), &expected, "{}", code);
     } else {
         panic!("Expected File");
     }
