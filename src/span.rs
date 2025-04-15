@@ -60,39 +60,23 @@ impl<'a, T> Spanned<'a, T> {
     }
 
     pub fn as_ref(&self) -> Spanned<&T> {
-        Spanned::new(
-            &self.value,
-            self.span.source_file.clone(),
-            self.span.inner_span.clone(),
-        )
+        Spanned::new(&self.value, self.span.source_file.clone(), self.span.inner_span.clone())
     }
 
     pub fn span_to<V>(&self, to: V) -> Spanned<V> {
-        Spanned::new(
-            to,
-            self.span.source_file.clone(),
-            self.span.inner_span.clone(),
-        )
+        Spanned::new(to, self.span.source_file.clone(), self.span.inner_span.clone())
     }
 }
 
 impl<'a, T> From<T> for Spanned<'a, T> {
     fn from(value: T) -> Self {
-        Spanned::new(
-            value,
-            Rc::new(SourceFile::new(PathBuf::from("<MEMORY>"), "")),
-            pest::Span::new("", 0, 0).unwrap(),
-        )
+        Spanned::new(value, Rc::new(SourceFile::new(PathBuf::from("<MEMORY>"), "")), pest::Span::new("", 0, 0).unwrap())
     }
 }
 
 impl<'a, T: Copy> Spanned<'a, &T> {
     pub fn copied(&self) -> Spanned<T> {
-        Spanned::new(
-            *self.value,
-            self.span.source_file.clone(),
-            self.span.inner_span.clone(),
-        )
+        Spanned::new(*self.value, self.span.source_file.clone(), self.span.inner_span.clone())
     }
 }
 

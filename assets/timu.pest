@@ -45,7 +45,7 @@ pub_visibility              =  { "pub" }
 nullable                    =  { "?" }
 meta                        = _{ "@" ~ ident }
 
-ident                       = @{ ("_" | LETTER) ~ (LETTER | NUMBER | "_")* ~ ("?")? }
+ident                       = @{ ("_" | LETTER) ~ (LETTER | NUMBER | "_")* }
 keyword                     = ${ ident ~ ":" }
 maybe_type_annotation       =  { ( ":" ~ typename )? }
 type_annotation             = _{ ":" ~ typename }
