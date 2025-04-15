@@ -3,7 +3,8 @@ LABEL version="1.0.0"
 VOLUME /app/
 
 WORKDIR /app/
-RUN apt-get update && apt-get install -y sudo curl wget git-core unzip zsh build-essential llvm-18 libpolly-18-dev libzstd-dev libz-dev
+#RUN apt-get update && apt-get install -y sudo curl wget git-core unzip zsh build-essential llvm-18 libpolly-18-dev libzstd-dev libz-dev
+RUN apt-get update && apt-get install -y sudo curl wget git-core unzip zsh build-essential
 RUN mkdir -p /opt/rust/cargo
 
 RUN apt install make cmake -y

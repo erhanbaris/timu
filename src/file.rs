@@ -8,7 +8,10 @@ pub struct SourceFile<'a> {
 
 impl<'a> SourceFile<'a> {
     pub fn new(path: PathBuf, code: &'a str) -> Self {
-        Self { path, code }
+        Self {
+            path,
+            code,
+        }
     }
 
     pub fn path(&self) -> &PathBuf {

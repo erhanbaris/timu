@@ -38,40 +38,17 @@ pub struct TimuFileAst<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum TimuAst<'a> {
-    Import {
-        path: Vec<&'a str>,
-        name: &'a str,
-    },
-    File {
-        statements: Vec<Box<TimuAst<'a>>>,
-    },
+    Import { path: Vec<&'a str>, name: &'a str },
+    File { statements: Vec<Box<TimuAst<'a>>> },
     Ident(&'a str),
     Primitive(PrimitiveType<'a>),
     Unary(UnaryType, Box<TimuAst<'a>>),
-    FunctionCall {
-        compiler: bool,
-        name: &'a str,
-        args: Vec<Box<TimuAst<'a>>>,
-    },
-    BinaryOperation {
-        left: Box<TimuAst<'a>>,
-        operator: char,
-        right: Box<TimuAst<'a>>,
-    },
+    FunctionCall { compiler: bool, name: &'a str, args: Vec<Box<TimuAst<'a>>> },
+    BinaryOperation { left: Box<TimuAst<'a>>, operator: char, right: Box<TimuAst<'a>> },
     FunctionDefinition(TimuFunctionDefinitionAst<'a>),
-    Block {
-        statements: Vec<Box<TimuAst<'a>>>,
-    },
-    DefAssignment {
-        r#type: VariableType,
-        type_annotation: Vec<&'a str>,
-        name: &'a str,
-        data: Box<TimuAst<'a>>,
-    },
-    Assignment {
-        name: &'a str,
-        data: Box<TimuAst<'a>>,
-    },
+    Block { statements: Vec<Box<TimuAst<'a>>> },
+    DefAssignment { r#type: VariableType, type_annotation: Vec<&'a str>, name: &'a str, data: Box<TimuAst<'a>> },
+    Assignment { name: &'a str, data: Box<TimuAst<'a>> },
     TypeDefinition(TimuTypeDefinitionAst<'a>),
 }
 
