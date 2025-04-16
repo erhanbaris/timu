@@ -10,29 +10,40 @@ mod nom_parser;
 #[cfg(test)]
 mod tests;
 
-use std::error::Error;
+use std::{cell::RefCell, error::Error, rc::Rc};
 
 use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind, Source};
 use file::SourceFile;
+use nom_language::error::VerboseError;
 use nom_locate::LocatedSpan;
+use nom_parser::{Span, State};
 
-fn print_error<'a>(file_name: &str, code: &str, message: &str, span: LocatedSpan<&'a str>) {
-    Report::build(ReportKind::Error, (file_name, 12..12))
+fn print_error<'a>(message: &str, span: VerboseError<Span<'a>>) {
+    span.errors.iter().for_each(|error| {
+        println!("Error: {:?}", error);
+    });
+
+    let file_name = format!("{:?}", "test.timu");
+
+    Report::build(ReportKind::Error, (file_name.as_str(), 12..12))
         .with_code(1)
         .with_message(message)
-        .with_label(
-            Label::new((file_name, span.location_offset()..span.location_offset() + span.fragment().len()))
-                .with_message("Invalid syntax")
-                .with_color(Color::Red),
-        )
+        .with_label(Label::new((file_name.as_str(), 1..2)).with_message("Invalid syntax").with_color(Color::Red))
         .finish()
-        .print((file_name, Source::from(code)))
+        .print((file_name.as_str(), Source::from(message)))
         .unwrap();
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let code = "class erhanbaris1 { pub a : ? string.base,ba:string.base }  class erhanbaris2 { pub a : ? string.base,ba:string.base }";
-    let response = nom_parser::parse(code.into());
+    let source_file = Rc::new(SourceFile::new("test.timu".into(), r#"class MyType a { a: ?string.base  ad }"#));
+    let errors = RefCell::new(vec![]);
+
+    let mut state = State {
+        errors: &errors,
+        file: source_file.clone(),
+    };
+
+    let response = nom_parser::parse::<VerboseError<Span>>(state);
 
     match response {
         Ok((remaining, parsed)) => {
@@ -41,8 +52,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Err(error) => {
             println!("Parsing failed: {:?}", error);
-            error.map_input(|input| {
-                print_error("test.timu", code, "Parsing failed", input);
+            error.map(|input| {
+                print_error("Parsing failed", input);
             });
         }
     }

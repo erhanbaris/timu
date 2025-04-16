@@ -1,5 +1,5 @@
 {
-    "name": "SmartGate",
+    "name": "TimuDev",
     "dockerComposeFile": "../docker-compose.yaml",
     "service": "dev",
     "workspaceFolder": "/app",

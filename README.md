@@ -37,7 +37,7 @@ func main () {
 The types are 
 
 ```timu
-type MyType {
+class MyType {
     a: i32 = 100, # with default value
     pub b: string, # public accessible
     c: ?string, # nullable string

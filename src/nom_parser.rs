@@ -1,33 +1,71 @@
-use nom::Finish;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use nom::branch::alt;
 use nom::bytes::complete::{take_till, take_until};
 use nom::character::complete::{alphanumeric1, char};
-use nom::combinator::{all_consuming, complete, consumed, map, opt};
+use nom::combinator::{all_consuming, complete, consumed, cut, map, opt, recognize};
+use nom::error::{ContextError, context};
 use nom::multi::{many0, separated_list0};
 use nom::sequence::{preceded, separated_pair, terminated, tuple};
+use nom::{Err, Finish, OutputMode, PResult};
 use nom::{IResult, Parser, character::complete::multispace0, error::ParseError, sequence::delimited};
 
 use nom::{
     bytes::complete::{tag, take_while_m_n},
     combinator::map_res,
 };
+use nom_language::error::VerboseError;
 
+use crate::file::SourceFile;
 use crate::span::Spanned;
 use nom_locate::{LocatedSpan, position};
 
-pub type Span<'a> = LocatedSpan<&'a str>;
+#[derive(Clone, Debug)]
+pub struct State<'a> {
+    pub errors: &'a RefCell<Vec<Error>>,
+    pub file: Rc<SourceFile<'a>>,
+}
+
+impl<'a> State<'a> {
+    pub fn report_error(&self, error: Error) {
+        self.errors.borrow_mut().push(error);
+    }
+}
+
+pub type Span<'a> = LocatedSpan<&'a str, State<'a>>;
 
 fn cleanup_whitespaces(c: char) -> bool {
     (c == ' ' || c == '\t' || c == '\r' || c == '\n')
 }
 
-fn cleanup<'a, O, E: ParseError<LocatedSpan<&'a str>>, F: Parser<LocatedSpan<&'a str>, Output = O, Error = E>>(
+fn cleanup<'a, O, E: std::fmt::Debug + ParseError<Span<'a>> + ContextError<Span<'a>>, F: Parser<Span<'a>, Output = O, Error = E>>(
     f: F,
-) -> impl Parser<LocatedSpan<&'a str>, Output = O, Error = E> {
+) -> impl Parser<Span<'a>, Output = O, Error = E> {
     delimited(multispace0, f, multispace0)
 }
 
-pub fn parse_type_name<'a>(input: Span<'a>) -> IResult<Span<'a>, TypeName<'a>> {
+pub fn expected2<'a, O, F: Parser<Span<'a>, Output = O, Error = nom::error::Error<Span<'a>>>>(
+    mut f: F, m: &str,
+) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, O, nom::error::Error<Span<'a>>> {
+    move |input: Span<'a>| {
+        match f.parse(input) {
+            Ok((remaining, out)) => Ok((remaining, out)),
+            Err(nom::Err::Error(input)) | Err(nom::Err::Failure(input)) => {
+                let err = Error(input.input.to_range(), m.to_string());
+                input.input.extra.report_error(err); // Push error onto stack.
+                Err(nom::Err::Failure(input))
+            }
+            Err(err) => Err(err),
+        }
+    }
+}
+
+pub fn comment<'a, E: std::fmt::Debug + ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>, E> {
+    preceded(char('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),))).parse(input)
+}
+
+pub fn parse_type_name<'a, E: std::fmt::Debug + ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, TypeName<'a>, E> {
     let (input, nullable) = cleanup(opt(char('?'))).parse(input)?;
     let (input, names) = map(separated_list0(char('.'), cleanup(alphanumeric1)), |items| items).parse(input)?;
     Ok((
@@ -39,25 +77,42 @@ pub fn parse_type_name<'a>(input: Span<'a>) -> IResult<Span<'a>, TypeName<'a>> {
     ))
 }
 
-pub fn parse_field(input: Span) -> IResult<Span, ClassField> {
-    let (input, (is_public, field_name, field_type)) =
+pub fn parse_field<'a, E: std::fmt::Debug + ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, ClassField<'a>, E> {
+    let (input, (is_public, name, field_type)) =
         (cleanup(opt(tag("pub"))), cleanup(terminated(alphanumeric1, cleanup(char(':')))), cleanup(parse_type_name)).parse(input)?;
 
     Ok((
         input,
         ClassField {
             is_public: is_public.is_some(),
-            name: field_name.fragment(),
+            name,
             field_type,
         },
     ))
 }
 
-pub fn parse_class(input: Span) -> IResult<Span, TimuFileStatementAst> {
-    let (input, _) = cleanup(tag("class")).parse(input)?;
-    let (input, position) = cleanup(position).parse(input)?;
-    let (input, name) = cleanup(alt((take_till(cleanup_whitespaces), take_until("{")))).parse(input)?;
-    let (input, fields) = map(delimited(char('{'), cleanup(separated_list0(char(','), parse_field)), char('}')), |items| items).parse(input)?;
+#[derive(Debug)]
+pub struct Error(std::ops::Range<usize>, String);
+
+trait ToRange {
+    fn to_range(&self) -> std::ops::Range<usize>;
+}
+
+impl<'a> ToRange for Span<'a> {
+    fn to_range(&self) -> std::ops::Range<usize> {
+        let start = self.location_offset();
+        let end = start + self.fragment().len();
+        start..end
+    }
+}
+
+pub fn parse_class<'a, E: std::fmt::Debug + ParseError<Span<'a>> + ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, TimuFileStatementAst<'a>, E> {
+    let (input, (_, name, fields)) = (
+        cleanup(tag("class")),
+        cleanup(alt((take_till(cleanup_whitespaces), take_until("{")))),
+        map(delimited(char('{'), cleanup(separated_list0(char(','), parse_field::<E>)), char('}')), |items| items),
+    )
+        .parse(input.clone())?;
 
     let mut values = Vec::new();
     for field in fields.into_iter() {
@@ -67,15 +122,28 @@ pub fn parse_class(input: Span) -> IResult<Span, TimuFileStatementAst> {
     Ok((
         input,
         TimuFileStatementAst::ClassDefinition(ClassDefinition {
-            name: name.fragment(),
+            name,
             values,
         }),
     ))
 }
 
-pub fn parse(input: Span) -> IResult<Span, Vec<TimuFileStatementAst>> {
-    let (input, items) = all_consuming(many0(alt((parse_class,)))).parse(input)?;
-    Ok((input, items))
+pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + ContextError<Span<'a>>>(state: State<'a>) -> IResult<Span<'a>, Vec<TimuFileStatementAst<'a>>, E> {
+    let input = Span::new_extra(state.file.code(), state);
+    let parse_result = all_consuming(many0(alt((parse_class,)))).parse(input);
+
+    /*let (input, items) = match parse_result {
+        Ok((input, items)) => (input, items),
+        Err(error) => {
+            let error = error.map(|error| {
+                println!("Error: {:?}", &error);
+                let (_, data) = cleanup(alphanumeric1::<Span, ()>).parse(error.input).unwrap();
+                data
+            });
+            return Err(error);
+        }
+    };*/
+    parse_result
 }
 
 #[derive(Debug)]
@@ -91,7 +159,7 @@ pub enum TimuFileStatementAst<'a> {
 
 #[derive(Debug)]
 pub struct ClassDefinition<'a> {
-    name: &'a str,
+    name: Span<'a>,
     values: Vec<ClassDefinitionField<'a>>,
 }
 
@@ -103,7 +171,7 @@ pub enum ClassDefinitionField<'a> {
 #[derive(Debug)]
 pub struct ClassField<'a> {
     is_public: bool,
-    name: &'a str,
+    name: Span<'a>,
     field_type: TypeName<'a>,
 }
 
