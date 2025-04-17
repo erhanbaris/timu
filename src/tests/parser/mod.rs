@@ -1,1 +1,2 @@
-mod type_definition;
+mod class_definition;
+mod function_definition;
