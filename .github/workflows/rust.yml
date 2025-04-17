@@ -42,6 +42,9 @@ jobs:
       run: cargo test --all
       env:
         RUSTFLAGS: "-Cinstrument-coverage"
+
+    - name: Run clippy
+      run: cargo clippy -- -D warnings
     
     - name: Create coverage report
       run: |
