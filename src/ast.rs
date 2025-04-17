@@ -33,12 +33,12 @@ pub enum UnaryType {
 }
 
 #[derive(Debug)]
-pub struct TimuFileAst<'a> {
-    pub statements: Vec<TimuFileStatementAst<'a>>,
+pub struct FileAst<'a> {
+    pub statements: Vec<FileStatementAst<'a>>,
 }
 
 #[derive(Debug)]
-pub enum TimuFileStatementAst<'a> {
+pub enum FileStatementAst<'a> {
     ClassDefinition(ClassDefinitionAst<'a>),
     FunctionDefinition(FunctionDefinitionAst<'a>),
 }
@@ -63,7 +63,7 @@ pub struct FunctionArgumentAst<'a> {
 
 #[derive(Debug)]
 pub struct BodyAst<'a> {
-    pub statements: Vec<TimuFileStatementAst<'a>>,
+    pub statements: Vec<FileStatementAst<'a>>,
 }
 
 #[derive(Debug)]
@@ -86,4 +86,16 @@ pub struct FieldAst<'a> {
     pub is_public: bool,
     pub name: Span<'a>,
     pub field_type: TypeNameAst<'a>,
+}
+
+#[derive(Debug)]
+pub enum ExpressionAst<'a> {
+    Primitive(PrimitiveType<'a>),
+}
+
+#[derive(Debug)]
+pub struct VariableDefinitionAst<'a> {
+    pub variable_type: VariableType,
+    pub name: Span<'a>,
+    pub expression: ExpressionAst<'a>,
 }

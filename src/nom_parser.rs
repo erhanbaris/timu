@@ -19,7 +19,7 @@ use nom::{
 use nom_language::error::VerboseError;
 
 use crate::ast::{
-    BodyAst, ClassDefinitionAst, ClassDefinitionFieldAst, FieldAst, FunctionArgumentAst, FunctionDefinitionAst, TimuFileAst, TimuFileStatementAst, TypeNameAst,
+    BodyAst, ClassDefinitionAst, ClassDefinitionFieldAst, FieldAst, FunctionArgumentAst, FunctionDefinitionAst, FileAst, FileStatementAst, TypeNameAst,
 };
 use crate::file::SourceFile;
 use crate::nom_tools::{CustomErrorContext, Span, State, cleanup, expected};
@@ -29,7 +29,7 @@ pub fn comment<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContex
     preceded(char('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),))).parse(input)
 }
 
-pub fn parse<'a>(state: State<'a>) -> IResult<Span<'a>, TimuFileAst<'a>, VerboseError<Span<'a>>> {
+pub fn parse<'a>(state: State<'a>) -> IResult<Span<'a>, FileAst<'a>, VerboseError<Span<'a>>> {
     let input = Span::new_extra(state.file.code(), state);
     let (remaining, statements) = many0(alt((cleanup(ClassDefinitionAst::parse), cleanup(FunctionDefinitionAst::parse_file_function)))).parse(input)?;
 
@@ -46,13 +46,13 @@ pub fn parse<'a>(state: State<'a>) -> IResult<Span<'a>, TimuFileAst<'a>, Verbose
 
     Ok((
         remaining,
-        TimuFileAst {
+        FileAst {
             statements,
         },
     ))
 }
 
-impl Display for TimuFileAst<'_> {
+impl Display for FileAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for statement in self.statements.iter() {
             write!(f, "{}", statement)?;
@@ -61,17 +61,17 @@ impl Display for TimuFileAst<'_> {
     }
 }
 
-impl Display for TimuFileStatementAst<'_> {
+impl Display for FileStatementAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TimuFileStatementAst::ClassDefinition(class) => write!(f, "{}", class),
-            TimuFileStatementAst::FunctionDefinition(function) => write!(f, "{}", function),
+            FileStatementAst::ClassDefinition(class) => write!(f, "{}", class),
+            FileStatementAst::FunctionDefinition(function) => write!(f, "{}", function),
         }
     }
 }
 
 impl ClassDefinitionAst<'_> {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, TimuFileStatementAst<'a>, E> {
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, E> {
         let (input, _) = cleanup(tag("class")).parse(input)?;
         let (input, name) =
             expected("Missing class name", cleanup(alt((take_till(|c| c == '{' || c == ' ' || c == '\t' || c == '\r' || c == '\n'), take_until("{")))))
@@ -89,7 +89,7 @@ impl ClassDefinitionAst<'_> {
 
         Ok((
             input,
-            TimuFileStatementAst::ClassDefinition(ClassDefinitionAst {
+            FileStatementAst::ClassDefinition(ClassDefinitionAst {
                 name,
                 fields,
             }),
@@ -157,9 +157,19 @@ impl FunctionArgumentAst<'_> {
     }
 }
 
-impl Display for FunctionArgumentAst<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.name.fragment(), self.field_type)
+impl BodyAst<'_> {
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, BodyAst<'a>, E> {
+        let (input, body) = map(
+            delimited(expected("Missing '{'", char('{')), cleanup(separated_list0(char(';'), BodyAst::parse::<E>)), expected("Missing '}'", char('}'))),
+            |items| items,
+        )
+        .parse(input)?;
+        Ok((
+            input,
+            BodyAst {
+                statements: vec![],
+            },
+        ))
     }
 }
 
@@ -176,13 +186,19 @@ impl Display for BodyAst<'_> {
     }
 }
 
+impl Display for FunctionArgumentAst<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.name.fragment(), self.field_type)
+    }
+}
+
 impl FunctionDefinitionAst<'_> {
     pub fn parse_file_function<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(
         input: Span<'a>,
-    ) -> IResult<Span<'a>, TimuFileStatementAst<'a>, E> {
+    ) -> IResult<Span<'a>, FileStatementAst<'a>, E> {
         let (input, function) = Self::parse(input)?;
 
-        Ok((input, TimuFileStatementAst::FunctionDefinition(function)))
+        Ok((input, FileStatementAst::FunctionDefinition(function)))
     }
 
     pub fn parse_class_function<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(
@@ -206,9 +222,7 @@ impl FunctionDefinitionAst<'_> {
         let (input, _) = expected("Missing ':'", cleanup(opt(char(':')))).parse(input)?;
         let (input, return_type) = expected("Missing function return type", cleanup(cleanup(TypeNameAst::parse))).parse(input)?;
 
-        let (input, body_fields) =
-            map(delimited(char('{'), cleanup(separated_list0(char(';'), FunctionArgumentAst::parse::<E>)), expected("Missing '}'", char('}'))), |items| items)
-                .parse(input)?;
+        let (input, body) = BodyAst::parse::<E>.parse(input)?;
         let mut arguments = Vec::new();
         for argument in arguments_fields.into_iter() {
             arguments.push(argument);
@@ -220,9 +234,7 @@ impl FunctionDefinitionAst<'_> {
                 is_public: is_public.is_some(),
                 name,
                 arguments,
-                body: BodyAst {
-                    statements: vec![],
-                },
+                body,
                 return_type,
             },
         ))
