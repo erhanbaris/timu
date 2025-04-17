@@ -18,6 +18,9 @@ use nom::{
 };
 use nom_language::error::VerboseError;
 
+use crate::ast::{
+    BodyAst, ClassDefinitionAst, ClassDefinitionFieldAst, FieldAst, FunctionArgumentAst, FunctionDefinitionAst, TimuFileAst, TimuFileStatementAst, TypeNameAst,
+};
 use crate::file::SourceFile;
 use crate::nom_tools::{CustomErrorContext, Span, State, cleanup, expected};
 use nom_locate::{LocatedSpan, position};
@@ -49,11 +52,6 @@ pub fn parse<'a>(state: State<'a>) -> IResult<Span<'a>, TimuFileAst<'a>, Verbose
     ))
 }
 
-#[derive(Debug)]
-pub struct TimuFileAst<'a> {
-    pub statements: Vec<TimuFileStatementAst<'a>>,
-}
-
 impl Display for TimuFileAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for statement in self.statements.iter() {
@@ -63,12 +61,6 @@ impl Display for TimuFileAst<'_> {
     }
 }
 
-#[derive(Debug)]
-pub enum TimuFileStatementAst<'a> {
-    ClassDefinition(ClassDefinitionAst<'a>),
-    FunctionDefinition(FunctionDefinitionAst<'a>),
-}
-
 impl Display for TimuFileStatementAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -76,12 +68,6 @@ impl Display for TimuFileStatementAst<'_> {
             TimuFileStatementAst::FunctionDefinition(function) => write!(f, "{}", function),
         }
     }
-}
-
-#[derive(Debug)]
-pub struct ClassDefinitionAst<'a> {
-    name: Span<'a>,
-    fields: Vec<ClassDefinitionFieldAst<'a>>,
 }
 
 impl ClassDefinitionAst<'_> {
@@ -128,12 +114,6 @@ impl Display for ClassDefinitionAst<'_> {
     }
 }
 
-#[derive(Debug)]
-pub struct TypeNameAst<'a> {
-    pub nullable: bool,
-    pub names: Vec<Span<'a>>,
-}
-
 impl TypeNameAst<'_> {
     pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, TypeNameAst<'a>, E> {
         let (input, nullable) = cleanup(opt(char('?'))).parse(input)?;
@@ -164,12 +144,6 @@ impl Display for TypeNameAst<'_> {
     }
 }
 
-#[derive(Debug)]
-pub struct FunctionArgumentAst<'a> {
-    name: Span<'a>,
-    field_type: TypeNameAst<'a>,
-}
-
 impl FunctionArgumentAst<'_> {
     pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, FunctionArgumentAst<'a>, E> {
         let (input, (name, field_type)) = (cleanup(terminated(alphanumeric1, cleanup(char(':')))), cleanup(TypeNameAst::parse)).parse(input)?;
@@ -189,11 +163,6 @@ impl Display for FunctionArgumentAst<'_> {
     }
 }
 
-#[derive(Debug)]
-pub struct BodyAst<'a> {
-    pub statements: Vec<TimuFileStatementAst<'a>>,
-}
-
 impl Display for BodyAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{")?;
@@ -205,15 +174,6 @@ impl Display for BodyAst<'_> {
         }
         write!(f, "}}")
     }
-}
-
-#[derive(Debug)]
-pub struct FunctionDefinitionAst<'a> {
-    is_public: bool,
-    name: Span<'a>,
-    arguments: Vec<FunctionArgumentAst<'a>>,
-    return_type: TypeNameAst<'a>,
-    body: BodyAst<'a>,
 }
 
 impl FunctionDefinitionAst<'_> {
@@ -282,12 +242,6 @@ impl Display for FunctionDefinitionAst<'_> {
     }
 }
 
-#[derive(Debug)]
-pub enum ClassDefinitionFieldAst<'a> {
-    ClassField(FieldAst<'a>),
-    ClassFunction(FunctionDefinitionAst<'a>),
-}
-
 impl Display for ClassDefinitionFieldAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -295,13 +249,6 @@ impl Display for ClassDefinitionFieldAst<'_> {
             ClassDefinitionFieldAst::ClassFunction(function) => write!(f, "{}", function),
         }
     }
-}
-
-#[derive(Debug)]
-pub struct FieldAst<'a> {
-    is_public: bool,
-    name: Span<'a>,
-    field_type: TypeNameAst<'a>,
 }
 
 impl FieldAst<'_> {

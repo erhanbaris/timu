@@ -1,6 +1,6 @@
 #![allow(warnings)]
 
-// mod ast;
+mod ast;
 mod file;
 // mod parser;
 //mod span;
