@@ -1,8 +1,14 @@
 use std::{cell::RefCell, rc::Rc};
 
-use nom::Mode;
-use nom::character::complete::multispace0;
+use nom::bits::complete::tag;
+use nom::branch::alt;
+use nom::bytes::complete::take;
+use nom::character::complete::{alpha1, alphanumeric1, multispace0};
+use nom::combinator::recognize;
+use nom::multi::{many0, many0_count};
+use nom::sequence::pair;
 use nom::{Err, OutputMode, PResult, Parser, error::ParseError, sequence::delimited};
+use nom::{IResult, Mode};
 use nom_locate::LocatedSpan;
 
 use crate::file::SourceFile;

@@ -3,9 +3,9 @@ use std::rc::Rc;
 
 use crate::nom_tools::Span;
 
-#[derive(PartialEq, Debug)]
-pub enum PrimitiveType<'a> {
-    String(&'a str),
+#[derive(PartialEq, Debug, Clone)]
+pub enum PrimitiveType {
+    String(String),
     Bool(bool),
     //Array(Vec<Box<TimuAst<'a>>>),
     I8(i8),
@@ -16,7 +16,7 @@ pub enum PrimitiveType<'a> {
     U32(u32),
     I64(i64),
     U64(u64),
-    Float(f32),
+    Float(f64),
 }
 
 #[derive(PartialEq, Debug)]
@@ -89,13 +89,13 @@ pub struct FieldAst<'a> {
 }
 
 #[derive(Debug)]
-pub enum ExpressionAst<'a> {
-    Primitive(PrimitiveType<'a>),
+pub enum ExpressionAst {
+    Primitive(PrimitiveType),
 }
 
 #[derive(Debug)]
 pub struct VariableDefinitionAst<'a> {
     pub variable_type: VariableType,
     pub name: Span<'a>,
-    pub expression: ExpressionAst<'a>,
+    pub expression: ExpressionAst,
 }
