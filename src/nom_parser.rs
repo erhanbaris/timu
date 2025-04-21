@@ -1,18 +1,20 @@
+#[rustfmt::skip]
+
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
-use nom::Mode;
+use nom::{Mode, ParseTo};
 use nom::bits::complete::take;
 use nom::branch::alt;
 use nom::bytes::complete::{take_till, take_until};
 use nom::character::anychar;
 use nom::character::complete::{alpha1, alphanumeric1, char, digit1, none_of, one_of};
-use nom::combinator::{all_consuming, complete, consumed, cut, map, map_opt, opt, peek, recognize, value, verify};
-use nom::error::{ErrorKind, FromExternalError};
+use nom::combinator::{all_consuming, complete, consumed, cut, map, map_opt, opt, peek, recognize, value, verify, Opt};
+use nom::error::{context, ErrorKind, FromExternalError};
 use nom::multi::{fold, many0, many0_count, many1, separated_list0};
-use nom::number::complete::double;
-use nom::number::{be_u8, be_u128};
+use nom::number::complete::{double, float, recognize_float};
+use nom::number::{be_u128, be_u8};
 use nom::sequence::{pair, preceded, separated_pair, terminated, tuple};
 use nom::{Err, Finish, OutputMode, PResult};
 use nom::{IResult, Parser, character::complete::multispace0, error::ParseError, sequence::delimited};
@@ -23,11 +25,10 @@ use nom::{
 use nom_language::error::VerboseError;
 
 use crate::ast::{
-    BodyAst, ClassDefinitionAst, ClassDefinitionFieldAst, ExpressionAst, FieldAst, FileAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst,
-    PrimitiveType, TypeNameAst, VariableDefinitionAst, VariableType,
+    BodyAst, BodyStatementAst, ClassDefinitionAst, ClassDefinitionFieldAst, ExpressionAst, FieldAst, FileAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, PrimitiveType, TypeNameAst, VariableDefinitionAst, VariableType
 };
 use crate::file::SourceFile;
-use crate::nom_tools::{CustomErrorContext, Span, State, ToRange, cleanup, expected};
+use crate::nom_tools::{Span, State, ToRange, cleanup};
 use nom_locate::{LocatedSpan, position};
 
 static I8_RANGE: std::ops::Range<i128> = (i8::MIN as i128)..(i8::MAX as i128);
@@ -42,8 +43,32 @@ static U32_RANGE: std::ops::Range<i128> = (u32::MIN as i128)..(u32::MAX as i128)
 static I64_RANGE: std::ops::Range<i128> = (i64::MIN as i128)..(i64::MAX as i128);
 static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..(u64::MAX as i128);
 
-pub fn comment<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>, E> {
+static FLOAT_RANGE: std::ops::Range<f64> = (f32::MIN as f64)..(f32::MAX as f64);
+static DOUBLE_RANGE: std::ops::Range<f64> = (f64::MIN as f64)..(f64::MAX as f64);
+
+pub fn comment<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>, E> {
     preceded(char('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),))).parse(input)
+}
+
+pub fn is_public<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, bool, E> {    
+    cleanup(map(opt(tag("pub")), |item| item.is_some())).parse(input)
+}
+
+pub fn is_nullable<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, bool, E> {    
+    cleanup(map(opt(char('?')), |item| item.is_some())).parse(input)
+}
+
+pub fn expected_ident<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(message: &'static str, input: Span<'a>) -> IResult<Span<'a>, Span<'a>, E> {    
+    context(message, cut(ident())).parse(input)
+}
+
+pub fn ident<'a, E: std::fmt::Debug + ParseError<Span<'a>>>() -> impl Parser<Span<'a>, Output = Span<'a>, Error = E> {    
+    cleanup(recognize(pair
+        (alt(
+            (alpha1, tag("_"))), 
+            many0_count(alt((alphanumeric1, tag("_")))))
+        )
+    )
 }
 
 pub fn parse<'a>(state: State<'a>) -> IResult<Span<'a>, FileAst<'a>, VerboseError<Span<'a>>> {
@@ -51,14 +76,8 @@ pub fn parse<'a>(state: State<'a>) -> IResult<Span<'a>, FileAst<'a>, VerboseErro
     let (remaining, statements) = many0(alt((cleanup(ClassDefinitionAst::parse), cleanup(FunctionDefinitionAst::parse_file_function)))).parse(input)?;
 
     if remaining.len() > 0 {
-        /*
-        let error = Error(remaining.to_range(), "Unparsed input".to_string());
         let (_, data) = cleanup(alphanumeric1).parse(remaining.clone())?;
-        remaining.extra.report_error(error);
-        */
-        let (_, data) = cleanup(alphanumeric1).parse(remaining.clone())?;
-        let error = VerboseError::add_error(remaining.clone(), "Syntax issue", VerboseError::from_error_kind(remaining, ErrorKind::Eof));
-        return Err(Err::Failure(error));
+        return Err(Err::Failure(VerboseError::from_error_kind(remaining, ErrorKind::Eof)));
     }
 
     Ok((
@@ -88,20 +107,15 @@ impl Display for FileStatementAst<'_> {
 }
 
 impl ClassDefinitionAst<'_> {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, E> {
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, E> {
         let (input, _) = cleanup(tag("class")).parse(input)?;
-        let (input, name) =
-            expected("Missing class name", cleanup(alt((take_till(|c| c == '{' || c == ' ' || c == '\t' || c == '\r' || c == '\n'), take_until("{")))))
-                .parse(input)?;
-        let (input, _) = expected("Missing class '{'", peek(cleanup(char('{')))).parse(input)?;
-        let (input, fields) = map(
-            delimited(
+        let (input, name) = expected_ident("Missing class name", input)?;
+        let (input, _) = context("Missing class '{'", cut(peek(cleanup(char('{'))))).parse(input)?;
+        let (input, fields) = delimited(
                 char('{'),
                 cleanup(many0(alt((FieldAst::parse_class_field, FunctionDefinitionAst::parse_class_function)))),
-                expected("Missing class '}'", char('}')),
-            ),
-            |items| items,
-        )
+                context("Missing class '}'", cut(char('}'))),
+            )
         .parse(input)?;
 
         Ok((
@@ -132,13 +146,13 @@ impl Display for ClassDefinitionAst<'_> {
 }
 
 impl TypeNameAst<'_> {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, TypeNameAst<'a>, E> {
-        let (input, nullable) = cleanup(opt(char('?'))).parse(input)?;
-        let (input, names) = map(separated_list0(char('.'), cleanup(alphanumeric1)), |items| items).parse(input)?;
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, TypeNameAst<'a>, E> {
+        let (input, nullable) = is_nullable(input)?;
+        let (input, names) = map(separated_list0(char('.'), ident()), |items| items).parse(input)?;
         Ok((
             input,
             TypeNameAst {
-                nullable: nullable.is_some(),
+                nullable,
                 names,
             },
         ))
@@ -162,8 +176,8 @@ impl Display for TypeNameAst<'_> {
 }
 
 impl FunctionArgumentAst<'_> {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, FunctionArgumentAst<'a>, E> {
-        let (input, (name, field_type)) = (cleanup(terminated(alphanumeric1, cleanup(char(':')))), cleanup(TypeNameAst::parse)).parse(input)?;
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, FunctionArgumentAst<'a>, E> {
+        let (input, (name, field_type)) = (cleanup(terminated(ident(), cleanup(char(':')))), cleanup(TypeNameAst::parse)).parse(input)?;
         Ok((
             input,
             FunctionArgumentAst {
@@ -180,16 +194,24 @@ impl Display for FunctionArgumentAst<'_> {
     }
 }
 
+impl Display for BodyStatementAst<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BodyStatementAst::Variable(var) => write!(f, "{}", var),
+        }
+    }
+}
+
 impl BodyAst<'_> {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, BodyAst<'a>, E> {
-        let (input, _) = expected("Missing '{'", cleanup(char('{'))).parse(input)?;
-        let (input, body) = many0(VariableDefinitionAst::parse::<E>).parse(input)?;
-        let (input, _) = expected("Missing '}'", cleanup(char('}'))).parse(input)?;
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, BodyAst<'a>, E> {
+        let (input, _) = context("Missing '{'", cut(cleanup(char('{')))).parse(input)?;
+        let (input, statements) = many0(VariableDefinitionAst::parse_body_statement::<E>).parse(input)?;
+        let (input, _) = context("Missing '}'", cut(cleanup(char('}')))).parse(input)?;
 
         Ok((
             input,
             BodyAst {
-                statements: vec![],
+                statements,
             },
         ))
     }
@@ -209,15 +231,17 @@ impl Display for BodyAst<'_> {
 }
 
 impl VariableDefinitionAst<'_> {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, VariableDefinitionAst<'a>, E> {
-        let (input, variable_type) =
-            expected("Missing 'var' or 'const'", cleanup(alt((map(tag("var"), |_| VariableType::Var), map(tag("const"), |_| VariableType::Const)))))
-                .parse(input)?;
-        let (input, name) =
-            expected("Missing name", cleanup(recognize(pair(alt((alpha1, tag("_"))), many0_count(alt((alphanumeric1, tag("_")))))))).parse(input)?;
-        let (input, _) = cleanup(char('=')).parse(input)?;
-        let (input, expression) = ExpressionAst::parse(input)?;
-        let (input, _) = cleanup(char(';')).parse(input)?;
+    pub fn parse_body_statement<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, BodyStatementAst<'a>, E> {
+        let (input, variable) = Self::parse(input)?;
+        Ok((input, BodyStatementAst::Variable(variable)))
+    }
+
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, VariableDefinitionAst<'a>, E> {
+        let (input, variable_type) = cleanup(alt((map(tag("var"), |_| VariableType::Var), map(tag("const"), |_| VariableType::Const)))).parse(input)?;
+        let (input, name) = expected_ident("Missing variable name", input)?;
+        let (input, _) = context("Missing '='", cleanup(char('='))).parse(input)?;
+        let (input, expression) = context("Invalid expression", cut(ExpressionAst::parse)).parse(input)?;
+        let (input, _) = context("Missing ';'", cleanup(char(';'))).parse(input)?;
 
         Ok((
             input,
@@ -246,7 +270,7 @@ impl Display for VariableType {
 }
 
 impl ExpressionAst {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, ExpressionAst, E> {
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, ExpressionAst, E> {
         let (input, expression) = alt((cleanup(PrimitiveType::parse),)).parse(input)?;
 
         Ok((input, ExpressionAst::Primitive(expression)))
@@ -261,7 +285,7 @@ impl Display for ExpressionAst {
     }
 }
 
-fn character<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, char, E> {
+fn character<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, char, E> {
     let (input, c) = none_of("\"")(input)?;
     if c == '\\' {
         alt((
@@ -280,7 +304,7 @@ fn character<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<
     }
 }
 
-pub fn string<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, E> {
+pub fn string<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, E> {
     let (input, string) = delimited(
         char('"'),
         fold(0.., character, String::new, |mut string, c| {
@@ -294,52 +318,107 @@ pub fn string<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext
     Ok((input, PrimitiveType::String(string)))
 }
 
-pub fn decimal<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, E> {
-    let (input, (representing, integer)) =
-        (opt(one_of("+-")), recognize::<Span<'a>, E, _>(many1(terminated(one_of("0123456789"), many0(char('_')))))).parse(input.clone())?;
+pub fn number<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, E> {
+    let (input, (representing, (all, (number, floating)))) = (
+        opt(one_of("+-")), 
+        consumed(
+            (recognize::<Span<'a>, E, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))), 
+            opt(preceded(
+                char('.'),
+                ((
+                    recognize::<Span<'a>, E, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
+                    opt(preceded(
+                        one_of("Ee"),
+                        ((
+                            alt((
+                                value(true, char('-')),
+                                value(false, char('+'))
+                            )),
+                            recognize::<Span<'a>, E, _>(many1(terminated(one_of("0123456789"), many0(char('_')))))
+                        )),
+                    ))
+                ))
+            ))
+        ))
+    ).parse(input)?;
 
-    let integer = match integer.replace("_", "").parse::<i128>() {
-        Ok(integer) => integer,
+
+
+    let number = match number.replace("_", "").parse::<i128>() {
+        Ok(number) => number,
         Err(e) => {
-            input.extra.report_error(crate::nom_tools::Error(input.to_range(), "Invalid number".to_string()));
             return Err(Err::Error(E::from_error_kind(input, ErrorKind::Digit)));
         }
     };
 
-    let integer = match representing {
-        Some('-') => integer * -1,
-        _ => integer,
-    };
+    let number = if let Some((floating, e_info)) = floating {        
+        let dot_place = floating.len();
 
-    let integer = if I8_RANGE.contains(&integer) {
-        PrimitiveType::I8(integer as i8)
-    } else if U8_RANGE.contains(&integer) {
-        PrimitiveType::U8(integer as u8)
-    } else if I16_RANGE.contains(&integer) {
-        PrimitiveType::I16(integer as i16)
-    } else if U16_RANGE.contains(&integer) {
-        PrimitiveType::U16(integer as u16)
-    } else if I32_RANGE.contains(&integer) {
-        PrimitiveType::I32(integer as i32)
-    } else if U32_RANGE.contains(&integer) {
-        PrimitiveType::U32(integer as u32)
-    } else if I64_RANGE.contains(&integer) {
-        PrimitiveType::I64(integer as i64)
-    } else if U64_RANGE.contains(&integer) {
-        PrimitiveType::U64(integer as u64)
+        let floating = match floating.replace("_", "").parse::<f64>() {
+            Ok(floating) => floating,
+            Err(e) => {
+                return Err(Err::Error(E::from_error_kind(input, ErrorKind::Float)));
+            }
+        };
+
+        let number: f64 = number as f64 + (floating as f64 * f64::powi(10.0, -(dot_place as i32)));
+
+        let number = match representing {
+            Some('-') => number * -1 as f64,
+            _ => number,
+        };
+
+        let number = if let Some((is_minus, exponent)) = e_info {
+            let exponent = exponent.replace("_", "").parse::<i32>().unwrap_or(0);
+            if is_minus {
+                number * f64::powi(10.0, -exponent)
+            } else {
+                number * f64::powi(10.0, exponent)
+            }
+        } else {
+            number
+        };
+
+        if FLOAT_RANGE.contains(&number) {
+            PrimitiveType::Float(number as f32, dot_place as u8)
+        } else {
+            PrimitiveType::Double(number, dot_place as u8)
+        }
     } else {
-        input.extra.report_error(crate::nom_tools::Error(input.to_range(), "Integer type not supported".to_string()));
-        return Err(Err::Error(E::from_error_kind(input, ErrorKind::Digit)));
+        let number = match representing {
+            Some('-') => number * -1,
+            _ => number,
+        };
+
+        if I8_RANGE.contains(&number) {
+            PrimitiveType::I8(number as i8)
+        } else if U8_RANGE.contains(&number) {
+            PrimitiveType::U8(number as u8)
+        } else if I16_RANGE.contains(&number) {
+            PrimitiveType::I16(number as i16)
+        } else if U16_RANGE.contains(&number) {
+            PrimitiveType::U16(number as u16)
+        } else if I32_RANGE.contains(&number) {
+            PrimitiveType::I32(number as i32)
+        } else if U32_RANGE.contains(&number) {
+            PrimitiveType::U32(number as u32)
+        } else if I64_RANGE.contains(&number) {
+            PrimitiveType::I64(number as i64)
+        } else if U64_RANGE.contains(&number) {
+            PrimitiveType::U64(number as u64)
+        } else {
+            return Err(Err::Error(E::from_error_kind(input, ErrorKind::Digit)));
+        }
     };
 
-    Ok((input, integer))
+    Ok((input, number))
 }
 
+
 impl PrimitiveType {
-    #[rustfmt::skip]
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, E> {
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, E> {
         let (input, value) = cleanup(alt((
-            decimal,
+            number,
             string,
             value(PrimitiveType::Bool(true), tag("true")),
             value(PrimitiveType::Bool(false), tag("false")),
@@ -362,13 +441,14 @@ impl Display for PrimitiveType {
             PrimitiveType::U32(value) => write!(f, "{}", value),
             PrimitiveType::I64(value) => write!(f, "{}", value),
             PrimitiveType::U64(value) => write!(f, "{}", value),
-            PrimitiveType::Float(value) => write!(f, "{}", value),
+            PrimitiveType::Float(value, len) => write!(f, "{:.*}", *len as usize, value),
+            PrimitiveType::Double(value, len) => write!(f, "{:.*}", *len as usize, value),
         }
     }
 }
 
 impl FunctionDefinitionAst<'_> {
-    pub fn parse_file_function<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(
+    pub fn parse_file_function<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(
         input: Span<'a>,
     ) -> IResult<Span<'a>, FileStatementAst<'a>, E> {
         let (input, function) = Self::parse(input)?;
@@ -376,37 +456,29 @@ impl FunctionDefinitionAst<'_> {
         Ok((input, FileStatementAst::FunctionDefinition(function)))
     }
 
-    pub fn parse_class_function<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(
+    pub fn parse_class_function<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(
         input: Span<'a>,
     ) -> IResult<Span<'a>, ClassDefinitionFieldAst<'a>, E> {
         let (input, function) = Self::parse(input)?;
         Ok((input, ClassDefinitionFieldAst::ClassFunction(function)))
     }
 
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, FunctionDefinitionAst<'a>, E> {
-        let (input, is_public) = cleanup(opt(tag("pub"))).parse(input)?;
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, FunctionDefinitionAst<'a>, E> {
+        let (input, is_public) = is_public(input)?;
         let (input, _) = cleanup(tag("func")).parse(input)?;
-        let (input, name) =
-            expected("Missing function name", cleanup(alt((take_till(|c| c == '(' || c == ' ' || c == '\t' || c == '\r' || c == '\n'), take_until("(")))))
-                .parse(input)?;
-        let (input, _) = expected("Missing '('", peek(cleanup(char('(')))).parse(input)?;
-        let (input, arguments_fields) =
-            map(delimited(char('('), cleanup(separated_list0(char(','), FunctionArgumentAst::parse::<E>)), expected("Missing ')'", char(')'))), |items| items)
-                .parse(input)?;
+        let (input, name) = expected_ident("Missing function name", input)?;
+        let (input, _) = context("Missing '('", cut(peek(cleanup(char('('))))).parse(input)?;
+        let (input, arguments) = map(delimited(char('('), cleanup(separated_list0(char(','), FunctionArgumentAst::parse::<E>)), context("Missing ')'", cut(char(')')))), |items| items) .parse(input)?;
 
-        let (input, _) = expected("Missing ':'", cleanup(opt(char(':')))).parse(input)?;
-        let (input, return_type) = expected("Missing function return type", cleanup(cleanup(TypeNameAst::parse))).parse(input)?;
+        let (input, _) = context("Missing ':'", cleanup(opt(char(':')))).parse(input)?;
+        let (input, return_type) = context("Missing function return type", cut(cleanup(cleanup(TypeNameAst::parse)))).parse(input)?;
 
         let (input, body) = BodyAst::parse::<E>.parse(input)?;
-        let mut arguments = Vec::new();
-        for argument in arguments_fields.into_iter() {
-            arguments.push(argument);
-        }
 
         Ok((
             input,
             FunctionDefinitionAst {
-                is_public: is_public.is_some(),
+                is_public,
                 name,
                 arguments,
                 body,
@@ -439,21 +511,21 @@ impl Display for ClassDefinitionFieldAst<'_> {
 }
 
 impl FieldAst<'_> {
-    pub fn parse_field<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(input: Span<'a>) -> IResult<Span<'a>, FieldAst<'a>, E> {
+    pub fn parse_field<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, FieldAst<'a>, E> {
         let (input, (is_public, name, field_type, _)) =
-            (cleanup(opt(tag("pub"))), cleanup(terminated(alphanumeric1, cleanup(char(':')))), cleanup(TypeNameAst::parse), cleanup(char(';'))).parse(input)?;
+            (is_public, cleanup(terminated(ident(), cleanup(char(':')))), cleanup(TypeNameAst::parse), cleanup(char(';'))).parse(input)?;
 
         Ok((
             input,
             FieldAst {
-                is_public: is_public.is_some(),
+                is_public,
                 name,
                 field_type,
             },
         ))
     }
 
-    pub fn parse_class_field<'a, E: std::fmt::Debug + ParseError<Span<'a>> + CustomErrorContext<'a>>(
+    pub fn parse_class_field<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(
         input: Span<'a>,
     ) -> IResult<Span<'a>, ClassDefinitionFieldAst<'a>, E> {
         let (input, field) = Self::parse_field(input)?;
@@ -479,6 +551,7 @@ impl Display for FieldAst<'_> {
 #[cfg(test)]
 mod tests {
     use std::{cell::RefCell, rc::Rc, vec};
+    use pretty_assertions::{assert_eq, assert_ne};
 
     use nom_language::error::VerboseError;
     use rstest::rstest;
@@ -486,7 +559,7 @@ mod tests {
     use crate::{
         ast::PrimitiveType,
         file::SourceFile,
-        nom_parser::{State, decimal},
+        nom_parser::{number, State},
     };
 
     use super::{Span, TypeNameAst};
@@ -501,10 +574,8 @@ mod tests {
     #[case("?string", true, vec!["string"])]
     fn parse_type_name_test<'a>(#[case] code: &'a str, #[case] nullable: bool, #[case] expected: Vec<&str>) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
-        let errors = Rc::new(RefCell::new(vec![]));
 
         let mut state = State {
-            errors: errors.clone(),
             file: source_file.clone(),
         };
 
@@ -517,5 +588,38 @@ mod tests {
 
         let parsed: Vec<_> = parsed.names.into_iter().map(|s| s.fragment().to_string()).collect();
         assert_eq!(parsed, expected, "Parsed type name does not match expected");
+    }
+ 
+    #[rstest]
+    #[case("1.2", 1.2, 1)]
+    #[case("2.2", 2.2, 1)]
+    #[case("2.20000000000000", 2.2, 14)]
+    #[case("1.23", 1.23, 2)]
+    fn float_test<'a>(#[case] code: &'a str, #[case] expected: f32, #[case] dot_place: u8) {
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+
+        let mut state = State {
+            file: source_file.clone(),
+        };
+
+        let input = Span::new_extra(code, state);
+        let (input, number) = number::<VerboseError<Span>>(input).unwrap();
+
+        assert_eq!(number, PrimitiveType::Float(expected, dot_place), "Parsed type name does not match expected");
+    }
+
+    #[rstest]
+    #[case("1.7976931348623157E+300", 1797693134862315647938267463293564874600617718166104931943772918675666340832537361829116717802808644459281636809871223917508254623303542508952824391223228755068260245991425339269180741930617451225745000201898803634683406373476746438518757597828943183163861984879702567874510145974570799930947550576640.0000000000000000, 16)]
+    fn double_test<'a>(#[case] code: &'a str, #[case] expected: f64, #[case] dot_place: u8) {
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+
+        let mut state = State {
+            file: source_file.clone(),
+        };
+
+        let input = Span::new_extra(code, state);
+        let (input, number) = number::<VerboseError<Span>>(input).unwrap();
+
+        assert_eq!(number, PrimitiveType::Double(expected, dot_place), "Parsed type name does not match expected");
     }
 }

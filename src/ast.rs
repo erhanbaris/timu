@@ -16,7 +16,8 @@ pub enum PrimitiveType {
     U32(u32),
     I64(i64),
     U64(u64),
-    Float(f64),
+    Float(f32, u8),
+    Double(f64, u8),
 }
 
 #[derive(PartialEq, Debug)]
@@ -62,8 +63,13 @@ pub struct FunctionArgumentAst<'a> {
 }
 
 #[derive(Debug)]
+pub enum BodyStatementAst<'a> {
+    Variable(VariableDefinitionAst<'a>),
+}
+
+#[derive(Debug)]
 pub struct BodyAst<'a> {
-    pub statements: Vec<FileStatementAst<'a>>,
+    pub statements: Vec<BodyStatementAst<'a>>,
 }
 
 #[derive(Debug)]

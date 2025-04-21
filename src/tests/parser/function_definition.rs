@@ -15,10 +15,8 @@ use crate::{file::SourceFile, nom_tools::State};
 #[case("func init(): MyType {} func init(): MyType {}", "func init(): MyType {}func init(): MyType {}")]
 fn custom_function_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
     let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
-    let errors = Rc::new(RefCell::new(vec![]));
 
     let mut state = State {
-        errors: errors.clone(),
         file: source_file.clone(),
     };
 
