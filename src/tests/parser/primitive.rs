@@ -5,7 +5,7 @@ use pretty_assertions::{assert_eq, assert_ne};
 use rstest::*;
 
 use crate::ast::{PrimitiveType, VariableDefinitionAst};
-use crate::nom_parser::{self, decimal};
+use crate::nom_parser::{self, number};
 use crate::nom_tools::Span;
 use crate::{file::SourceFile, nom_tools::State};
 
@@ -24,10 +24,8 @@ use crate::{file::SourceFile, nom_tools::State};
 #[case("\"erhan\"", PrimitiveType::String("erhan".to_string()))]
 fn parse_primitive_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
     let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
-    let errors = Rc::new(RefCell::new(vec![]));
 
     let mut state = State {
-        errors: errors.clone(),
         file: source_file.clone(),
     };
 
