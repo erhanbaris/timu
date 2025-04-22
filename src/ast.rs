@@ -14,7 +14,7 @@ pub enum PrimitiveType {
     U32(u32),
     I64(i64),
     U64(u64),
-    Float(f32, u8),
+    Float(f64, u8),
     Double(f64, u8),
 }
 
