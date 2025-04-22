@@ -350,7 +350,7 @@ pub fn number<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) ->
         };
 
         if FLOAT_RANGE.contains(&number) {
-            PrimitiveType::Float(number as f32, dot_place as u8)
+            PrimitiveType::Float(number, dot_place as u8)
         } else {
             PrimitiveType::Double(number, dot_place as u8)
         }
@@ -576,7 +576,7 @@ mod tests {
     #[case("-1024.0", -1024.0, 1)]
     #[case("1.0e-7", 1.0e-7, 1)]
     #[case("123456789.0e+7", 1234567890000000.0, 1)]
-    fn float_test<'a>(#[case] code: &'a str, #[case] expected: f32, #[case] dot_place: u8) {
+    fn float_test<'a>(#[case] code: &'a str, #[case] expected: f64, #[case] dot_place: u8) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
         let state = State {
