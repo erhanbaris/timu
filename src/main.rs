@@ -32,7 +32,6 @@ fn print_error(ctx: &'static str, span_range: std::ops::Range<usize>, source_fil
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    println!("{}", 123456789.0e+7f64);
     let source_file = Rc::new(SourceFile::new(
         "<memory>".into(),
         r#"
