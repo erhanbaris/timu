@@ -1,11 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use nom_language::error::VerboseError;
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::assert_eq;
 use rstest::*;
 
-use crate::ast::{PrimitiveType, VariableDefinitionAst};
-use crate::nom_parser::{self, number};
+use crate::ast::PrimitiveType;
 use crate::nom_tools::Span;
 use crate::{file::SourceFile, nom_tools::State};
 
@@ -25,12 +24,12 @@ use crate::{file::SourceFile, nom_tools::State};
 fn parse_primitive_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
     let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
-    let mut state = State {
+    let state = State {
         file: source_file.clone(),
     };
 
     let input = Span::new_extra(code, state);
-    let (input, value) = PrimitiveType::parse::<VerboseError<Span>>(input).unwrap();
+    let (_, value) = PrimitiveType::parse::<VerboseError<Span>>(input).unwrap();
 
     assert_eq!(value, expected, "Parsed primitive type does not match expected");
 }

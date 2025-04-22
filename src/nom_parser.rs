@@ -1,35 +1,21 @@
-#[rustfmt::skip]
-
-use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
 
-use nom::{Mode, ParseTo};
-use nom::bits::complete::take;
 use nom::branch::alt;
-use nom::bytes::complete::{take_till, take_until};
-use nom::character::anychar;
-use nom::character::complete::{alpha1, alphanumeric1, char, digit1, none_of, one_of};
-use nom::combinator::{all_consuming, complete, consumed, cut, map, map_opt, opt, peek, recognize, value, verify, Opt};
-use nom::error::{context, ErrorKind, FromExternalError};
+use nom::bytes::complete::take_until;
+use nom::character::complete::{alpha1, alphanumeric1, char, none_of, one_of};
+use nom::combinator::{cut, map, opt, peek, recognize, value};
+use nom::error::{context, ErrorKind};
 use nom::multi::{fold, many0, many0_count, many1, separated_list0};
-use nom::number::complete::{double, float, recognize_float};
-use nom::number::{be_u128, be_u8};
-use nom::sequence::{pair, preceded, separated_pair, terminated, tuple};
-use nom::{Err, Finish, OutputMode, PResult};
-use nom::{IResult, Parser, character::complete::multispace0, error::ParseError, sequence::delimited};
-use nom::{
-    bytes::complete::{tag, take_while_m_n},
-    combinator::map_res,
-};
+use nom::sequence::{pair, preceded, terminated};
+use nom::Err;
+use nom::{IResult, Parser, error::ParseError, sequence::delimited};
+use nom::bytes::complete::tag;
 use nom_language::error::VerboseError;
 
 use crate::ast::{
     BodyAst, BodyStatementAst, ClassDefinitionAst, ClassDefinitionFieldAst, ExpressionAst, FieldAst, FileAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, PrimitiveType, TypeNameAst, VariableDefinitionAst, VariableType
 };
-use crate::file::SourceFile;
-use crate::nom_tools::{Span, State, ToRange, cleanup};
-use nom_locate::{LocatedSpan, position};
+use crate::nom_tools::{Span, State, cleanup};
 
 static I8_RANGE: std::ops::Range<i128> = (i8::MIN as i128)..(i8::MAX as i128);
 static U8_RANGE: std::ops::Range<i128> = (u8::MIN as i128)..(u8::MAX as i128);
@@ -44,8 +30,8 @@ static I64_RANGE: std::ops::Range<i128> = (i64::MIN as i128)..(i64::MAX as i128)
 static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..(u64::MAX as i128);
 
 static FLOAT_RANGE: std::ops::Range<f64> = (f32::MIN as f64)..(f32::MAX as f64);
-static DOUBLE_RANGE: std::ops::Range<f64> = (f64::MIN as f64)..(f64::MAX as f64);
 
+#[allow(warnings)]
 pub fn comment<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>, E> {
     preceded(char('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),))).parse(input)
 }
@@ -71,12 +57,11 @@ pub fn ident<'a, E: std::fmt::Debug + ParseError<Span<'a>>>() -> impl Parser<Spa
     )
 }
 
-pub fn parse<'a>(state: State<'a>) -> IResult<Span<'a>, FileAst<'a>, VerboseError<Span<'a>>> {
+pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, VerboseError<Span<'_>>> {
     let input = Span::new_extra(state.file.code(), state);
     let (remaining, statements) = many0(alt((cleanup(ClassDefinitionAst::parse), cleanup(FunctionDefinitionAst::parse_file_function)))).parse(input)?;
 
     if remaining.len() > 0 {
-        let (_, data) = cleanup(alphanumeric1).parse(remaining.clone())?;
         return Err(Err::Failure(VerboseError::from_error_kind(remaining, ErrorKind::Eof)));
     }
 
@@ -131,7 +116,7 @@ impl ClassDefinitionAst<'_> {
 impl Display for ClassDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "class {} {{", self.name.fragment())?;
-        for (index, field) in self.fields.iter().enumerate() {
+        for field in self.fields.iter() {
             match field {
                 ClassDefinitionFieldAst::ClassField(field) => {
                     write!(f, "{}", field)?;
@@ -319,64 +304,49 @@ pub fn string<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) ->
 }
 
 pub fn number<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, E> {
-    let (input, (representing, (all, (number, floating)))) = (
+    let (input, (representing, (number, floating))) = (
         opt(one_of("+-")), 
-        consumed(
-            (recognize::<Span<'a>, E, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))), 
+        (recognize::<Span<'a>, E, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))), 
             opt(preceded(
                 char('.'),
-                ((
+                (
                     recognize::<Span<'a>, E, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
                     opt(preceded(
                         one_of("Ee"),
-                        ((
-                            alt((
+                        (
+                            opt(alt((
                                 value(true, char('-')),
                                 value(false, char('+'))
-                            )),
+                            ))),
                             recognize::<Span<'a>, E, _>(many1(terminated(one_of("0123456789"), many0(char('_')))))
-                        )),
+                        ),
                     ))
-                ))
+                )
             ))
-        ))
+        )
     ).parse(input)?;
 
-
-
-    let number = match number.replace("_", "").parse::<i128>() {
-        Ok(number) => number,
-        Err(e) => {
-            return Err(Err::Error(E::from_error_kind(input, ErrorKind::Digit)));
-        }
-    };
+    let number = number.replace("_", "");
 
     let number = if let Some((floating, e_info)) = floating {        
         let dot_place = floating.len();
-
-        let floating = match floating.replace("_", "").parse::<f64>() {
-            Ok(floating) => floating,
-            Err(e) => {
-                return Err(Err::Error(E::from_error_kind(input, ErrorKind::Float)));
-            }
-        };
-
-        let number: f64 = number as f64 + (floating as f64 * f64::powi(10.0, -(dot_place as i32)));
-
-        let number = match representing {
-            Some('-') => number * -1 as f64,
-            _ => number,
-        };
+        let floating = floating.replace("_", "");
 
         let number = if let Some((is_minus, exponent)) = e_info {
-            let exponent = exponent.replace("_", "").parse::<i32>().unwrap_or(0);
-            if is_minus {
-                number * f64::powi(10.0, -exponent)
-            } else {
-                number * f64::powi(10.0, exponent)
-            }
-        } else {
+            let mut exponent = exponent.replace("_", "").parse::<i32>().unwrap_or(0);
+            if let Some(true) = is_minus {
+                exponent = -exponent
+            };
+
+            let number: f64 = minimal_lexical::parse_float(number.as_bytes().iter(), floating.as_bytes().iter(), exponent);
             number
+        } else {
+            minimal_lexical::parse_float(number.as_bytes().iter(), floating.as_bytes().iter(), 0)
+        };
+
+        let number = match representing {
+            Some('-') => -number,
+            _ => number,
         };
 
         if FLOAT_RANGE.contains(&number) {
@@ -385,8 +355,15 @@ pub fn number<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) ->
             PrimitiveType::Double(number, dot_place as u8)
         }
     } else {
+        let number = match number.replace("_", "").parse::<i128>() {
+            Ok(number) => number,
+            Err(_) => {
+                return Err(Err::Error(E::from_error_kind(input, ErrorKind::Digit)));
+            }
+        };
+
         let number = match representing {
-            Some('-') => number * -1,
+            Some('-') => -number,
             _ => number,
         };
 
@@ -550,8 +527,8 @@ impl Display for FieldAst<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc, vec};
-    use pretty_assertions::{assert_eq, assert_ne};
+    use std::{rc::Rc, vec};
+    use pretty_assertions::assert_eq;
 
     use nom_language::error::VerboseError;
     use rstest::rstest;
@@ -575,7 +552,7 @@ mod tests {
     fn parse_type_name_test<'a>(#[case] code: &'a str, #[case] nullable: bool, #[case] expected: Vec<&str>) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
-        let mut state = State {
+        let state = State {
             file: source_file.clone(),
         };
 
@@ -595,15 +572,19 @@ mod tests {
     #[case("2.2", 2.2, 1)]
     #[case("2.20000000000000", 2.2, 14)]
     #[case("1.23", 1.23, 2)]
+    #[case("1024.0", 1024.0, 1)]
+    #[case("-1024.0", -1024.0, 1)]
+    #[case("1.0e-7", 1.0e-7, 1)]
+    #[case("123456789.0e+7", 1234567890000000.0, 1)]
     fn float_test<'a>(#[case] code: &'a str, #[case] expected: f32, #[case] dot_place: u8) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
-        let mut state = State {
+        let state = State {
             file: source_file.clone(),
         };
 
         let input = Span::new_extra(code, state);
-        let (input, number) = number::<VerboseError<Span>>(input).unwrap();
+        let (_, number) = number::<VerboseError<Span>>(input).unwrap();
 
         assert_eq!(number, PrimitiveType::Float(expected, dot_place), "Parsed type name does not match expected");
     }
@@ -613,12 +594,12 @@ mod tests {
     fn double_test<'a>(#[case] code: &'a str, #[case] expected: f64, #[case] dot_place: u8) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
-        let mut state = State {
+        let state = State {
             file: source_file.clone(),
         };
 
         let input = Span::new_extra(code, state);
-        let (input, number) = number::<VerboseError<Span>>(input).unwrap();
+        let (_, number) = number::<VerboseError<Span>>(input).unwrap();
 
         assert_eq!(number, PrimitiveType::Double(expected, dot_place), "Parsed type name does not match expected");
     }

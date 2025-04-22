@@ -19,6 +19,6 @@ impl<'a> SourceFile<'a> {
     }
 
     pub fn code(&self) -> &'a str {
-        &self.code
+        self.code
     }
 }

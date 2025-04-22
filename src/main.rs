@@ -1,4 +1,3 @@
-#![allow(warnings)]
 
 mod ast;
 mod file;
@@ -12,19 +11,18 @@ mod nom_tools;
 #[cfg(test)]
 mod tests;
 
-use std::{cell::RefCell, error::Error, rc::Rc};
+use std::{error::Error, rc::Rc};
 
-use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind, Source};
+use ariadne::{Color, Label, Report, ReportKind, Source};
 use file::SourceFile;
 use nom::Finish;
-use nom_language::error::{VerboseError, VerboseErrorKind};
-use nom_locate::LocatedSpan;
-use nom_tools::{Span, State, ToRange};
+use nom_language::error::VerboseErrorKind;
+use nom_tools::{State, ToRange};
 
-fn print_error<'a>(ctx: &'static str, span_range: std::ops::Range<usize>, source_file: Rc<SourceFile<'a>>) {
+fn print_error(ctx: &'static str, span_range: std::ops::Range<usize>, source_file: Rc<SourceFile<'_>>) {
     println!("{}", source_file.code());
     let file_name = format!("{:?}", source_file.path());
-    let mut report = Report::build(ReportKind::Error, (file_name.as_str(), 12..12))
+    Report::build(ReportKind::Error, (file_name.as_str(), 12..12))
         .with_code(1)
         .with_message("Syntax error")
         .with_label(Label::new((file_name.as_str(), span_range)).with_message(ctx).with_color(Color::Red))
@@ -34,25 +32,26 @@ fn print_error<'a>(ctx: &'static str, span_range: std::ops::Range<usize>, source
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    println!("{}", 123456789.0e+7f64);
     let source_file = Rc::new(SourceFile::new(
         "<memory>".into(),
         r#"
 class test { 
     func init(a: int): MyType {
-        var test = 1.1;
+        var test = 123456789.0e+7;
     }
 }
     "#,
     ));
 
-    let mut state = State {
+    let state = State {
         file: source_file.clone(),
     };
 
     let response = nom_parser::parse(state).finish();
 
     match response {
-        Ok((remaining, parsed)) => {
+        Ok((_, parsed)) => {
             for ast in parsed.statements.iter() {
                 println!("{}", ast);
             }

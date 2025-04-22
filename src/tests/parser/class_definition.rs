@@ -1,6 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::assert_eq;
 use rstest::*;
 
 use crate::nom_parser;
@@ -27,7 +27,7 @@ use crate::{file::SourceFile, nom_tools::State};
 fn custom_class_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
     let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
-    let mut state = State {
+    let state = State {
         file: source_file.clone(),
     };
 

@@ -1,5 +1,3 @@
-use core::str;
-use std::rc::Rc;
 
 use crate::nom_tools::Span;
 
@@ -24,13 +22,6 @@ pub enum PrimitiveType {
 pub enum VariableType {
     Const,
     Var,
-}
-
-#[derive(PartialEq, Debug)]
-pub enum UnaryType {
-    Plus,
-    Minus,
-    LogicalNot,
 }
 
 #[derive(Debug)]
