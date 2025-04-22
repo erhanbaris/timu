@@ -1,11 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use nom_language::error::VerboseError;
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::assert_eq;
 use rstest::*;
 
 use crate::ast::VariableDefinitionAst;
-use crate::nom_parser;
 use crate::nom_tools::Span;
 use crate::{file::SourceFile, nom_tools::State};
 
@@ -20,10 +19,11 @@ use crate::{file::SourceFile, nom_tools::State};
 #[case("const a_123_____ = 100;", "const a_123_____ = 100;")]
 #[case("const a = 1.0;", "const a = 1.0;")]
 #[case("const a = 1.2;", "const a = 1.2;")]
+#[case("const a = -1.2;", "const a = -1.2;")]
 fn custom_variable_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
     let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
-    let mut state = State {
+    let state = State {
         file: source_file.clone(),
     };
 
