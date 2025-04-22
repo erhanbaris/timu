@@ -13,9 +13,9 @@ use nom::bytes::complete::tag;
 use nom_language::error::VerboseError;
 
 use crate::ast::{
-    BodyAst, BodyStatementAst, ClassDefinitionAst, ClassDefinitionFieldAst, ExpressionAst, FieldAst, FileAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, PrimitiveType, TypeNameAst, VariableDefinitionAst, VariableType
+    BodyAst, BodyStatementAst, ClassDefinitionAst, ClassDefinitionFieldAst, ExpressionAst, FieldAst, FileAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, PrimitiveType, TypeNameAst, VariableAssignAst, VariableDefinitionAst, VariableType
 };
-use crate::nom_tools::{Span, State, cleanup};
+use crate::nom_tools::{Span, State, cleanup, Between};
 
 static I8_RANGE: std::ops::Range<i128> = (i8::MIN as i128)..(i8::MAX as i128);
 static U8_RANGE: std::ops::Range<i128> = (u8::MIN as i128)..(u8::MAX as i128);
@@ -182,7 +182,8 @@ impl Display for FunctionArgumentAst<'_> {
 impl Display for BodyStatementAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            BodyStatementAst::Variable(var) => write!(f, "{}", var),
+            BodyStatementAst::VariableDefinition(var) => write!(f, "{}", var),
+            BodyStatementAst::VariableAssign(var) => write!(f, "{}", var),
         }
     }
 }
@@ -190,7 +191,11 @@ impl Display for BodyStatementAst<'_> {
 impl BodyAst<'_> {
     pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, BodyAst<'a>, E> {
         let (input, _) = context("Missing '{'", cut(cleanup(char('{')))).parse(input)?;
-        let (input, statements) = many0(VariableDefinitionAst::parse_body_statement::<E>).parse(input)?;
+        let (input, statements) = many0(
+            alt((
+                VariableAssignAst::parse_body_statement::<E>,
+                VariableDefinitionAst::parse_body_statement::<E>,
+            ))).parse(input)?;
         let (input, _) = context("Missing '}'", cut(cleanup(char('}')))).parse(input)?;
 
         Ok((
@@ -218,7 +223,7 @@ impl Display for BodyAst<'_> {
 impl VariableDefinitionAst<'_> {
     pub fn parse_body_statement<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, BodyStatementAst<'a>, E> {
         let (input, variable) = Self::parse(input)?;
-        Ok((input, BodyStatementAst::Variable(variable)))
+        Ok((input, BodyStatementAst::VariableDefinition(variable)))
     }
 
     pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, VariableDefinitionAst<'a>, E> {
@@ -242,6 +247,34 @@ impl VariableDefinitionAst<'_> {
 impl Display for VariableDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {} = {};", self.variable_type, self.name.fragment(), self.expression)
+    }
+}
+
+impl VariableAssignAst<'_> {
+    pub fn parse_body_statement<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, BodyStatementAst<'a>, E> {
+        let (input, variable) = Self::parse(input)?;
+        Ok((input, BodyStatementAst::VariableAssign(variable)))
+    }
+
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, VariableAssignAst<'a>, E> {
+        let (input, name) = ident().parse(input)?;
+        let (input, _) = context("Missing '='", cleanup(char('='))).parse(input)?;
+        let (input, expression) = context("Invalid expression", cut(ExpressionAst::parse)).parse(input)?;
+        let (input, _) = context("Missing ';'", cleanup(char(';'))).parse(input)?;
+
+        Ok((
+            input,
+            VariableAssignAst {
+                name,
+                expression,
+            },
+        ))
+    }
+}
+
+impl Display for VariableAssignAst<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} = {};", self.name.fragment(), self.expression)
     }
 }
 
@@ -274,11 +307,9 @@ fn character<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> 
     let (input, c) = none_of("\"")(input)?;
     if c == '\\' {
         alt((
-            value('\x08', tag("\\b")),
-            value('\x0C', tag("\\f")),
-            value('\n', tag("\\n")),
-            value('\r', tag("\\r")),
-            value('\t', tag("\\t")),
+            value('\n', char('n')),
+            value('\r', char('r')),
+            value('\t', char('t')),
             value('\\', char('\\')),
             value('"', char('"')),
             value('/', char('/')),
@@ -349,7 +380,7 @@ pub fn number<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) ->
             _ => number,
         };
 
-        if FLOAT_RANGE.contains(&number) {
+        if FLOAT_RANGE.between(number) {
             PrimitiveType::Float(number, dot_place as u8)
         } else {
             PrimitiveType::Double(number, dot_place as u8)
@@ -367,21 +398,21 @@ pub fn number<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) ->
             _ => number,
         };
 
-        if I8_RANGE.contains(&number) {
+        if I8_RANGE.between(number) {
             PrimitiveType::I8(number as i8)
-        } else if U8_RANGE.contains(&number) {
+        } else if U8_RANGE.between(number) {
             PrimitiveType::U8(number as u8)
-        } else if I16_RANGE.contains(&number) {
+        } else if I16_RANGE.between(number) {
             PrimitiveType::I16(number as i16)
-        } else if U16_RANGE.contains(&number) {
+        } else if U16_RANGE.between(number) {
             PrimitiveType::U16(number as u16)
-        } else if I32_RANGE.contains(&number) {
+        } else if I32_RANGE.between(number) {
             PrimitiveType::I32(number as i32)
-        } else if U32_RANGE.contains(&number) {
+        } else if U32_RANGE.between(number) {
             PrimitiveType::U32(number as u32)
-        } else if I64_RANGE.contains(&number) {
+        } else if I64_RANGE.between(number) {
             PrimitiveType::I64(number as i64)
-        } else if U64_RANGE.contains(&number) {
+        } else if U64_RANGE.between(number) {
             PrimitiveType::U64(number as u64)
         } else {
             return Err(Err::Error(E::from_error_kind(input, ErrorKind::Digit)));
@@ -533,6 +564,7 @@ mod tests {
     use nom_language::error::VerboseError;
     use rstest::rstest;
 
+    use crate::nom_parser::string;
     use crate::{
         ast::PrimitiveType,
         file::SourceFile,
@@ -540,6 +572,65 @@ mod tests {
     };
 
     use super::{Span, TypeNameAst};
+
+    #[rstest]
+    #[case(r#""hello""#, PrimitiveType::String("hello".to_string()))]
+    #[case(r#""hello\nworld""#, PrimitiveType::String("hello\nworld".to_string()))]
+    #[case(r#""hello\tworld""#, PrimitiveType::String("hello\tworld".to_string()))]
+    #[case(r#""hello\\world""#, PrimitiveType::String("hello\\world".to_string()))]
+    #[case(r#""hello\"world""#, PrimitiveType::String("hello\"world".to_string()))]
+    #[case(r#""hello/world""#, PrimitiveType::String("hello/world".to_string()))]
+    fn string_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+
+        let state = State {
+            file: source_file.clone(),
+        };
+
+        let input = Span::new_extra(code, state);
+        let (_, string) = string::<VerboseError<Span>>(input).unwrap();
+
+        assert_eq!(string, expected, "Parsed string does not match expected");
+    }
+
+    #[rstest]
+    #[case("true", PrimitiveType::Bool(true))]
+    #[case("false", PrimitiveType::Bool(false))]
+    fn boolean_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+
+        let state = State {
+            file: source_file.clone(),
+        };
+
+        let input = Span::new_extra(code, state);
+        let (_, boolean) = PrimitiveType::parse::<VerboseError<Span>>(input).unwrap();
+
+        assert_eq!(boolean, expected, "Parsed boolean does not match expected");
+    }
+
+    #[rstest]
+    #[case("123", PrimitiveType::I8(123))]
+    #[case("-123", PrimitiveType::I8(-123))]
+    #[case("255", PrimitiveType::U8(255))]
+    #[case("32767", PrimitiveType::I16(32767))]
+    #[case("65535", PrimitiveType::U16(65535))]
+    #[case("2147483647", PrimitiveType::I32(2147483647))]
+    #[case("4294967295", PrimitiveType::U32(4294967295))]
+    #[case("9223372036854775807", PrimitiveType::I64(9223372036854775807))]
+    #[case("18446744073709551615", PrimitiveType::U64(18446744073709551615))]
+    fn integer_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+
+        let state = State {
+            file: source_file.clone(),
+        };
+
+        let input = Span::new_extra(code, state);
+        let (_, number) = number::<VerboseError<Span>>(input).unwrap();
+
+        assert_eq!(number, expected, "Parsed integer does not match expected");
+    }
 
     #[rstest]
     #[case("string", false, vec!["string"])]

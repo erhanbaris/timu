@@ -10,9 +10,6 @@ pub struct State<'a> {
     pub file: Rc<SourceFile<'a>>,
 }
 
-impl State<'_> {
-}
-
 pub type Span<'a> = LocatedSpan<&'a str, State<'a>>;
 
 pub trait ToRange {
@@ -29,6 +26,14 @@ impl ToRange for Span<'_> {
         start..end
     }
 }
+
+pub trait Between<T: PartialOrd> {
+    fn between(&self, t: T) -> bool;
+}
+
+impl<T: PartialOrd> Between<T> for std::ops::Range<T> {
+    fn between(&self, t: T) -> bool { self.start <= t && t <= self.end }
+ }
 
 pub fn cleanup<'a, O, E: std::fmt::Debug + ParseError<Span<'a>>, F: Parser<Span<'a>, Output = O, Error = E>>(
     f: F,

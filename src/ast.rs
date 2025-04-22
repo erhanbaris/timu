@@ -55,7 +55,8 @@ pub struct FunctionArgumentAst<'a> {
 
 #[derive(Debug)]
 pub enum BodyStatementAst<'a> {
-    Variable(VariableDefinitionAst<'a>),
+    VariableDefinition(VariableDefinitionAst<'a>),
+    VariableAssign(VariableAssignAst<'a>),
 }
 
 #[derive(Debug)]
@@ -93,6 +94,12 @@ pub enum ExpressionAst {
 #[derive(Debug)]
 pub struct VariableDefinitionAst<'a> {
     pub variable_type: VariableType,
+    pub name: Span<'a>,
+    pub expression: ExpressionAst,
+}
+
+#[derive(Debug)]
+pub struct VariableAssignAst<'a> {
     pub name: Span<'a>,
     pub expression: ExpressionAst,
 }

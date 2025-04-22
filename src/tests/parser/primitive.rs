@@ -13,14 +13,23 @@ use crate::{file::SourceFile, nom_tools::State};
 #[case("-1", PrimitiveType::I8(-1))]
 #[case("129", PrimitiveType::U8(129))]
 #[case("-129", PrimitiveType::I16(-129))]
-#[case("32767", PrimitiveType::U16(32767))]
-#[case("32_767", PrimitiveType::U16(32767))]
+#[case("32767", PrimitiveType::I16(32767))]
+#[case("32_767", PrimitiveType::I16(32767))]
 #[case("12_345_678", PrimitiveType::I32(12345678))]
 #[case("-12_345_678", PrimitiveType::I32(-12345678))]
 #[case("+12_345_678", PrimitiveType::I32(12345678))]
 #[case("true", PrimitiveType::Bool(true))]
 #[case("false", PrimitiveType::Bool(false))]
 #[case("\"erhan\"", PrimitiveType::String("erhan".to_string()))]
+#[case(r#""
+erhan
+""#, PrimitiveType::String(r#"
+erhan
+"#.to_string()))]
+#[case(r#""
+\"
+erhan
+""#, PrimitiveType::String("\n\"\nerhan\n".to_string()))]
 fn parse_primitive_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
     let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
