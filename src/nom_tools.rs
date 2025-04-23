@@ -1,7 +1,7 @@
-use std::rc::Rc;
 use nom::character::complete::multispace0;
 use nom::{Parser, error::ParseError, sequence::delimited};
 use nom_locate::LocatedSpan;
+use std::rc::Rc;
 
 use crate::file::SourceFile;
 
@@ -32,8 +32,10 @@ pub trait Between<T: PartialOrd> {
 }
 
 impl<T: PartialOrd> Between<T> for std::ops::Range<T> {
-    fn between(&self, t: T) -> bool { self.start <= t && t <= self.end }
- }
+    fn between(&self, t: T) -> bool {
+        self.start <= t && t <= self.end
+    }
+}
 
 pub fn cleanup<'a, O, E: std::fmt::Debug + ParseError<Span<'a>>, F: Parser<Span<'a>, Output = O, Error = E>>(
     f: F,

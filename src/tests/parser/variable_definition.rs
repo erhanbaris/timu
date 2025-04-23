@@ -20,6 +20,7 @@ use crate::{file::SourceFile, nom_tools::State};
 #[case("const a = 1.0;", "const a = 1.0;")]
 #[case("const a = 1.2;", "const a = 1.2;")]
 #[case("const a = -1.2;", "const a = -1.2;")]
+#[case("const a: f64 = -1.2;", "const a: f64 = -1.2;")]
 fn custom_variable_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
     let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 

@@ -12,19 +12,19 @@ The nullable types starts with question mark (?). The variable may have a value 
 @is_none macro check for value and return false if has it, otherwise return true
 
 ### Macros
-## #some and #none
+## #value and #empty
 It is used for nullable type. It checks for is value available or not.
 Example:
 
 ```timu
 func main () {
-    var a: ?int = None
+    var a: ?int = Empty;
     var a: ?int;
-    var b: ?int = 1024
-    var c: ?int = Some(1024)
-    var d: bool = IsSome(1024)
+    var b: ?int = 1024;
+    var c: ?int = Value(1024);
+    var d: bool = HasValue(1024);
 
-    if Some(1024) == c {
+    if Value(1024) == c {
 
     } else {
 
