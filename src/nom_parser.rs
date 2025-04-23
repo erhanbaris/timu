@@ -13,7 +13,7 @@ use nom::bytes::complete::tag;
 use nom_language::error::VerboseError;
 
 use crate::ast::{
-    BodyAst, BodyStatementAst, ClassDefinitionAst, ClassDefinitionFieldAst, ExpressionAst, FieldAst, FileAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, PrimitiveType, TypeNameAst, VariableAssignAst, VariableDefinitionAst, VariableType
+    BodyAst, BodyStatementAst, ClassDefinitionAst, ClassDefinitionFieldAst, ExpressionAst, FieldAst, FileAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, PrimitiveType, TypeNameAst, VariableAssignAst, VariableDefinitionAst, VariableDefinitionType
 };
 use crate::nom_tools::{Span, State, cleanup, Between};
 
@@ -227,8 +227,17 @@ impl VariableDefinitionAst<'_> {
     }
 
     pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, VariableDefinitionAst<'a>, E> {
-        let (input, variable_type) = cleanup(alt((map(tag("var"), |_| VariableType::Var), map(tag("const"), |_| VariableType::Const)))).parse(input)?;
+        let (input, variable_definition_type) = cleanup(alt((map(tag("var"), |_| VariableDefinitionType::Var), map(tag("const"), |_| VariableDefinitionType::Const)))).parse(input)?;
         let (input, name) = expected_ident("Missing variable name", input)?;
+
+        let (input, expected_type) = match cleanup(opt(char(':'))).parse(input)? {
+            (input, Some(_)) => {
+                let (input, expected_type) = context("Missing variable type", cut(cleanup(TypeNameAst::parse))).parse(input)?;
+                (input, Some(expected_type))
+            }
+            (input, None) => (input, None),
+        };
+
         let (input, _) = context("Missing '='", cleanup(char('='))).parse(input)?;
         let (input, expression) = context("Invalid expression", cut(ExpressionAst::parse)).parse(input)?;
         let (input, _) = context("Missing ';'", cleanup(char(';'))).parse(input)?;
@@ -236,8 +245,9 @@ impl VariableDefinitionAst<'_> {
         Ok((
             input,
             VariableDefinitionAst {
-                variable_type,
+                variable_definition_type,
                 name,
+                expected_type,
                 expression,
             },
         ))
@@ -246,7 +256,10 @@ impl VariableDefinitionAst<'_> {
 
 impl Display for VariableDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} = {};", self.variable_type, self.name.fragment(), self.expression)
+        write!(f, "{} {}{} = {};", self.variable_definition_type, self.name.fragment(), match &self.expected_type {
+            Some(expected_type) => format!(": {}", expected_type),
+            None => "".to_string(),
+        }, self.expression)
     }
 }
 
@@ -278,11 +291,11 @@ impl Display for VariableAssignAst<'_> {
     }
 }
 
-impl Display for VariableType {
+impl Display for VariableDefinitionType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            VariableType::Var => write!(f, "var"),
-            VariableType::Const => write!(f, "const"),
+            VariableDefinitionType::Var => write!(f, "var"),
+            VariableDefinitionType::Const => write!(f, "const"),
         }
     }
 }

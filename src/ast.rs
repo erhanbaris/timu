@@ -1,4 +1,3 @@
-
 use crate::nom_tools::Span;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -19,7 +18,7 @@ pub enum PrimitiveType {
 }
 
 #[derive(PartialEq, Debug)]
-pub enum VariableType {
+pub enum VariableDefinitionType {
     Const,
     Var,
 }
@@ -93,8 +92,9 @@ pub enum ExpressionAst {
 
 #[derive(Debug)]
 pub struct VariableDefinitionAst<'a> {
-    pub variable_type: VariableType,
+    pub variable_definition_type: VariableDefinitionType,
     pub name: Span<'a>,
+    pub expected_type: Option<TypeNameAst<'a>>,
     pub expression: ExpressionAst,
 }
 
