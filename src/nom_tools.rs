@@ -1,4 +1,8 @@
-use nom::character::complete::multispace0;
+use nom::branch::alt;
+use nom::bytes::complete::{tag, take_until};
+use nom::character::complete::{char, multispace0};
+use nom::combinator::cut;
+use nom::sequence::{preceded, terminated};
 use nom::{Parser, error::ParseError, sequence::delimited};
 use nom_locate::LocatedSpan;
 use std::rc::Rc;
@@ -40,5 +44,12 @@ impl<T: PartialOrd> Between<T> for std::ops::Range<T> {
 pub fn cleanup<'a, O, E: std::fmt::Debug + ParseError<Span<'a>>, F: Parser<Span<'a>, Output = O, Error = E>>(
     f: F,
 ) -> impl Parser<Span<'a>, Output = O, Error = E> {
-    delimited(multispace0, f, multispace0)
+    let _left = preceded(char::<Span<'a>, E>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
+    let _right = preceded(char::<Span<'a>, E>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
+
+    delimited(
+        multispace0, 
+        f, 
+        multispace0, 
+    )
 }

@@ -59,7 +59,10 @@ pub fn ident<'a, E: std::fmt::Debug + ParseError<Span<'a>>>() -> impl Parser<Spa
 
 pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, VerboseError<Span<'_>>> {
     let input = Span::new_extra(state.file.code(), state);
-    let (remaining, statements) = many0(alt((cleanup(ClassDefinitionAst::parse), cleanup(FunctionDefinitionAst::parse_file_function)))).parse(input)?;
+    let (remaining, statements) = many0(alt((
+        cleanup(ClassDefinitionAst::parse),
+        cleanup(FunctionDefinitionAst::parse_file_function)
+    ))).parse(input)?;
 
     if remaining.len() > 0 {
         return Err(Err::Failure(VerboseError::from_error_kind(remaining, ErrorKind::Eof)));
@@ -98,7 +101,10 @@ impl ClassDefinitionAst<'_> {
         let (input, _) = context("Missing class '{'", cut(peek(cleanup(char('{'))))).parse(input)?;
         let (input, fields) = delimited(
                 char('{'),
-                cleanup(many0(alt((FieldAst::parse_class_field, FunctionDefinitionAst::parse_class_function)))),
+                cleanup(many0(alt((
+                    FieldAst::parse_class_field,
+                    FunctionDefinitionAst::parse_class_function
+                )))),
                 context("Missing class '}'", cut(char('}'))),
             )
         .parse(input)?;
