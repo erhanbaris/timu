@@ -17,6 +17,15 @@ impl InterfaceDefinitionAst<'_> {
     pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, E> {
         let (input, _) = cleanup(tag("interface")).parse(input)?;
         let (input, name) = expected_ident("Missing interface name", input)?;
+
+        let (input, base_interfaces) = match cleanup(opt(char(':'))).parse(input)? {
+            (input, Some(_)) => {
+                let (input, base_interfaces) = context("Missing variable type", cut(separated_list0(tag(","), TypeNameAst::parse))).parse(input)?;
+                (input, base_interfaces)
+            }
+            (input, None) => (input, vec![]),
+        };
+
         let (input, _) = context("Missing '{'", cut(peek(cleanup(char('{'))))).parse(input)?;
         let (input, fields) = delimited(
             char('{'),
@@ -33,6 +42,7 @@ impl InterfaceDefinitionAst<'_> {
             FileStatementAst::Interface(InterfaceDefinitionAst {
                 name,
                 fields,
+                base_interfaces,
             }),
         ))
     }
@@ -40,7 +50,19 @@ impl InterfaceDefinitionAst<'_> {
 
 impl Display for InterfaceDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "interface {} {{", self.name.fragment())?;
+        write!(f, "interface {}", self.name.fragment())?;
+
+        if !self.base_interfaces.is_empty() {
+            write!(f, ": ")?;
+            for (index, base_interface) in self.base_interfaces.iter().enumerate() {
+                write!(f, "{}", base_interface)?;
+                if index < self.base_interfaces.len() - 1 {
+                    write!(f, ", ")?;
+                }
+            }
+        }
+
+        write!(f, " {{")?;
         for field in self.fields.iter() {
             match field {
                 InterfaceDefinitionFieldAst::Function(function) => {

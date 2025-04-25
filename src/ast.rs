@@ -45,6 +45,7 @@ pub struct ClassDefinitionAst<'a> {
 pub struct InterfaceDefinitionAst<'a> {
     pub name: Span<'a>,
     pub fields: Vec<InterfaceDefinitionFieldAst<'a>>,
+    pub base_interfaces: Vec<TypeNameAst<'a>>,
 }
 
 #[derive(Debug)]

@@ -6,53 +6,32 @@ mod file;
 #[rustfmt::skip]
 mod parser;
 mod nom_tools;
+mod error;
 
 #[cfg(test)]
 mod tests;
 
 use std::{error::Error, rc::Rc};
 
-use ariadne::{Color, Label, Report, ReportKind, Source};
+use error::handle_parser;
 use file::SourceFile;
 use nom::Finish;
-use nom_language::error::VerboseErrorKind;
-use nom_tools::{State, ToRange};
+use nom_tools::State;
 
-fn print_error(ctx: &'static str, span_range: std::ops::Range<usize>, source_file: Rc<SourceFile<'_>>) {
-    println!("{}", source_file.code());
-    let file_name = format!("{:?}", source_file.path());
-    Report::build(ReportKind::Error, (file_name.as_str(), 12..12))
-        .with_code(1)
-        .with_message("Syntax error")
-        .with_label(Label::new((file_name.as_str(), span_range)).with_message(ctx).with_color(Color::Red))
-        .finish()
-        .print((file_name.as_str(), Source::from(source_file.code())))
-        .unwrap();
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let source_file = Rc::new(SourceFile::new("<memory>".into(), "interface Myinterface { \r\n\t\r\n\t}"));
+    let source_file = Rc::new(SourceFile::new("<memory>".into(), "interface Myinterface : erhan { \r\n\t\r\n\t}"));
 
     let state = State {
         file: source_file.clone(),
     };
 
-    let response = parser::parse(state).finish();
+    let response: Result<(nom_locate::LocatedSpan<&str, State<'_>>, ast::FileAst<'_>), nom_language::error::VerboseError<nom_locate::LocatedSpan<&str, State<'_>>>> = parser::parse(state).finish();
+    let ast = handle_parser(response)?;
 
-    match response {
-        Ok((_, parsed)) => {
-            for ast in parsed.statements.iter() {
-                println!("{}", ast);
-            }
-        }
-        Err(error) => {
-            error.errors.iter().for_each(|e| {
-                if let VerboseErrorKind::Context(context) = e.1 {
-                    println!("Context: {:?}", context);
-                    print_error(context, e.0.to_range(), source_file.clone());
-                }
-            });
-        }
+    for ast in ast.statements.iter() {
+        println!("{}", ast);
     }
+
     Ok(())
 }
