@@ -47,9 +47,5 @@ pub fn cleanup<'a, O, E: std::fmt::Debug + ParseError<Span<'a>>, F: Parser<Span<
     let _left = preceded(char::<Span<'a>, E>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
     let _right = preceded(char::<Span<'a>, E>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
 
-    delimited(
-        multispace0, 
-        f, 
-        multispace0, 
-    )
+    delimited(multispace0, f, multispace0)
 }

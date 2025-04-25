@@ -3,7 +3,6 @@ use std::rc::Rc;
 use pretty_assertions::assert_eq;
 use rstest::*;
 
-use crate::nom_parser;
 use crate::{file::SourceFile, nom_tools::State};
 
 #[rstest]
@@ -22,6 +21,6 @@ fn custom_function_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
         file: source_file.clone(),
     };
 
-    let (_, response) = nom_parser::parse(state).unwrap();
+    let (_, response) = crate::parser::parse(state).unwrap();
     assert_eq!(response.to_string(), expected, "{}", code);
 }

@@ -51,15 +51,9 @@ class MyType {
     }
 }
 
-# extend the data type with functions
-extend MyType {
-    func print(self) {
-        return self.a
-    }
-}
-
 # Type interface
 interface IData {
+    a: i32 = 100;
     func hello();
     func world();
 }
