@@ -1,0 +1,38 @@
+use std::fmt::{Display, Formatter};
+
+use nom::{character::complete::char, combinator::map, error::ParseError, multi::separated_list0, IResult, Parser};
+
+use crate::{ast::TypeNameAst, nom_tools::Span};
+
+use super::{ident, is_nullable};
+
+
+impl TypeNameAst<'_> {
+    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, TypeNameAst<'a>, E> {
+        let (input, nullable) = is_nullable(input)?;
+        let (input, names) = map(separated_list0(char('.'), ident()), |items| items).parse(input)?;
+        Ok((
+            input,
+            TypeNameAst {
+                nullable,
+                names,
+            },
+        ))
+    }
+}
+
+impl Display for TypeNameAst<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.nullable {
+            write!(f, "?")?;
+        }
+
+        for (i, name) in self.names.iter().enumerate() {
+            if i > 0 {
+                write!(f, ".")?;
+            }
+            write!(f, "{}", name.fragment())?;
+        }
+        Ok(())
+    }
+}

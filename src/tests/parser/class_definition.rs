@@ -3,7 +3,6 @@ use std::rc::Rc;
 use pretty_assertions::assert_eq;
 use rstest::*;
 
-use crate::nom_parser;
 use crate::{file::SourceFile, nom_tools::State};
 
 #[rstest]
@@ -13,6 +12,7 @@ use crate::{file::SourceFile, nom_tools::State};
 #[case("class ___MyType___ {}", "class ___MyType___ {}")]
 #[case("class Myclass { a: string; }", "class Myclass {a: string;}")]
 #[case("class Myclass { \r\n\ta\r\n\t: \r\n\tstring ;\r\n\t}", "class Myclass {a: string;}")]
+#[case("class Myclass { \r\n\t\r\n\t\r\n\t\r\n\t}", "class Myclass {}")]
 #[case("class Myclass { pub a: string; }", "class Myclass {pub a: string;}")]
 #[case("class Myclass { pub a: ?string; }", "class Myclass {pub a: ?string;}")]
 #[case("class Myclass { a: ?string; }", "class Myclass {a: ?string;}")]
@@ -31,6 +31,6 @@ fn custom_class_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
         file: source_file.clone(),
     };
 
-    let (_, response) = nom_parser::parse(state).unwrap();
+    let (_, response) = crate::parser::parse(state).unwrap();
     assert_eq!(response.statements[0].to_string(), expected, "{}", code);
 }

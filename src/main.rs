@@ -4,7 +4,7 @@ mod file;
 //mod span;
 //mod sitter_parser;
 #[rustfmt::skip]
-mod nom_parser;
+mod parser;
 mod nom_tools;
 
 #[cfg(test)]
@@ -31,22 +31,13 @@ fn print_error(ctx: &'static str, span_range: std::ops::Range<usize>, source_fil
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let source_file = Rc::new(SourceFile::new(
-        "<memory>".into(),
-        r#"
-class test { 
-    func init(a: int): MyType {
-        var test = 123456789.0e+7;
-    }
-}
-    "#,
-    ));
+    let source_file = Rc::new(SourceFile::new("<memory>".into(), "interface Myinterface { \r\n\t\r\n\t}"));
 
     let state = State {
         file: source_file.clone(),
     };
 
-    let response = nom_parser::parse(state).finish();
+    let response = parser::parse(state).finish();
 
     match response {
         Ok((_, parsed)) => {

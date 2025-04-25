@@ -30,14 +30,27 @@ pub struct FileAst<'a> {
 
 #[derive(Debug)]
 pub enum FileStatementAst<'a> {
-    ClassDefinition(ClassDefinitionAst<'a>),
-    FunctionDefinition(FunctionDefinitionAst<'a>),
+    Class(ClassDefinitionAst<'a>),
+    Function(FunctionDefinitionAst<'a>),
+    Interface(InterfaceDefinitionAst<'a>),
 }
 
 #[derive(Debug)]
 pub struct ClassDefinitionAst<'a> {
     pub name: Span<'a>,
     pub fields: Vec<ClassDefinitionFieldAst<'a>>,
+}
+
+#[derive(Debug)]
+pub struct InterfaceDefinitionAst<'a> {
+    pub name: Span<'a>,
+    pub fields: Vec<InterfaceDefinitionFieldAst<'a>>,
+}
+
+#[derive(Debug)]
+pub enum InterfaceDefinitionFieldAst<'a> {
+    Function(InterfaceFunctionDefinitionAst<'a>),
+    Field(FieldAst<'a>),
 }
 
 #[derive(Debug)]
@@ -70,6 +83,13 @@ pub struct FunctionDefinitionAst<'a> {
     pub arguments: Vec<FunctionArgumentAst<'a>>,
     pub return_type: TypeNameAst<'a>,
     pub body: BodyAst<'a>,
+}
+
+#[derive(Debug)]
+pub struct InterfaceFunctionDefinitionAst<'a> {
+    pub name: Span<'a>,
+    pub arguments: Vec<FunctionArgumentAst<'a>>,
+    pub return_type: TypeNameAst<'a>,
 }
 
 #[derive(Debug)]
