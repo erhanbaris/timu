@@ -8,6 +8,8 @@ use crate::{file::SourceFile, nom_tools::State};
 
 #[rstest]
 #[case("interface Myinterface {}", "interface Myinterface {}")]
+#[case("interface Myinterface: base1, base2   , base3 {}", "interface Myinterface: base1, base2, base3 {}")]
+#[case("interface Myinterface:\r\n\tbase1\r\n\t, \r\n\t base2\r\n\t , \r\n\t base3 {}", "interface Myinterface: base1, base2, base3 {}")]
 #[case("interface Myinterface { \r\n\t\r\n\t}", "interface Myinterface {}")]
 #[case("    interface     Myinterface    \r\n\t{} ", "interface Myinterface {}")]
 #[case("    interface     Myinterface    \r\n\t{\r\n\t} ", "interface Myinterface {}")]

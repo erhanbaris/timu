@@ -52,7 +52,7 @@ class MyType {
 }
 
 # Type interface
-interface IData {
+interface IData: Cloneable {
     a: i32 = 100;
     func hello();
     func world();
