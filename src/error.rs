@@ -5,6 +5,9 @@ use nom_language::error::VerboseErrorKind;
 
 use crate::{ast::FileAst, file::SourceFile, nom_tools::{State, ToRange}};
 
+type ParseError<'a> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'a str, State<'a>>>;
+type ParseResult<'a> = Result<(nom_locate::LocatedSpan<&'a str, State<'a>>, FileAst<'a>), ParseError<'a>>;
+
 fn print_error(ctx: &'static str, span_range: std::ops::Range<usize>, source_file: Rc<SourceFile<'_>>) {
     println!("{}", source_file.code());
     let file_name = format!("{:?}", source_file.path());
@@ -17,7 +20,7 @@ fn print_error(ctx: &'static str, span_range: std::ops::Range<usize>, source_fil
         .unwrap();
 }
 
-pub fn handle_parser<'a>(result: Result<(nom_locate::LocatedSpan<&'a str, State<'a>>, FileAst<'a>), nom_language::error::VerboseError<nom_locate::LocatedSpan<&'a str, State<'a>>>>) -> Result<FileAst<'a>, nom_language::error::VerboseError<nom_locate::LocatedSpan<&'a str, State<'a>>>> {
+pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, ParseError<'_>> {
     match result {
         Ok((_, parsed)) => Ok(parsed),
         Err(error) => {

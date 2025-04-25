@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         file: source_file.clone(),
     };
 
-    let response: Result<(nom_locate::LocatedSpan<&str, State<'_>>, ast::FileAst<'_>), nom_language::error::VerboseError<nom_locate::LocatedSpan<&str, State<'_>>>> = parser::parse(state).finish();
+    let response = parser::parse(state).finish();
     let ast = handle_parser(response)?;
 
     for ast in ast.statements.iter() {
