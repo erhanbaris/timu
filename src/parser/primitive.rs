@@ -30,7 +30,7 @@ static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..(u64::MAX as i128)
 static FLOAT_RANGE: std::ops::Range<f64> = (f32::MIN as f64)..(f32::MAX as f64);
 
 
-fn character<'a>(input: Span<'a>) -> IResult<Span<'a>, char, TimuParserError<'a>> {
+fn character(input: Span<'_>) -> IResult<Span<'_>, char, TimuParserError<'_>> {
     let (input, c) = none_of("\"")(input)?;
     if c == '\\' {
         alt((value('\n', char('n')), value('\r', char('r')), value('\t', char('t')), value('\\', char('\\')), value('"', char('"')), value('/', char('/'))))
@@ -40,7 +40,7 @@ fn character<'a>(input: Span<'a>) -> IResult<Span<'a>, char, TimuParserError<'a>
     }
 }
 
-pub fn string<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, TimuParserError<'a>> {
+pub fn string(input: Span<'_>) -> IResult<Span<'_>, PrimitiveType, TimuParserError<'_>> {
     let (input, string) = delimited(
         char('"'),
         fold(0.., character, String::new, |mut string, c| {
@@ -142,7 +142,7 @@ pub fn number<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, TimuParse
 }
 
 impl PrimitiveType {
-    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, TimuParserError<'a>> {
+    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, PrimitiveType, TimuParserError<'_>> {
         let (input, value) =
             cleanup(alt((number, string, value(PrimitiveType::Bool(true), tag("true")), value(PrimitiveType::Bool(false), tag("false"))))).parse(input)?;
 

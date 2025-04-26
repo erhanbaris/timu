@@ -14,16 +14,16 @@ use crate::parser::{expected_ident, ident};
 use super::TimuParserError;
 
 impl VariableDefinitionAst<'_> {
-    pub fn parse_body_statement<'a>(
-        input: Span<'a>,
-    ) -> IResult<Span<'a>, BodyStatementAst<'a>, TimuParserError<'a>> {
+    pub fn parse_body_statement(
+        input: Span<'_>,
+    ) -> IResult<Span<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, variable) = Self::parse(input)?;
         Ok((input, BodyStatementAst::VariableDefinition(variable)))
     }
 
-    pub fn parse<'a>(
-        input: Span<'a>,
-    ) -> IResult<Span<'a>, VariableDefinitionAst<'a>, TimuParserError<'a>> {
+    pub fn parse(
+        input: Span<'_>,
+    ) -> IResult<Span<'_>, VariableDefinitionAst<'_>, TimuParserError<'_>> {
         let (input, variable_definition_type) =
             cleanup(alt((map(tag("var"), |_| VariableDefinitionType::Var), map(tag("const"), |_| VariableDefinitionType::Const)))).parse(input)?;
         let (input, name) = expected_ident("Missing variable name", input)?;
@@ -69,16 +69,16 @@ impl Display for VariableDefinitionAst<'_> {
 }
 
 impl VariableAssignAst<'_> {
-    pub fn parse_body_statement<'a>(
-        input: Span<'a>,
-    ) -> IResult<Span<'a>, BodyStatementAst<'a>, TimuParserError<'a>> {
+    pub fn parse_body_statement(
+        input: Span<'_>,
+    ) -> IResult<Span<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, variable) = Self::parse(input)?;
         Ok((input, BodyStatementAst::VariableAssign(variable)))
     }
 
-    pub fn parse<'a>(
-        input: Span<'a>,
-    ) -> IResult<Span<'a>, VariableAssignAst<'a>, TimuParserError<'a>> {
+    pub fn parse(
+        input: Span<'_>,
+    ) -> IResult<Span<'_>, VariableAssignAst<'_>, TimuParserError<'_>> {
         let (input, name) = ident().parse(input)?;
         let (input, _) = context("Missing '='", cleanup(char('='))).parse(input)?;
         let (input, expression) = context("Invalid expression", cut(ExpressionAst::parse)).parse(input)?;

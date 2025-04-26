@@ -14,7 +14,7 @@ use crate::{ast::FileStatementAst, nom_tools::{cleanup, Span}};
 use super::{expected_ident, TimuParserError};
 
 impl InterfaceDefinitionAst<'_> {
-    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, TimuParserError<'a>> {
+    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("interface")).parse(input)?;
         let (input, name) = expected_ident("Missing interface name", input)?;
 
@@ -78,9 +78,9 @@ impl Display for InterfaceDefinitionAst<'_> {
 }
 
 impl InterfaceFunctionDefinitionAst<'_> {
-    pub fn parse<'a>(
-        input: Span<'a>,
-    ) -> IResult<Span<'a>, InterfaceDefinitionFieldAst<'a>, TimuParserError<'a>> {
+    pub fn parse(
+        input: Span<'_>,
+    ) -> IResult<Span<'_>, InterfaceDefinitionFieldAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
         let (input, _) = context("Missing '('", cut(peek(cleanup(char('('))))).parse(input)?;

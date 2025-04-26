@@ -8,7 +8,7 @@ use super::TimuParserError;
 
 
 impl BodyAst<'_> {
-    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, BodyAst<'a>, TimuParserError<'a>> {
+    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, BodyAst<'_>, TimuParserError<'_>> {
         let (input, _) = context("Missing '{'", cut(cleanup(char('{')))).parse(input)?;
         let (input, statements) = many0(alt((VariableAssignAst::parse_body_statement, VariableDefinitionAst::parse_body_statement))).parse(input)?;
         let (input, _) = context("Missing '}'", cut(cleanup(char('}')))).parse(input)?;

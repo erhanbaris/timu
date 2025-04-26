@@ -18,17 +18,17 @@ use crate::parser::{expected_ident, ident, is_public};
 use super::TimuParserError;
 
 impl FunctionDefinitionAst<'_> {
-    pub fn parse_file_function<'a>(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, TimuParserError<'a>> {
+    pub fn parse_file_function(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
         let (input, function) = Self::parse(input)?;
         Ok((input, FileStatementAst::Function(function)))
     }
 
-    pub fn parse_class_function<'a>(input: Span<'a>) -> IResult<Span<'a>, ClassDefinitionFieldAst<'a>, TimuParserError<'a>> {
+    pub fn parse_class_function(input: Span<'_>) -> IResult<Span<'_>, ClassDefinitionFieldAst<'_>, TimuParserError<'_>> {
         let (input, function) = Self::parse(input)?;
         Ok((input, ClassDefinitionFieldAst::ClassFunction(function)))
     }
 
-    pub fn parse_extend_function<'a>(input: Span<'a>) -> IResult<Span<'a>, ExtendDefinitionFieldAst<'a>, TimuParserError<'a>> {
+    pub fn parse_extend_function(input: Span<'_>) -> IResult<Span<'_>, ExtendDefinitionFieldAst<'_>, TimuParserError<'_>> {
         let (input, function) = Self::parse(input)?;
         if let Some(is_public) = function.is_public {
             let error = VerboseError {
@@ -39,9 +39,9 @@ impl FunctionDefinitionAst<'_> {
         Ok((input, ExtendDefinitionFieldAst::Function(function)))
     }
 
-    pub fn parse<'a>(
-        input: Span<'a>,
-    ) -> IResult<Span<'a>, FunctionDefinitionAst<'a>, TimuParserError<'a>> {
+    pub fn parse(
+        input: Span<'_>,
+    ) -> IResult<Span<'_>, FunctionDefinitionAst<'_>, TimuParserError<'_>> {
         let (input, is_public) = is_public(input)?;
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
@@ -84,7 +84,7 @@ impl Display for FunctionDefinitionAst<'_> {
 }
 
 impl FunctionArgumentAst<'_> {
-    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, FunctionArgumentAst<'a>, TimuParserError<'a>> {
+    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionArgumentAst<'_>, TimuParserError<'_>> {
         let (input, (name, field_type)) = (cleanup(terminated(ident(), cleanup(char(':')))), cleanup(TypeNameAst::parse)).parse(input)?;
         Ok((
             input,
