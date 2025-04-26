@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use nom_language::error::VerboseError;
 use pretty_assertions::assert_eq;
 use rstest::*;
 
@@ -28,7 +27,7 @@ fn custom_variable_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
     };
 
     let input = Span::new_extra(code, state);
-    let result = VariableAssignAst::parse::<VerboseError<Span>>(input);
+    let result = VariableAssignAst::parse(input);
     assert!(result.is_ok(), "Failed to parse type name: {:?}", result.err());
     let (_, parsed) = result.unwrap();
 

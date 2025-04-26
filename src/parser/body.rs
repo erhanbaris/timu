@@ -1,14 +1,16 @@
 use std::fmt::{Display, Formatter};
 
-use nom::{branch::alt, character::complete::char, combinator::cut, error::{context, ParseError}, multi::many0, IResult, Parser};
+use nom::{branch::alt, character::complete::char, combinator::cut, error::context, multi::many0, IResult, Parser};
 
 use crate::{ast::{BodyAst, BodyStatementAst, VariableAssignAst, VariableDefinitionAst}, nom_tools::{cleanup, Span}};
 
+use super::TimuParserError;
+
 
 impl BodyAst<'_> {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, BodyAst<'a>, E> {
+    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, BodyAst<'a>, TimuParserError<'a>> {
         let (input, _) = context("Missing '{'", cut(cleanup(char('{')))).parse(input)?;
-        let (input, statements) = many0(alt((VariableAssignAst::parse_body_statement::<E>, VariableDefinitionAst::parse_body_statement::<E>))).parse(input)?;
+        let (input, statements) = many0(alt((VariableAssignAst::parse_body_statement, VariableDefinitionAst::parse_body_statement))).parse(input)?;
         let (input, _) = context("Missing '}'", cut(cleanup(char('}')))).parse(input)?;
 
         Ok((

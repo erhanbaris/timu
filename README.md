@@ -59,7 +59,7 @@ interface IData: Cloneable {
 }
 
 # Implement the interface
-extend MyType with IData {
+extend MyType: IData {
     func hello() {
         return "hello"
     }

@@ -5,8 +5,8 @@ mod file;
 //mod sitter_parser;
 #[rustfmt::skip]
 mod parser;
-mod nom_tools;
 mod error;
+mod nom_tools;
 
 #[cfg(test)]
 mod tests;
@@ -18,9 +18,8 @@ use file::SourceFile;
 use nom::Finish;
 use nom_tools::State;
 
-
 fn main() -> Result<(), Box<dyn Error>> {
-    let source_file = Rc::new(SourceFile::new("<memory>".into(), "interface Myinterface : erhan { \r\n\t\r\n\t}"));
+    let source_file = Rc::new(SourceFile::new("<memory>".into(), "extend Myclass : a, b, c {}"));
 
     let state = State {
         file: source_file.clone(),

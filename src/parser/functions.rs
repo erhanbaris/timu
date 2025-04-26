@@ -6,35 +6,48 @@ use nom::combinator::{cut, map, opt, peek};
 use nom::error::context;
 use nom::multi::separated_list0;
 use nom::sequence::terminated;
-use nom::{IResult, Parser, error::ParseError, sequence::delimited};
+use nom::{IResult, Parser, sequence::delimited};
+use nom_language::error::{VerboseError, VerboseErrorKind};
 
 use crate::ast::{
-    BodyAst, ClassDefinitionFieldAst, FileStatementAst, FunctionArgumentAst,
-    FunctionDefinitionAst, TypeNameAst,
+    BodyAst, ClassDefinitionFieldAst, ExtendDefinitionFieldAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, TypeNameAst
 };
 use crate::nom_tools::{Span, cleanup};
 use crate::parser::{expected_ident, ident, is_public};
 
+use super::TimuParserError;
+
 impl FunctionDefinitionAst<'_> {
-    pub fn parse_file_function<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, E> {
+    pub fn parse_file_function<'a>(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, TimuParserError<'a>> {
         let (input, function) = Self::parse(input)?;
         Ok((input, FileStatementAst::Function(function)))
     }
 
-    pub fn parse_class_function<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, ClassDefinitionFieldAst<'a>, E> {
+    pub fn parse_class_function<'a>(input: Span<'a>) -> IResult<Span<'a>, ClassDefinitionFieldAst<'a>, TimuParserError<'a>> {
         let (input, function) = Self::parse(input)?;
         Ok((input, ClassDefinitionFieldAst::ClassFunction(function)))
     }
 
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(
+    pub fn parse_extend_function<'a>(input: Span<'a>) -> IResult<Span<'a>, ExtendDefinitionFieldAst<'a>, TimuParserError<'a>> {
+        let (input, function) = Self::parse(input)?;
+        if let Some(is_public) = function.is_public {
+            let error = VerboseError {
+                errors: vec![(is_public, VerboseErrorKind::Context("All extended functions already public"))],
+            };
+            return Err(nom::Err::Failure(error));
+        }
+        Ok((input, ExtendDefinitionFieldAst::Function(function)))
+    }
+
+    pub fn parse<'a>(
         input: Span<'a>,
-    ) -> IResult<Span<'a>, FunctionDefinitionAst<'a>, E> {
+    ) -> IResult<Span<'a>, FunctionDefinitionAst<'a>, TimuParserError<'a>> {
         let (input, is_public) = is_public(input)?;
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
         let (input, _) = context("Missing '('", cut(peek(cleanup(char('('))))).parse(input)?;
         let (input, arguments) =
-            map(delimited(char('('), cleanup(separated_list0(char(','), FunctionArgumentAst::parse::<E>)), context("Missing ')'", cut(char(')')))), |items| {
+            map(delimited(char('('), cleanup(separated_list0(char(','), FunctionArgumentAst::parse)), context("Missing ')'", cut(char(')')))), |items| {
                 items
             })
             .parse(input)?;
@@ -42,7 +55,7 @@ impl FunctionDefinitionAst<'_> {
         let (input, _) = context("Missing ':'", cleanup(opt(char(':')))).parse(input)?;
         let (input, return_type) = context("Missing function return type", cut(cleanup(cleanup(TypeNameAst::parse)))).parse(input)?;
 
-        let (input, body) = BodyAst::parse::<E>.parse(input)?;
+        let (input, body) = BodyAst::parse.parse(input)?;
 
         Ok((
             input,
@@ -59,7 +72,7 @@ impl FunctionDefinitionAst<'_> {
 
 impl Display for FunctionDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}func {}(", if self.is_public { "pub " } else { "" }, self.name.fragment())?;
+        write!(f, "{}func {}(", if self.is_public.is_some() { "pub " } else { "" }, self.name.fragment())?;
         for (index, arg) in self.arguments.iter().enumerate() {
             write!(f, "{}", arg)?;
             if index < self.arguments.len() - 1 {
@@ -71,7 +84,7 @@ impl Display for FunctionDefinitionAst<'_> {
 }
 
 impl FunctionArgumentAst<'_> {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, FunctionArgumentAst<'a>, E> {
+    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, FunctionArgumentAst<'a>, TimuParserError<'a>> {
         let (input, (name, field_type)) = (cleanup(terminated(ident(), cleanup(char(':')))), cleanup(TypeNameAst::parse)).parse(input)?;
         Ok((
             input,
