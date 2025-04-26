@@ -3,7 +3,11 @@ use std::rc::Rc;
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use nom_language::error::VerboseErrorKind;
 
-use crate::{ast::FileAst, file::SourceFile, nom_tools::{State, ToRange}};
+use crate::{
+    ast::FileAst,
+    file::SourceFile,
+    nom_tools::{State, ToRange},
+};
 
 type ParseError<'a> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'a str, State<'a>>>;
 type ParseResult<'a> = Result<(nom_locate::LocatedSpan<&'a str, State<'a>>, FileAst<'a>), ParseError<'a>>;
@@ -35,8 +39,6 @@ pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, ParseError<
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
@@ -60,4 +62,3 @@ mod tests {
         handle_parser(response).unwrap();
     }
 }
-

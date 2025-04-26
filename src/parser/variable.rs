@@ -5,23 +5,25 @@ use nom::bytes::complete::tag;
 use nom::character::complete::char;
 use nom::combinator::{cut, map, opt};
 use nom::error::context;
-use nom::{IResult, Parser, error::ParseError};
+use nom::{IResult, Parser};
 
 use crate::ast::{BodyStatementAst, ExpressionAst, TypeNameAst, VariableAssignAst, VariableDefinitionAst, VariableDefinitionType};
 use crate::nom_tools::{Span, cleanup};
 use crate::parser::{expected_ident, ident};
 
+use super::TimuParserError;
+
 impl VariableDefinitionAst<'_> {
-    pub fn parse_body_statement<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(
+    pub fn parse_body_statement<'a>(
         input: Span<'a>,
-    ) -> IResult<Span<'a>, BodyStatementAst<'a>, E> {
+    ) -> IResult<Span<'a>, BodyStatementAst<'a>, TimuParserError<'a>> {
         let (input, variable) = Self::parse(input)?;
         Ok((input, BodyStatementAst::VariableDefinition(variable)))
     }
 
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(
+    pub fn parse<'a>(
         input: Span<'a>,
-    ) -> IResult<Span<'a>, VariableDefinitionAst<'a>, E> {
+    ) -> IResult<Span<'a>, VariableDefinitionAst<'a>, TimuParserError<'a>> {
         let (input, variable_definition_type) =
             cleanup(alt((map(tag("var"), |_| VariableDefinitionType::Var), map(tag("const"), |_| VariableDefinitionType::Const)))).parse(input)?;
         let (input, name) = expected_ident("Missing variable name", input)?;
@@ -67,16 +69,16 @@ impl Display for VariableDefinitionAst<'_> {
 }
 
 impl VariableAssignAst<'_> {
-    pub fn parse_body_statement<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(
+    pub fn parse_body_statement<'a>(
         input: Span<'a>,
-    ) -> IResult<Span<'a>, BodyStatementAst<'a>, E> {
+    ) -> IResult<Span<'a>, BodyStatementAst<'a>, TimuParserError<'a>> {
         let (input, variable) = Self::parse(input)?;
         Ok((input, BodyStatementAst::VariableAssign(variable)))
     }
 
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(
+    pub fn parse<'a>(
         input: Span<'a>,
-    ) -> IResult<Span<'a>, VariableAssignAst<'a>, E> {
+    ) -> IResult<Span<'a>, VariableAssignAst<'a>, TimuParserError<'a>> {
         let (input, name) = ident().parse(input)?;
         let (input, _) = context("Missing '='", cleanup(char('='))).parse(input)?;
         let (input, expression) = context("Invalid expression", cut(ExpressionAst::parse)).parse(input)?;

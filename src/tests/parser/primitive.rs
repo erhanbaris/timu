@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use nom_language::error::VerboseError;
 use pretty_assertions::assert_eq;
 use rstest::*;
 
@@ -38,7 +37,7 @@ fn parse_primitive_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveTy
     };
 
     let input = Span::new_extra(code, state);
-    let (_, value) = PrimitiveType::parse::<VerboseError<Span>>(input).unwrap();
+    let (_, value) = PrimitiveType::parse(input).unwrap();
 
     assert_eq!(value, expected, "Parsed primitive type does not match expected");
 }

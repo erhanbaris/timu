@@ -5,12 +5,12 @@ use nom::combinator::{cut, map, opt, recognize};
 use nom::sequence::{pair, preceded, terminated};
 use nom::Err;
 use nom::branch::alt;
-use nom::error::{context, ErrorKind};
+use nom::error::context;
 use nom::multi::{many0, many0_count};
-use nom::{IResult, Parser, error::ParseError};
-use nom_language::error::VerboseError;
+use nom::{IResult, Parser};
+use nom_language::error::{VerboseError, VerboseErrorKind};
 
-use crate::ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst};
+use crate::ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst};
 use crate::nom_tools::{Span, State, cleanup};
 
 mod class;
@@ -22,16 +22,28 @@ mod primitive;
 mod variable;
 mod functions;
 mod expression;
+mod extend;
 mod type_info;
 
-pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, VerboseError<Span<'_>>> {
+pub type TimuParserError<'a> = VerboseError<Span<'a>>;
+
+pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, TimuParserError> {
     let input = Span::new_extra(state.file.code(), state);
     let (remaining, statements) =
-        many0(alt((cleanup(ClassDefinitionAst::parse), cleanup(FunctionDefinitionAst::parse_file_function), cleanup(InterfaceDefinitionAst::parse))))
-            .parse(input)?;
+        many0(alt((
+            cleanup(ClassDefinitionAst::parse),
+            cleanup(FunctionDefinitionAst::parse_file_function),
+            cleanup(InterfaceDefinitionAst::parse),
+            cleanup(ExtendDefinitionAst::parse),
+        )))
+        .parse(input)?;
 
     if remaining.len() > 0 {
-        return Err(Err::Failure(VerboseError::from_error_kind(remaining, ErrorKind::Eof)));
+        let error = VerboseError {
+            errors: vec![(remaining, VerboseErrorKind::Context("Unknown syntax"))],
+        };
+        //error.errors.push(value);
+        return Err(Err::Failure(error));
     }
 
     Ok((
@@ -44,23 +56,23 @@ pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, VerboseError<Sp
 
 
 #[allow(warnings)]
-pub fn comment<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>, E> {
+pub fn comment<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>, TimuParserError<'a>> {
     preceded(char('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),))).parse(input)
 }
 
-pub fn is_public<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, bool, E> {
-    cleanup(map(opt(tag("pub")), |item| item.is_some())).parse(input)
+pub fn is_public<'a>(input: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>, TimuParserError<'a>> {
+    cleanup(opt(tag("pub"))).parse(input)
 }
 
-pub fn is_nullable<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, bool, E> {
+pub fn is_nullable<'a>(input: Span<'a>) -> IResult<Span<'a>, bool, TimuParserError<'a>> {
     cleanup(map(opt(char('?')), |item| item.is_some())).parse(input)
 }
 
-pub fn expected_ident<'a, E: std::fmt::Debug + ParseError<Span<'a>> + nom::error::ContextError<Span<'a>>>(message: &'static str, input: Span<'a>) -> IResult<Span<'a>, Span<'a>, E> {
+pub fn expected_ident<'a>(message: &'static str, input: Span<'a>) -> IResult<Span<'a>, Span<'a>, TimuParserError<'a>> {
     context(message, cut(ident())).parse(input)
 }
 
-pub fn ident<'a, E: std::fmt::Debug + ParseError<Span<'a>>>() -> impl Parser<Span<'a>, Output = Span<'a>, Error = E> {
+pub fn ident<'a>() -> impl Parser<Span<'a>, Output = Span<'a>, Error = TimuParserError<'a>> {
     cleanup(recognize(pair(alt((alpha1, tag("_"))), many0_count(alt((alphanumeric1, tag("_")))))))
 }
 
@@ -69,7 +81,6 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::{rc::Rc, vec};
 
-    use nom_language::error::VerboseError;
     use rstest::rstest;
 
     use crate::{
@@ -94,7 +105,7 @@ mod tests {
         };
 
         let input = Span::new_extra(code, state);
-        let (_, string) = string::<VerboseError<Span>>(input).unwrap();
+        let (_, string) = string(input).unwrap();
 
         assert_eq!(string, expected, "Parsed string does not match expected");
     }
@@ -110,7 +121,7 @@ mod tests {
         };
 
         let input = Span::new_extra(code, state);
-        let (_, boolean) = PrimitiveType::parse::<VerboseError<Span>>(input).unwrap();
+        let (_, boolean) = PrimitiveType::parse(input).unwrap();
 
         assert_eq!(boolean, expected, "Parsed boolean does not match expected");
     }
@@ -133,7 +144,7 @@ mod tests {
         };
 
         let input = Span::new_extra(code, state);
-        let (_, number) = number::<VerboseError<Span>>(input).unwrap();
+        let (_, number) = number(input).unwrap();
 
         assert_eq!(number, expected, "Parsed integer does not match expected");
     }
@@ -154,7 +165,7 @@ mod tests {
         };
 
         let input = Span::new_extra(code, state);
-        let result = TypeNameAst::parse::<VerboseError<Span>>(input);
+        let result = TypeNameAst::parse(input);
         assert!(result.is_ok(), "Failed to parse type name: {:?}", result.err());
         let (_, parsed) = result.unwrap();
 
@@ -181,7 +192,7 @@ mod tests {
         };
 
         let input = Span::new_extra(code, state);
-        let (_, number) = number::<VerboseError<Span>>(input).unwrap();
+        let (_, number) = number(input).unwrap();
 
         assert_eq!(number, PrimitiveType::Float(expected, dot_place), "Parsed type name does not match expected");
     }
@@ -196,7 +207,7 @@ mod tests {
         };
 
         let input = Span::new_extra(code, state);
-        let (_, number) = number::<VerboseError<Span>>(input).unwrap();
+        let (_, number) = number(input).unwrap();
 
         assert_eq!(number, PrimitiveType::Double(expected, dot_place), "Parsed type name does not match expected");
     }

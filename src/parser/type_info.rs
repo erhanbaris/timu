@@ -1,14 +1,14 @@
 use std::fmt::{Display, Formatter};
 
-use nom::{character::complete::char, combinator::map, error::ParseError, multi::separated_list0, IResult, Parser};
+use nom::{character::complete::char, combinator::map, multi::separated_list0, IResult, Parser};
 
 use crate::{ast::TypeNameAst, nom_tools::Span};
 
-use super::{ident, is_nullable};
+use super::{ident, is_nullable, TimuParserError};
 
 
 impl TypeNameAst<'_> {
-    pub fn parse<'a, E: std::fmt::Debug + ParseError<Span<'a>>>(input: Span<'a>) -> IResult<Span<'a>, TypeNameAst<'a>, E> {
+    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, TypeNameAst<'a>, TimuParserError<'a>> {
         let (input, nullable) = is_nullable(input)?;
         let (input, names) = map(separated_list0(char('.'), ident()), |items| items).parse(input)?;
         Ok((

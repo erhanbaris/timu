@@ -33,6 +33,7 @@ pub enum FileStatementAst<'a> {
     Class(ClassDefinitionAst<'a>),
     Function(FunctionDefinitionAst<'a>),
     Interface(InterfaceDefinitionAst<'a>),
+    Extend(ExtendDefinitionAst<'a>),
 }
 
 #[derive(Debug)]
@@ -51,6 +52,19 @@ pub struct InterfaceDefinitionAst<'a> {
 #[derive(Debug)]
 pub enum InterfaceDefinitionFieldAst<'a> {
     Function(InterfaceFunctionDefinitionAst<'a>),
+    Field(FieldAst<'a>),
+}
+
+#[derive(Debug)]
+pub struct ExtendDefinitionAst<'a> {
+    pub name: Span<'a>,
+    pub fields: Vec<ExtendDefinitionFieldAst<'a>>,
+    pub base_interfaces: Vec<TypeNameAst<'a>>,
+}
+
+#[derive(Debug)]
+pub enum ExtendDefinitionFieldAst<'a> {
+    Function(FunctionDefinitionAst<'a>),
     Field(FieldAst<'a>),
 }
 
@@ -79,7 +93,7 @@ pub struct BodyAst<'a> {
 
 #[derive(Debug)]
 pub struct FunctionDefinitionAst<'a> {
-    pub is_public: bool,
+    pub is_public: Option<Span<'a>>,
     pub name: Span<'a>,
     pub arguments: Vec<FunctionArgumentAst<'a>>,
     pub return_type: TypeNameAst<'a>,
@@ -101,7 +115,7 @@ pub enum ClassDefinitionFieldAst<'a> {
 
 #[derive(Debug)]
 pub struct FieldAst<'a> {
-    pub is_public: bool,
+    pub is_public: Option<Span<'a>>,
     pub name: Span<'a>,
     pub field_type: TypeNameAst<'a>,
 }
