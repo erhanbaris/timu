@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use nom_language::error::VerboseErrorKind;
 use pretty_assertions::assert_eq;
 use rstest::*;
 
@@ -40,4 +41,28 @@ fn parse_primitive_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveTy
     let (_, value) = PrimitiveType::parse(input).unwrap();
 
     assert_eq!(value, expected, "Parsed primitive type does not match expected");
+}
+
+#[rstest]
+#[case("340282366920938463463374607431768211450", "Invalid number length")]
+#[case("340282366920938463463374607431768211455", "Invalid number length")]
+fn invalid_primitive_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+
+    let state = State {
+        file: source_file.clone(),
+    };
+
+    let input = Span::new_extra(code, state);
+    let error = PrimitiveType::parse(input).unwrap_err();
+
+    if let nom::Err::Failure(error) = error {
+        if let VerboseErrorKind::Context(ctx) = error.errors[0].1 {
+            assert_eq!(ctx, expected, "{}", code);
+        } else {
+            panic!("Expected an error, but got: {:?}", error);
+        }
+    } else {
+        panic!("Expected an error, but got: {:?}", error);
+    }
 }

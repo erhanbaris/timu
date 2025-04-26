@@ -99,12 +99,15 @@ pub fn number<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, TimuParse
             _ => number,
         };
 
-        if FLOAT_RANGE.between(number) { PrimitiveType::Float(number, dot_place as u8) } else { PrimitiveType::Double(number, dot_place as u8) }
+        match FLOAT_RANGE.between(number) {
+            true => PrimitiveType::Float(number, dot_place as u8),
+            false => PrimitiveType::Double(number, dot_place as u8) 
+        }
     } else {
         let number = match number.replace("_", "").parse::<i128>() {
             Ok(number) => number,
             Err(_) => {
-                return Err(Err::Error(TimuParserError {
+                return Err(Err::Failure(TimuParserError {
                     errors: vec![(input, VerboseErrorKind::Context("Invalid number length"))],
                 }));
             }
@@ -132,7 +135,7 @@ pub fn number<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, TimuParse
         } else if U64_RANGE.between(number) {
             PrimitiveType::U64(number as u64)
         } else {
-            return Err(Err::Error(TimuParserError {
+            return Err(Err::Failure(TimuParserError {
                 errors: vec![(input, VerboseErrorKind::Context("Invalid number length"))],
             }));
         }
@@ -144,7 +147,12 @@ pub fn number<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, TimuParse
 impl PrimitiveType {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, PrimitiveType, TimuParserError<'_>> {
         let (input, value) =
-            cleanup(alt((number, string, value(PrimitiveType::Bool(true), tag("true")), value(PrimitiveType::Bool(false), tag("false"))))).parse(input)?;
+            cleanup(alt((
+                number, 
+                string, 
+                value(PrimitiveType::Bool(true), tag("true")), 
+                value(PrimitiveType::Bool(false), tag("false"))
+            ))).parse(input)?;
 
         Ok((input, value))
     }
