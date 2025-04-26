@@ -7,7 +7,7 @@ use crate::{ast::{ExpressionAst, PrimitiveType}, nom_tools::{cleanup, Span}};
 use super::TimuParserError;
 
 impl ExpressionAst {
-    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, ExpressionAst, TimuParserError<'a>> {
+    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
         let (input, expression) = alt((cleanup(PrimitiveType::parse),)).parse(input)?;
 
         Ok((input, ExpressionAst::Primitive(expression)))

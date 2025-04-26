@@ -11,7 +11,7 @@ use crate::nom_tools::{cleanup, Span};
 use super::{ident, is_public, TimuParserError};
 
 impl FieldAst<'_> {
-    pub fn parse_field<'a>(input: Span<'a>) -> IResult<Span<'a>, FieldAst<'a>, TimuParserError<'a>> {
+    pub fn parse_field(input: Span<'_>) -> IResult<Span<'_>, FieldAst<'_>, TimuParserError<'_>> {
         let (input, (is_public, name, field_type, _)) =
             (is_public, cleanup(terminated(ident(), cleanup(char(':')))), cleanup(TypeNameAst::parse), cleanup(char(';'))).parse(input)?;
 
@@ -25,17 +25,17 @@ impl FieldAst<'_> {
         ))
     }
 
-    pub fn parse_class_field<'a>(input: Span<'a>) -> IResult<Span<'a>, ClassDefinitionFieldAst<'a>, TimuParserError<'a>> {
+    pub fn parse_class_field(input: Span<'_>) -> IResult<Span<'_>, ClassDefinitionFieldAst<'_>, TimuParserError<'_>> {
         let (input, field) = Self::parse_field(input)?;
         Ok((input, ClassDefinitionFieldAst::ClassField(field)))
     }
 
-    pub fn parse_interface_field<'a>(input: Span<'a>) -> IResult<Span<'a>, InterfaceDefinitionFieldAst<'a>, TimuParserError<'a>> {
+    pub fn parse_interface_field(input: Span<'_>) -> IResult<Span<'_>, InterfaceDefinitionFieldAst<'_>, TimuParserError<'_>> {
         let (input, field) = Self::parse_field(input)?;
         Ok((input, InterfaceDefinitionFieldAst::Field(field)))
     }
 
-    pub fn parse_extend_field<'a>(input: Span<'a>) -> IResult<Span<'a>, ExtendDefinitionFieldAst<'a>, TimuParserError<'a>> {
+    pub fn parse_extend_field(input: Span<'_>) -> IResult<Span<'_>, ExtendDefinitionFieldAst<'_>, TimuParserError<'_>> {
         let (input, field) = Self::parse_field(input)?;
         if let Some(is_public) = field.is_public {
             let error = VerboseError {

@@ -8,7 +8,7 @@ use super::{ident, is_nullable, TimuParserError};
 
 
 impl TypeNameAst<'_> {
-    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, TypeNameAst<'a>, TimuParserError<'a>> {
+    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, TypeNameAst<'_>, TimuParserError<'_>> {
         let (input, nullable) = is_nullable(input)?;
         let (input, names) = map(separated_list0(char('.'), ident()), |items| items).parse(input)?;
         Ok((

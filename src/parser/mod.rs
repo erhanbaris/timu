@@ -60,11 +60,11 @@ pub fn comment<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>, TimuParserErr
     preceded(char('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),))).parse(input)
 }
 
-pub fn is_public<'a>(input: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>, TimuParserError<'a>> {
+pub fn is_public(input: Span<'_>) -> IResult<Span<'_>, Option<Span<'_>>, TimuParserError<'_>> {
     cleanup(opt(tag("pub"))).parse(input)
 }
 
-pub fn is_nullable<'a>(input: Span<'a>) -> IResult<Span<'a>, bool, TimuParserError<'a>> {
+pub fn is_nullable(input: Span<'_>) -> IResult<Span<'_>, bool, TimuParserError<'_>> {
     cleanup(map(opt(char('?')), |item| item.is_some())).parse(input)
 }
 

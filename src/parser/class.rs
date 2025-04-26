@@ -14,7 +14,7 @@ use crate::{ast::{ClassDefinitionAst, FileStatementAst}, nom_tools::{cleanup, Sp
 use super::{expected_ident, TimuParserError};
 
 impl ClassDefinitionAst<'_> {
-    pub fn parse<'a>(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, TimuParserError<'a>> {
+    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("class")).parse(input)?;
         let (input, name) = expected_ident("Missing class name", input)?;
         let (input, _) = context("Missing '{'", cut(peek(cleanup(char('{'))))).parse(input)?;
