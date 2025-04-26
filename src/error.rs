@@ -34,3 +34,30 @@ pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, ParseError<
         }
     }
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use std::rc::Rc;
+
+    use nom::Finish;
+
+    use crate::{file::SourceFile, nom_tools::State, parser};
+
+    use super::handle_parser;
+
+    #[test]
+    #[should_panic]
+    fn error_test() {
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "interface Myinterface : erhan {"));
+
+        let state = State {
+            file: source_file.clone(),
+        };
+
+        let response = parser::parse(state).finish();
+        handle_parser(response).unwrap();
+    }
+}
+
