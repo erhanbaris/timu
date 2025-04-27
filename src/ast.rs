@@ -84,6 +84,7 @@ pub struct FunctionArgumentAst<'a> {
 pub enum BodyStatementAst<'a> {
     VariableDefinition(VariableDefinitionAst<'a>),
     VariableAssign(VariableAssignAst<'a>),
+    FunctionCall(FunctionCallAst<'a>),
 }
 
 #[derive(Debug)]
@@ -98,6 +99,18 @@ pub struct FunctionDefinitionAst<'a> {
     pub arguments: Vec<FunctionArgumentAst<'a>>,
     pub return_type: TypeNameAst<'a>,
     pub body: BodyAst<'a>,
+}
+
+#[derive(Debug)]
+pub struct FunctionCallAst<'a> {
+    pub paths: Vec<FunctionCallPathAst<'a>>,
+    pub arguments: Vec<ExpressionAst<'a>>,
+}
+
+#[derive(Debug)]
+pub enum FunctionCallPathAst<'a> {
+    Ident(Span<'a>),
+    TypeName(TypeNameAst<'a>),
 }
 
 #[derive(Debug)]
@@ -121,8 +134,10 @@ pub struct FieldAst<'a> {
 }
 
 #[derive(Debug)]
-pub enum ExpressionAst {
+pub enum ExpressionAst<'a> {
     Primitive(PrimitiveType),
+    Ident(Span<'a>),
+    FunctionCall(FunctionCallAst<'a>),
 }
 
 #[derive(Debug)]
@@ -130,11 +145,11 @@ pub struct VariableDefinitionAst<'a> {
     pub variable_definition_type: VariableDefinitionType,
     pub name: Span<'a>,
     pub expected_type: Option<TypeNameAst<'a>>,
-    pub expression: ExpressionAst,
+    pub expression: ExpressionAst<'a>,
 }
 
 #[derive(Debug)]
 pub struct VariableAssignAst<'a> {
     pub name: Span<'a>,
-    pub expression: ExpressionAst,
+    pub expression: ExpressionAst<'a>,
 }

@@ -69,16 +69,12 @@ impl Display for VariableDefinitionAst<'_> {
 }
 
 impl VariableAssignAst<'_> {
-    pub fn parse_body_statement(
-        input: Span<'_>,
-    ) -> IResult<Span<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse_body_statement(input: Span<'_>) -> IResult<Span<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, variable) = Self::parse(input)?;
         Ok((input, BodyStatementAst::VariableAssign(variable)))
     }
 
-    pub fn parse(
-        input: Span<'_>,
-    ) -> IResult<Span<'_>, VariableAssignAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, VariableAssignAst<'_>, TimuParserError<'_>> {
         let (input, name) = ident().parse(input)?;
         let (input, _) = context("Missing '='", cleanup(char('='))).parse(input)?;
         let (input, expression) = context("Invalid expression", cut(ExpressionAst::parse)).parse(input)?;

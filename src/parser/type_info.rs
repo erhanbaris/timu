@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use nom::{character::complete::char, combinator::map, multi::separated_list0, IResult, Parser};
 
-use crate::{ast::TypeNameAst, nom_tools::Span};
+use crate::{ast::{FunctionCallPathAst, TypeNameAst}, nom_tools::Span};
 
 use super::{ident, is_nullable, TimuParserError};
 
@@ -17,6 +17,14 @@ impl TypeNameAst<'_> {
                 nullable,
                 names,
             },
+        ))
+    }
+
+    pub fn parse_for_function_path(input: Span<'_>) -> IResult<Span<'_>, FunctionCallPathAst<'_>, TimuParserError<'_>> {
+        let (input, path) = Self::parse(input)?;
+        Ok((
+            input,
+            FunctionCallPathAst::TypeName(path),
         ))
     }
 }
