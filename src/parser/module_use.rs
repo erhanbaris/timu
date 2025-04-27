@@ -60,6 +60,9 @@ mod tests {
     #[case(" use test ; ", "use test;")]
     #[case("use test1.test2;", "use test1.test2;")]
     #[case("use test1.test2.test3;", "use test1.test2.test3;")]
+    #[case(r#"use foo1.foo2.foo3;
+use bar1.bar2.bar3;"#, r#"use foo1.foo2.foo3;
+use bar1.bar2.bar3;"#)]
     fn module_use_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
@@ -68,6 +71,6 @@ mod tests {
         };
 
         let (_, response) = crate::parser::parse(state).finish().unwrap();
-        assert_eq!(response.statements[0].to_string(), expected, "{}", code);
+        assert_eq!(response.to_string(), expected, "{}", code);
     }
 }

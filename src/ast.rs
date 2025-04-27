@@ -151,7 +151,7 @@ pub struct VariableDefinitionAst<'a> {
     pub variable_definition_type: VariableDefinitionType,
     pub name: Span<'a>,
     pub expected_type: Option<TypeNameAst<'a>>,
-    pub expression: ExpressionAst<'a>,
+    pub expression: Option<ExpressionAst<'a>>,
 }
 
 #[derive(Debug)]

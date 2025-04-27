@@ -4,8 +4,11 @@ use crate::ast::{FileAst, FileStatementAst};
 
 impl Display for FileAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for statement in self.statements.iter() {
+        for (index, statement) in self.statements.iter().enumerate() {
             write!(f, "{}", statement)?;
+            if index < self.statements.len() - 1 {
+                writeln!(f)?;
+            }
         }
         Ok(())
     }
