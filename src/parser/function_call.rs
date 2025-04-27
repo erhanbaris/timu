@@ -1,7 +1,6 @@
 use std::fmt::{Display, Formatter};
 
 use nom::branch::alt;
-use nom::bytes::complete::tag;
 use nom::character::complete::char;
 use nom::combinator::{cut, map, peek};
 use nom::error::context;
@@ -18,7 +17,7 @@ use super::TimuParserError;
 
 impl FunctionCallAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
-        let (input, paths) = separated_list1(tag("."), 
+        let (input, paths) = separated_list1(char('.'), 
             alt((
                 Self::ident_for_function_path,
                 TypeNameAst::parse_for_function_path,

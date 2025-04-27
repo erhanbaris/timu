@@ -19,7 +19,7 @@ use nom::Finish;
 use nom_tools::State;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let source_file = Rc::new(SourceFile::new("<memory>".into(), "extend Myclass : a, b, c {}"));
+    let source_file = Rc::new(SourceFile::new("<memory>".into(), "use a;"));
 
     let state = State {
         file: source_file.clone(),

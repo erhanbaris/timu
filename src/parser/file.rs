@@ -18,6 +18,7 @@ impl Display for FileStatementAst<'_> {
             FileStatementAst::Function(function) => write!(f, "{}", function),
             FileStatementAst::Interface(interface) => write!(f, "{}", interface),
             FileStatementAst::Extend(extend) => write!(f, "{}", extend),
+            FileStatementAst::Use(import) => write!(f, "{}", import),
         }
     }
 }

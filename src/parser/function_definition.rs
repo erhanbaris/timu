@@ -18,7 +18,7 @@ use crate::parser::{expected_ident, ident, is_public};
 use super::TimuParserError;
 
 impl FunctionDefinitionAst<'_> {
-    pub fn parse_file_function(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse_for_file(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
         let (input, function) = Self::parse(input)?;
         Ok((input, FileStatementAst::Function(function)))
     }

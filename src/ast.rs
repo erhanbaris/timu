@@ -34,6 +34,12 @@ pub enum FileStatementAst<'a> {
     Function(FunctionDefinitionAst<'a>),
     Interface(InterfaceDefinitionAst<'a>),
     Extend(ExtendDefinitionAst<'a>),
+    Use(UseAst<'a>),
+}
+
+#[derive(Debug)]
+pub struct UseAst<'a> {
+    pub paths: Vec<Span<'a>>,
 }
 
 #[derive(Debug)]
