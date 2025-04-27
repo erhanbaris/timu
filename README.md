@@ -49,6 +49,15 @@ class MyType {
             c: None
         }
     }
+
+    func hello(this): MyType { # constructor
+        this.a = 100;
+        return MyType {
+            a: 100,
+            b: "erhan",
+            c: None
+        }
+    }
 }
 
 # Type interface

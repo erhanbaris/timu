@@ -13,17 +13,18 @@ use nom_language::error::{VerboseError, VerboseErrorKind};
 use crate::ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst};
 use crate::nom_tools::{Span, State, cleanup};
 
-mod class;
 mod body;
-mod file;
-mod field;
-mod interface;
-mod primitive;
-mod variable;
-mod functions;
+mod class;
 mod expression;
 mod extend;
+mod field;
+mod file;
+mod function_definition;
+mod function_call;
+mod interface;
+mod primitive;
 mod type_info;
+mod variable;
 
 pub type TimuParserError<'a> = VerboseError<Span<'a>>;
 

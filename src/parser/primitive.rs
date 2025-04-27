@@ -10,7 +10,7 @@ use nom::sequence::{preceded, terminated};
 use nom::{IResult, Parser, sequence::delimited};
 use nom_language::error::VerboseErrorKind;
 
-use crate::ast::PrimitiveType;
+use crate::ast::{ExpressionAst, PrimitiveType};
 use crate::nom_tools::{cleanup, Between, Span};
 
 use super::TimuParserError;
@@ -155,6 +155,14 @@ impl PrimitiveType {
             ))).parse(input)?;
 
         Ok((input, value))
+    }
+
+    pub fn parse_for_expression(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
+        let (input, primitive) = Self::parse(input)?;
+        Ok((
+            input,
+            ExpressionAst::Primitive(primitive),
+        ))
     }
 }
 

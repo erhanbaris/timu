@@ -42,9 +42,7 @@ impl<T: PartialOrd> Between<T> for std::ops::Range<T> {
     }
 }
 
-pub fn cleanup<'a, O, F: Parser<Span<'a>, Output = O, Error = TimuParserError<'a>>>(
-    f: F,
-) -> impl Parser<Span<'a>, Output = O, Error = TimuParserError<'a>> {
+pub fn cleanup<'a, O, F: Parser<Span<'a>, Output = O, Error = TimuParserError<'a>>>(f: F) -> impl Parser<Span<'a>, Output = O, Error = TimuParserError<'a>> {
     let _left = preceded(char::<Span<'a>, TimuParserError<'a>>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
     let _right = preceded(char::<Span<'a>, TimuParserError<'a>>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
 
