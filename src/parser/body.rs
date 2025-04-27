@@ -32,7 +32,7 @@ impl Display for BodyAst<'_> {
         for (index, statement) in self.statements.iter().enumerate() {
             write!(f, "{}", statement)?;
             if index < self.statements.len() - 1 {
-                write!(f, ", ")?;
+                write!(f, " ")?;
             }
         }
         write!(f, "}}")
