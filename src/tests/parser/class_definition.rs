@@ -32,5 +32,5 @@ fn custom_class_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
     };
 
     let (_, response) = crate::parser::parse(state).unwrap();
-    assert_eq!(response.statements[0].to_string(), expected, "{}", code);
+    assert_eq!(response.to_string(), expected, "{}", code);
 }
