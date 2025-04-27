@@ -10,7 +10,7 @@ use nom::multi::{many0, many0_count};
 use nom::{IResult, Parser};
 use nom_language::error::{VerboseError, VerboseErrorKind};
 
-use crate::ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst};
+use crate::ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst, UseAst};
 use crate::nom_tools::{Span, State, cleanup};
 
 mod body;
@@ -22,6 +22,7 @@ mod file;
 mod function_definition;
 mod function_call;
 mod interface;
+mod module_use;
 mod primitive;
 mod type_info;
 mod variable;
@@ -32,8 +33,9 @@ pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, TimuParserError
     let input = Span::new_extra(state.file.code(), state);
     let (remaining, statements) =
         many0(alt((
+            cleanup(UseAst::parse_for_file),
             cleanup(ClassDefinitionAst::parse),
-            cleanup(FunctionDefinitionAst::parse_file_function),
+            cleanup(FunctionDefinitionAst::parse_for_file),
             cleanup(InterfaceDefinitionAst::parse),
             cleanup(ExtendDefinitionAst::parse),
         )))
@@ -43,7 +45,6 @@ pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, TimuParserError
         let error = VerboseError {
             errors: vec![(remaining, VerboseErrorKind::Context("Unknown syntax"))],
         };
-        //error.errors.push(value);
         return Err(Err::Failure(error));
     }
 
