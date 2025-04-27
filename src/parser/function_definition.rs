@@ -55,7 +55,7 @@ impl FunctionDefinitionAst<'_> {
         let (input, _) = context("Missing ':'", cleanup(opt(char(':')))).parse(input)?;
         let (input, return_type) = context("Missing function return type", cut(cleanup(cleanup(TypeNameAst::parse)))).parse(input)?;
 
-        let (input, body) = BodyAst::parse.parse(input)?;
+        let (input, body) = BodyAst::parse(input)?;
 
         Ok((
             input,

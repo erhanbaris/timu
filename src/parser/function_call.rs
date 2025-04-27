@@ -20,8 +20,8 @@ impl FunctionCallAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
         let (input, paths) = separated_list1(tag("."), 
             alt((
+                Self::ident_for_function_path,
                 TypeNameAst::parse_for_function_path,
-                Self::ident_for_function_path
             ))
         ).parse(input)?;
         let (input, _) = peek(cleanup(char('('))).parse(input)?;

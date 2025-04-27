@@ -13,7 +13,7 @@ use crate::{file::SourceFile, nom_tools::State};
 #[case("func init(a: ?int.c, b: c): MyType {}", "func init(a: ?int.c, b: c): MyType {}")]
 #[case("func init(): MyType {} func init(): MyType {}", "func init(): MyType {}func init(): MyType {}")]
 #[case("func init(): MyType {} func init(): MyType {var test = 123456789.0e+7;}", "func init(): MyType {}func init(): MyType {var test = 1234567890000000.0;}")]
-#[case("func init(): MyType {} func init(): MyType {test = 123456789.0e+7;}", "func init(): MyType {}func init(): MyType {test = 1234567890000000.0;}")]
+#[case("func init(): MyType {} func init(): MyType {test1 = 123456789.0e+7; test2 = a(); test3 = a;}", "func init(): MyType {}func init(): MyType {test1 = 1234567890000000.0; test2 = a(); test3 = a;}")]
 fn custom_function_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
     let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
