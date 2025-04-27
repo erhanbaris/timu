@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use nom::{character::complete::char, combinator::map, multi::separated_list0, IResult, Parser};
+use nom::{character::complete::char, combinator::map, multi::separated_list1, IResult, Parser};
 
 use crate::{ast::{FunctionCallPathAst, TypeNameAst}, nom_tools::Span};
 
@@ -10,7 +10,7 @@ use super::{ident, is_nullable, TimuParserError};
 impl TypeNameAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, TypeNameAst<'_>, TimuParserError<'_>> {
         let (input, nullable) = is_nullable(input)?;
-        let (input, names) = map(separated_list0(char('.'), ident()), |items| items).parse(input)?;
+        let (input, names) = map(separated_list1(char('.'), ident()), |items| items).parse(input)?;
         Ok((
             input,
             TypeNameAst {
