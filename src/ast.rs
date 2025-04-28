@@ -23,6 +23,14 @@ pub enum VariableDefinitionType {
     Var,
 }
 
+#[derive(PartialEq, Clone, Debug)]
+pub enum OperatorType {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
 #[derive(Debug)]
 pub struct FileAst<'a> {
     pub statements: Vec<FileStatementAst<'a>>,
@@ -144,6 +152,7 @@ pub enum ExpressionAst<'a> {
     Primitive(PrimitiveType),
     Ident(Span<'a>),
     FunctionCall(FunctionCallAst<'a>),
+    BinaryOperation { left: Box<ExpressionAst<'a>>, operator: OperatorType, right: Box<ExpressionAst<'a>> },
 }
 
 #[derive(Debug)]
