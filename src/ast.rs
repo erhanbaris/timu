@@ -23,12 +23,30 @@ pub enum VariableDefinitionType {
     Var,
 }
 
-#[derive(PartialEq, Clone, Debug)]
-pub enum OperatorType {
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum BinaryOperatorType {
     Add,
     Sub,
     Mul,
     Div,
+}
+
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum ControlOperatorType {
+    And,
+    Or,
+    Equal,
+    NotEqual,
+    GreaterEqualThan,
+    GreaterThan,
+    LessEqualThan,
+    LessThan,
+    Not,
+    Xor,
+    LogicalOr,
+    LogicalAnd,
+    BitwiseShiftLeft,
+    BitwiseShiftRight,
 }
 
 #[derive(Debug)]
@@ -152,7 +170,8 @@ pub enum ExpressionAst<'a> {
     Primitive(PrimitiveType),
     Ident(Span<'a>),
     FunctionCall(FunctionCallAst<'a>),
-    BinaryOperation { left: Box<ExpressionAst<'a>>, operator: OperatorType, right: Box<ExpressionAst<'a>> },
+    BinaryOperation { left: Box<ExpressionAst<'a>>, operator: BinaryOperatorType, right: Box<ExpressionAst<'a>> },
+    ControlOperation { left: Box<ExpressionAst<'a>>, operator: ControlOperatorType, right: Box<ExpressionAst<'a>> },
 }
 
 #[derive(Debug)]

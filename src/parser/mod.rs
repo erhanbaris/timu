@@ -13,8 +13,10 @@ use nom_language::error::{VerboseError, VerboseErrorKind};
 use crate::ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst, UseAst};
 use crate::nom_tools::{Span, State, cleanup};
 
+mod binary;
 mod body;
 mod class;
+mod control;
 mod expression;
 mod extend;
 mod field;
