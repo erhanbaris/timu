@@ -24,15 +24,12 @@ pub enum VariableDefinitionType {
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
-pub enum BinaryOperatorType {
+pub enum ExpressionOperatorType {
     Add,
     Sub,
     Mul,
     Div,
-}
-
-#[derive(PartialEq, Copy, Clone, Debug)]
-pub enum ControlOperatorType {
+    Mod,
     And,
     Or,
     Equal,
@@ -107,6 +104,11 @@ pub struct TypeNameAst<'a> {
 }
 
 #[derive(Debug)]
+pub struct RefAst<'a> {
+    pub names: Vec<Span<'a>>,
+}
+
+#[derive(Debug)]
 pub struct FunctionArgumentAst<'a> {
     pub name: Span<'a>,
     pub field_type: TypeNameAst<'a>,
@@ -168,10 +170,10 @@ pub struct FieldAst<'a> {
 #[derive(Debug)]
 pub enum ExpressionAst<'a> {
     Primitive(PrimitiveType),
+    Ref(RefAst<'a>),
     Ident(Span<'a>),
     FunctionCall(FunctionCallAst<'a>),
-    BinaryOperation { left: Box<ExpressionAst<'a>>, operator: BinaryOperatorType, right: Box<ExpressionAst<'a>> },
-    ControlOperation { left: Box<ExpressionAst<'a>>, operator: ControlOperatorType, right: Box<ExpressionAst<'a>> },
+    Operation { left: Box<ExpressionAst<'a>>, operator: ExpressionOperatorType, right: Box<ExpressionAst<'a>> },
 }
 
 #[derive(Debug)]
