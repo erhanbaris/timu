@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use nom::{character::char, combinator::{cut, map}, error::context, multi::{separated_list0, separated_list1}, IResult, Parser};
+use nom::{character::complete::char, combinator::{cut, not}, error::context, multi::separated_list1, IResult, Parser};
 
 use crate::{ast::{ExpressionAst, RefAst}, nom_tools::{cleanup, Span}};
 
@@ -8,8 +8,8 @@ use super::{ident, TimuParserError};
 
 impl RefAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, RefAst<'_>, TimuParserError<'_>> {
-        let (input, _) = cleanup(char('&')).parse(input)?;
-        let (input, names) = separated_list1(cleanup(char('.')), ident()).parse(input)?;
+        let (input, _) = cleanup((char('&'), not(char('&')))).parse(input)?;
+        let (input, names) = context("Reference name missing", cut(separated_list1(cleanup(char('.')), ident()))).parse(input)?;
         Ok((
             input,
             RefAst {
@@ -50,7 +50,7 @@ mod tests {
     use crate::{ast::RefAst, file::SourceFile, nom_tools::{Span, State}};
 
     #[rstest]
-    #[case("&erha_1n.erha_1n", "&erha_1n.erha_1n")]
+    #[case("&erha_1n", "&erha_1n")]
     #[case("&a.b", "&a.b")]
     #[case(" & a ", "&a")]
     #[case("&a . b  ", "&a.b")]
@@ -60,8 +60,6 @@ mod tests {
         let state = State {
             file: source_file.clone(),
         };
-
-        println!("Parsing: {}", code);
 
         let input = Span::new_extra(state.file.code(), state);
         let (_, response) = RefAst::parse(input).unwrap();

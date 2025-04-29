@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use nom::{branch::alt, bytes::complete::tag, character::complete::char, combinator::value, multi::many, sequence::{delimited, pair, preceded}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::char, combinator::{cut, value}, error::context, multi::many, sequence::{delimited, pair, preceded}, IResult, Parser};
 
 use crate::{ast::{ExpressionAst, ExpressionOperatorType, FunctionCallAst, PrimitiveType, RefAst}, nom_tools::{cleanup, Span}};
 
@@ -77,8 +77,8 @@ impl TimuExpressionParser for LessEqualParser {
 impl TimuExpressionParser for BitwiseShiftParser {
     fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::value_parser::<'_, AddSubParser, _, _>(input, alt((
-            value(ExpressionOperatorType::BitwiseShiftLeft, tag(">>")),
-            value(ExpressionOperatorType::BitwiseShiftRight, tag("<<")),
+            value(ExpressionOperatorType::BitwiseShiftRight, tag(">>")),
+            value(ExpressionOperatorType::BitwiseShiftLeft, tag("<<")),
         )), ExpressionAst::expr_builder)
     }
 }
@@ -113,11 +113,12 @@ impl ExpressionAst<'_> {
         OrParser::parse(input)
     }
 
-    pub fn inner(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn inner(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
         let (input, expression) = cleanup(alt((
             RefAst::parse_for_expression,
             FunctionCallAst::parse_for_expression,
             PrimitiveType::parse_for_expression,
+            Self::not,
             Self::ident_for_expression,
             Self::parentheses,
         ))).parse(input)?;
@@ -128,6 +129,15 @@ impl ExpressionAst<'_> {
     pub fn parentheses(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
         let (input, expr) = delimited(char('('), cleanup(Self::parse), char(')')).parse(input)?;
         Ok((input, expr))
+    }
+
+    pub fn not(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+        let (input, _) = cleanup(char('!')).parse(input)?;
+        let (input, expression) = context("Expression missinh", cut(Self::inner)).parse(input)?;
+        Ok((
+            input,
+            ExpressionAst::Not(Box::new(expression)),
+        ))
     }
 
     fn ident_for_expression(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
@@ -186,7 +196,10 @@ impl Display for ExpressionAst<'_> {
             },
             ExpressionAst::Ref(ref_expr) => {
                 write!(f, "{}", ref_expr)
-            },  
+            },
+            ExpressionAst::Not(expression) => {
+                write!(f, "!{}", expression)
+            },
         }
     }
 }
@@ -201,7 +214,6 @@ impl Display for ExpressionOperatorType {
             ExpressionOperatorType::Mod => write!(f, "%"),
             ExpressionOperatorType::And => write!(f, "&&"),
             ExpressionOperatorType::Or => write!(f, "||"),
-            ExpressionOperatorType::Not => write!(f, "!"),
             ExpressionOperatorType::Equal => write!(f, "=="),
             ExpressionOperatorType::NotEqual => write!(f, "!="),
             ExpressionOperatorType::LessThan => write!(f, "<"),
@@ -236,6 +248,43 @@ mod tests {
     #[case("  \r\n\t  1 \r\n\t/\r\n\t 2  \r\n\t", "(1 / 2)")]
     #[case("2*2/ 2 * 22 - 2 - ( 5 - 1) + 3", "((((((2 * 2) / 2) * 22) - 2) - (5 - 1)) + 3)")]
     fn binary_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+
+        let state = State {
+            file: source_file.clone(),
+        };
+
+        let input = Span::new_extra(state.file.code(), state);
+        let (_, response) = ExpressionAst::parse(input).unwrap();
+        assert_eq!(response.to_string(), expected, "{}", code);
+    }
+
+    #[rstest]
+    #[case("!1", "!1")]
+    #[case("!1 + 10", "(!1 + 10)")]
+    #[case("!1", "!1")]
+    #[case("!!1", "!!1")]
+    #[case("!call(10)", "!call(10)")]
+    #[case("!call(10) - 20", "(!call(10) - 20)")]
+    fn not_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+
+        let state = State {
+            file: source_file.clone(),
+        };
+
+        let input = Span::new_extra(state.file.code(), state);
+        let (_, response) = ExpressionAst::parse(input).unwrap();
+        assert_eq!(response.to_string(), expected, "{}", code);
+    }
+
+    #[rstest]
+    #[case("1 - 10 == 20", "((1 - 10) == 20)")]
+    #[case("1 - 10 == 20 * 4", "((1 - 10) == (20 * 4))")]
+    #[case("1 - 10 == 20 * 4", "((1 - 10) == (20 * 4))")]
+    #[case("1 - 10 == 20 * 4 >> 2", "((1 - 10) == ((20 * 4) >> 2))")]
+    #[case("20 && 10 | 30", "(20 && (10 | 30))")]
+    fn general_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
         let state = State {

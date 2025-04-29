@@ -38,7 +38,6 @@ pub enum ExpressionOperatorType {
     GreaterThan,
     LessEqualThan,
     LessThan,
-    Not,
     Xor,
     LogicalOr,
     LogicalAnd,
@@ -171,6 +170,7 @@ pub struct FieldAst<'a> {
 pub enum ExpressionAst<'a> {
     Primitive(PrimitiveType),
     Ref(RefAst<'a>),
+    Not(Box<ExpressionAst<'a>>),
     Ident(Span<'a>),
     FunctionCall(FunctionCallAst<'a>),
     Operation { left: Box<ExpressionAst<'a>>, operator: ExpressionOperatorType, right: Box<ExpressionAst<'a>> },
