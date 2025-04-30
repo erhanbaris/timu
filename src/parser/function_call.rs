@@ -42,6 +42,7 @@ impl FunctionCallAst<'_> {
 
     pub fn parse_body_statement(input: Span<'_>) -> IResult<Span<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, function_call) = Self::parse(input)?;
+        let (input, _) = context("Missing ';'", cleanup(char(';'))).parse(input)?;
         Ok((input, BodyStatementAst::FunctionCall(function_call)))
     }
 

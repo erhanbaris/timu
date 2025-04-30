@@ -285,3 +285,7 @@ func spawn_thread() {
 
 
 // Null result
+
+
+### Code coverage
+grcov .  --binary-path ./target/debug/deps/ --source-dir . --excl-start 'mod test* \{' --ignore '*test*'  --ignore "*test.rs" --ignore "*main.rs" --ignore "*tests.rs" --ignore "*github.com*" --ignore "*libcore*" --ignore "*rustc*" --ignore "*liballoc*" --ignore "*cargo*" -t html  -o ./coverage
