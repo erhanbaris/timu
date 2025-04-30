@@ -24,7 +24,7 @@ use crate::{file::SourceFile, nom_tools::State};
     "class Myclass { a: ?string.base; func init(): MyType {} func init(): MyType {} }",
     "class Myclass {a: ?string.base;func init(): MyType {}func init(): MyType {}}"
 )]
-#[case("class Myclass { func init(): MyType { var a = 1;} }", "class Myclass {func init(): MyType {var a = 1;}}")]
+#[case("class Myclass { func init(): MyType { var a = 1;test();test1.test2();} }", "class Myclass {func init(): MyType {var a = 1; test(); test1.test2();}}")]
 #[case("class Myclass { func init(): MyType { var a = test(1,2,3);} func test(): MyType {} }", "class Myclass {func init(): MyType {var a = test(1, 2, 3);}func test(): MyType {}}")]
 #[case("class Myclass { func init(): MyType { var a = 1; var b = &a;} }", "class Myclass {func init(): MyType {var a = 1; var b = &a;}}")]
 #[case("class Myclass { func init(a:a, b:b): MyType { var a = 1; var b = &a; a = 20;} }", "class Myclass {func init(a: a, b: b): MyType {var a = 1; var b = &a; a = 20;}}")]

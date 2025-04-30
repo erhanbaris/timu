@@ -1,0 +1,7 @@
+[build]
+# Default flags
+# rustflags = ["-Cinstrument-coverage"]
+rustflags = []
+
+[env]
+RUST_BACKTRACE = "1"

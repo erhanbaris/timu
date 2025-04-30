@@ -17,6 +17,9 @@ ENV RUSTUP_HOME=/opt/rust/rustup \
 RUN mkdir -p /opt/rust/rustup /opt/rust/cargo && \
    curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.86.0 --profile default --no-modify-path -y
 
+# Install rust tools
+RUN rustup component add llvm-tools-preview && cargo install grcov
+
 # Install zsh and oh-my-zsh
 RUN wget https://github.com/robbyrussell/oh-my-zsh/raw/master/tools/install.sh -O - | zsh || true
 

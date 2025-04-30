@@ -12,9 +12,9 @@ impl BodyAst<'_> {
         let (input, _) = context("Body's opening '{' missing", cut(cleanup(char('{')))).parse(input)?;
         let (input, statements) = many0(alt((
             IfConditionAst::parse_body_statement,
+            FunctionCallAst::parse_body_statement,
             VariableAssignAst::parse_body_statement,
             VariableDefinitionAst::parse_body_statement,
-            FunctionCallAst::parse_body_statement,
         ))).parse(input)?;
         let (input, _) = context("Body's closing '}' missing", cut(cleanup(char('}')))).parse(input)?;
 
@@ -45,7 +45,7 @@ impl Display for BodyStatementAst<'_> {
         match self {
             BodyStatementAst::VariableDefinition(var) => write!(f, "{}", var),
             BodyStatementAst::VariableAssign(var) => write!(f, "{}", var),
-            BodyStatementAst::FunctionCall(func) => write!(f, "{}", func),
+            BodyStatementAst::FunctionCall(func) => write!(f, "{};", func),
             BodyStatementAst::IfCondition(if_condition) => write!(f, "{}", if_condition),
         }
     }
