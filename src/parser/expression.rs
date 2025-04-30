@@ -66,10 +66,10 @@ impl TimuExpressionParser for EqualParser {
 impl TimuExpressionParser for LessEqualParser {
     fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::value_parser::<'_, BitwiseShiftParser, _, _>(input, alt((
-            value(ExpressionOperatorType::GreaterThan, char('>')),
-            value(ExpressionOperatorType::GreaterEqualThan, tag(">=")),
-            value(ExpressionOperatorType::LessThan, char('<')),
             value(ExpressionOperatorType::LessEqualThan, tag("<=")),
+            value(ExpressionOperatorType::GreaterEqualThan, tag(">=")),
+            value(ExpressionOperatorType::GreaterThan, char('>')),
+            value(ExpressionOperatorType::LessThan, char('<')),
         )), ExpressionAst::expr_builder)
     }
 }
@@ -283,8 +283,14 @@ mod tests {
     #[case("1 - 10 == 20 * 4", "((1 - 10) == (20 * 4))")]
     #[case("1 - 10 == 20 * 4", "((1 - 10) == (20 * 4))")]
     #[case("1 - 10 == 20 * 4 >> 2", "((1 - 10) == ((20 * 4) >> 2))")]
+    #[case("1 - 10 == 20 * 4 << 2", "((1 - 10) == ((20 * 4) << 2))")]
     #[case("20 && 10 | 30", "(20 && (10 | 30))")]
     #[case("20 || 10 & 30", "(20 || (10 & 30))")]
+    #[case("20 % 10 == 10 || 30 > 20", "(((20 % 10) == 10) || (30 > 20))")]
+    #[case("20 % 10 != 10 || 30 >= 20", "(((20 % 10) != 10) || (30 >= 20))")]
+    #[case("20 % 10 != 10 || 30 < 20", "(((20 % 10) != 10) || (30 < 20))")]
+    #[case("20 % 10 != 10 || 30 <= 20", "(((20 % 10) != 10) || (30 <= 20))")]
+    #[case("20 ^ 10 | 30", "(20 ^ (10 | 30))")]
     fn general_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 

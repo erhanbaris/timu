@@ -42,14 +42,7 @@ impl Display for ClassDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "class {} {{", self.name.fragment())?;
         for field in self.fields.iter() {
-            match field {
-                ClassDefinitionFieldAst::ClassField(field) => {
-                    write!(f, "{}", field)?;
-                }
-                ClassDefinitionFieldAst::ClassFunction(function) => {
-                    write!(f, "{}", function)?;
-                }
-            }
+            write!(f, "{}", field)?;
         }
         write!(f, "}}")
     }
