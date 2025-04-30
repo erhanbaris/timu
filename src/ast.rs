@@ -118,6 +118,7 @@ pub enum BodyStatementAst<'a> {
     VariableDefinition(VariableDefinitionAst<'a>),
     VariableAssign(VariableAssignAst<'a>),
     FunctionCall(FunctionCallAst<'a>),
+    IfCondition(IfConditionAst<'a>),
 }
 
 #[derive(Debug)]
@@ -174,6 +175,14 @@ pub enum ExpressionAst<'a> {
     Ident(Span<'a>),
     FunctionCall(FunctionCallAst<'a>),
     Operation { left: Box<ExpressionAst<'a>>, operator: ExpressionOperatorType, right: Box<ExpressionAst<'a>> },
+}
+
+#[derive(Debug)]
+pub struct IfConditionAst<'a> {
+    pub expression: ExpressionAst<'a>,
+    pub true_body: BodyAst<'a>,
+    pub else_ifs: Vec<(ExpressionAst<'a>, BodyAst<'a>)>,
+    pub false_body: Option<BodyAst<'a>>,
 }
 
 #[derive(Debug)]

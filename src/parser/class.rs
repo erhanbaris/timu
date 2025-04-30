@@ -17,14 +17,14 @@ impl ClassDefinitionAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("class")).parse(input)?;
         let (input, name) = expected_ident("Missing class name", input)?;
-        let (input, _) = context("Missing '{'", cut(peek(cleanup(char('{'))))).parse(input)?;
+        let (input, _) = context("Class's opening '{' missing", cut(peek(cleanup(char('{'))))).parse(input)?;
         let (input, fields) = delimited(
             char('{'),
             cleanup(many0(alt((
                 FunctionDefinitionAst::parse_class_function,
                 FieldAst::parse_class_field,
             )))),
-            context("Missing '}'", cut(char('}'))),
+            context("Class's closing '}' missing", cut(char('}'))),
         )
         .parse(input)?;
 

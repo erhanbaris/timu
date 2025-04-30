@@ -26,14 +26,14 @@ impl InterfaceDefinitionAst<'_> {
             (input, None) => (input, vec![]),
         };
 
-        let (input, _) = context("Missing '{'", cut(peek(cleanup(char('{'))))).parse(input)?;
+        let (input, _) = context("Interface's opening '{' missing", cut(peek(cleanup(char('{'))))).parse(input)?;
         let (input, fields) = delimited(
             char('{'),
             cleanup(many0(alt((
                 InterfaceFunctionDefinitionAst::parse,
                 FieldAst::parse_interface_field
             )))),
-            context("Missing '}'", cut(char('}'))),
+            context("Interface's closing '}' missing", cut(char('}'))),
         )
         .parse(input)?;
 
