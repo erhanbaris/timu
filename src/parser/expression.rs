@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use nom::{branch::alt, bytes::complete::tag, character::complete::char, combinator::{cut, value}, error::context, multi::many, sequence::{delimited, pair, preceded}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::char, combinator::{cut, not, value}, error::context, multi::many, sequence::{delimited, pair, preceded}, IResult, Parser};
 
 use crate::{ast::{ExpressionAst, ExpressionOperatorType, FunctionCallAst, PrimitiveType, RefAst}, nom_tools::{cleanup, Span}};
 
@@ -44,13 +44,13 @@ impl TimuExpressionParser for BitwiseXorParser {
 
 impl TimuExpressionParser for BitwiseOrParser {
     fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
-        ExpressionAst::single_parser::<'_, BitwiseAndParser, _, _>(input, ExpressionOperatorType::LogicalOr, char('|'), ExpressionAst::expr_builder)
+        ExpressionAst::single_parser::<'_, BitwiseAndParser, _, _>(input, ExpressionOperatorType::LogicalOr, (char('|'), not(char('|'))), ExpressionAst::expr_builder)
     }
 }
 
 impl TimuExpressionParser for BitwiseAndParser {
     fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
-        ExpressionAst::single_parser::<'_, EqualParser, _, _>(input, ExpressionOperatorType::LogicalAnd, char('&'), ExpressionAst::expr_builder)
+        ExpressionAst::single_parser::<'_, EqualParser, _, _>(input, ExpressionOperatorType::LogicalAnd, (char('&'), not(char('&'))), ExpressionAst::expr_builder)
     }
 }
 
@@ -284,6 +284,7 @@ mod tests {
     #[case("1 - 10 == 20 * 4", "((1 - 10) == (20 * 4))")]
     #[case("1 - 10 == 20 * 4 >> 2", "((1 - 10) == ((20 * 4) >> 2))")]
     #[case("20 && 10 | 30", "(20 && (10 | 30))")]
+    #[case("20 || 10 & 30", "(20 && (10 | 30))")]
     fn general_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
