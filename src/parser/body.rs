@@ -2,20 +2,21 @@ use std::fmt::{Display, Formatter};
 
 use nom::{branch::alt, character::complete::char, combinator::cut, error::context, multi::many0, IResult, Parser};
 
-use crate::{ast::{BodyAst, BodyStatementAst, FunctionCallAst, VariableAssignAst, VariableDefinitionAst}, nom_tools::{cleanup, Span}};
+use crate::{ast::{BodyAst, BodyStatementAst, FunctionCallAst, IfConditionAst, VariableAssignAst, VariableDefinitionAst}, nom_tools::{cleanup, Span}};
 
 use super::TimuParserError;
 
 
 impl BodyAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, BodyAst<'_>, TimuParserError<'_>> {
-        let (input, _) = context("Missing '{'", cut(cleanup(char('{')))).parse(input)?;
+        let (input, _) = context("Body's opening '{' missing", cut(cleanup(char('{')))).parse(input)?;
         let (input, statements) = many0(alt((
+            IfConditionAst::parse_body_statement,
             VariableAssignAst::parse_body_statement,
             VariableDefinitionAst::parse_body_statement,
             FunctionCallAst::parse_body_statement,
         ))).parse(input)?;
-        let (input, _) = context("Missing '}'", cut(cleanup(char('}')))).parse(input)?;
+        let (input, _) = context("Body's closing '}' missing", cut(cleanup(char('}')))).parse(input)?;
 
         Ok((
             input,
@@ -45,6 +46,7 @@ impl Display for BodyStatementAst<'_> {
             BodyStatementAst::VariableDefinition(var) => write!(f, "{}", var),
             BodyStatementAst::VariableAssign(var) => write!(f, "{}", var),
             BodyStatementAst::FunctionCall(func) => write!(f, "{}", func),
+            BodyStatementAst::IfCondition(if_condition) => write!(f, "{}", if_condition),
         }
     }
 }

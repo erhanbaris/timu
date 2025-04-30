@@ -5,6 +5,7 @@ use nom::character::complete::char;
 use nom::combinator::{cut, map, peek};
 use nom::error::context;
 use nom::multi::{separated_list0, separated_list1};
+use nom::sequence::terminated;
 use nom::{IResult, Parser, sequence::delimited};
 
 use crate::ast::{
@@ -17,13 +18,14 @@ use super::TimuParserError;
 
 impl FunctionCallAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
-        let (input, paths) = separated_list1(char('.'), 
+        let (input, paths) = terminated(
+            separated_list1(char('.'), 
             alt((
-                Self::ident_for_function_path,
-                TypeNameAst::parse_for_function_path,
-            ))
-        ).parse(input)?;
-        let (input, _) = peek(cleanup(char('('))).parse(input)?;
+                    Self::ident_for_function_path,
+                    TypeNameAst::parse_for_function_path,
+                ))
+            ),
+            peek(cleanup(char('(')))).parse(input)?;
         let (input, arguments) =
             map(delimited(char('('), cleanup(separated_list0(char(','), ExpressionAst::parse)), context("Missing ')'", cut(char(')')))), |items| {
                 items

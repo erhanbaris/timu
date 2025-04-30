@@ -20,14 +20,14 @@ impl ExtendDefinitionAst<'_> {
         let (input, _) = context("Missing ':'", cut(cleanup(char(':')))).parse(input)?;
         let (input, base_interfaces) = context("Missing interface type(s)", cut(separated_list1(tag(","), TypeNameAst::parse))).parse(input)?;
 
-        let (input, _) = context("Missing '{'", cut(peek(cleanup(char('{'))))).parse(input)?;
+        let (input, _) = context("Extend's opening '{' missing", cut(peek(cleanup(char('{'))))).parse(input)?;
         let (input, fields) = delimited(
             char('{'),
             cleanup(many0(alt((
                 FunctionDefinitionAst::parse_extend_function,
                 FieldAst::parse_extend_field
             )))),
-            context("Missing '}'", cut(char('}'))),
+            context("Extend's closing '}' missing", cut(char('}'))),
         )
         .parse(input)?;
 
