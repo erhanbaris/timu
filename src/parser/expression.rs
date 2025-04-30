@@ -284,7 +284,7 @@ mod tests {
     #[case("1 - 10 == 20 * 4", "((1 - 10) == (20 * 4))")]
     #[case("1 - 10 == 20 * 4 >> 2", "((1 - 10) == ((20 * 4) >> 2))")]
     #[case("20 && 10 | 30", "(20 && (10 | 30))")]
-    #[case("20 || 10 & 30", "(20 && (10 | 30))")]
+    #[case("20 || 10 & 30", "(20 || (10 & 30))")]
     fn general_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
         let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
 
