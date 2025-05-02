@@ -1,6 +1,33 @@
 use std::fmt::{Display, Formatter};
 
-use crate::ast::{FileAst, FileStatementAst};
+
+use crate::ast::{FileAst, FileStatementAst, FunctionDefinitionAst, UseAst};
+
+impl FileAst<'_> {
+    pub fn get_functions(&self) -> impl Iterator<Item = &FunctionDefinitionAst<'_>> {
+        self.statements
+            .iter()
+            .filter_map(|statement| {
+                if let FileStatementAst::Function(function) = statement {
+                    Some(function)
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub fn get_uses(&self) -> impl Iterator<Item = &UseAst<'_>> {
+        self.statements
+            .iter()
+            .filter_map(|statement| {
+                if let FileStatementAst::Use(import) = statement {
+                    Some(import)
+                } else {
+                    None
+                }
+            })
+    }
+}
 
 impl Display for FileAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
