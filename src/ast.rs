@@ -138,7 +138,7 @@ pub struct FunctionDefinitionAst<'a> {
 #[derive(Debug)]
 pub struct FunctionCallAst<'a> {
     pub paths: Vec<FunctionCallPathAst<'a>>,
-    pub arguments: Vec<ExpressionAst<'a>>,
+pub arguments: Vec<ExpressionAst<'a>>,
 }
 
 #[derive(Debug)]

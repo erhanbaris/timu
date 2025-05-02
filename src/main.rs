@@ -1,12 +1,11 @@
 mod ast;
 mod file;
-// mod parser;
-//mod span;
-//mod sitter_parser;
+
 #[rustfmt::skip]
 mod parser;
 mod error;
 mod nom_tools;
+mod tir;
 
 #[cfg(test)]
 mod tests;
@@ -19,18 +18,20 @@ use nom::Finish;
 use nom_tools::State;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let source_file = Rc::new(SourceFile::new("<memory>".into(), "use a;"));
+    let source_file = Rc::new(SourceFile::new("<memory>".into(), "use test1.test2;"));
 
     let state = State {
         file: source_file.clone(),
     };
 
     let response = parser::parse(state).finish();
-    let ast = handle_parser(response)?;
+    let file_ast = handle_parser(response)?;
 
-    for ast in ast.statements.iter() {
+    for ast in file_ast.statements.iter() {
         println!("{}", ast);
     }
+
+    crate::tir::build(vec![file_ast])?;
 
     Ok(())
 }

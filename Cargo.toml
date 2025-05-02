@@ -13,6 +13,7 @@ nom = "8.0.0"
 nom_locate = "5.0.0"
 nom-language = "0.1.0"
 minimal-lexical = "0.2.1"
+thiserror = "2.0.12"
 
 [dev-dependencies]
 rstest = "0.25.0"
