@@ -32,6 +32,8 @@ mod variable;
 pub type TimuParserError<'a> = VerboseError<Span<'a>>;
 
 pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, TimuParserError> {
+    let file = state.file.clone();
+
     let input = Span::new_extra(state.file.code(), state);
     let (remaining, statements) =
         many0(alt((
@@ -53,6 +55,7 @@ pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, TimuParserError
     Ok((
         remaining,
         FileAst {
+            file,
             statements,
         },
     ))
@@ -102,7 +105,7 @@ mod tests {
     #[case(r#""hello\"world""#, PrimitiveType::String("hello\"world".to_string()))]
     #[case(r#""hello/world""#, PrimitiveType::String("hello/world".to_string()))]
     fn string_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),
@@ -118,7 +121,7 @@ mod tests {
     #[case("true", PrimitiveType::Bool(true))]
     #[case("false", PrimitiveType::Bool(false))]
     fn boolean_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),
@@ -141,7 +144,7 @@ mod tests {
     #[case("9223372036854775807", PrimitiveType::I64(9223372036854775807))]
     #[case("18446744073709551615", PrimitiveType::U64(18446744073709551615))]
     fn integer_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),
@@ -162,7 +165,7 @@ mod tests {
     #[case(" ? string   .        base        . test", true, vec!["string", "base", "test"])]
     #[case("?string", true, vec!["string"])]
     fn parse_type_name_test<'a>(#[case] code: &'a str, #[case] nullable: bool, #[case] expected: Vec<&str>) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),
@@ -189,7 +192,7 @@ mod tests {
     #[case("1.0e-7", 1.0e-7, 1)]
     #[case("123456789.0e+7", 1234567890000000.0, 1)]
     fn float_test<'a>(#[case] code: &'a str, #[case] expected: f64, #[case] dot_place: u8) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),
@@ -204,7 +207,7 @@ mod tests {
     #[rstest]
     #[case("1.7976931348623157E+300", 1797693134862315647938267463293564874600617718166104931943772918675666340832537361829116717802808644459281636809871223917508254623303542508952824391223228755068260245991425339269180741930617451225745000201898803634683406373476746438518757597828943183163861984879702567874510145974570799930947550576640.0000000000000000, 16)]
     fn double_test<'a>(#[case] code: &'a str, #[case] expected: f64, #[case] dot_place: u8) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),

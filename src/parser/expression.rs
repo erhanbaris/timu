@@ -248,7 +248,7 @@ mod tests {
     #[case("  \r\n\t  1 \r\n\t/\r\n\t 2  \r\n\t", "(1 / 2)")]
     #[case("2*2/ 2 * 22 - 2 - ( 5 - 1) + 3", "((((((2 * 2) / 2) * 22) - 2) - (5 - 1)) + 3)")]
     fn binary_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),
@@ -267,7 +267,7 @@ mod tests {
     #[case("!call(10)", "!call(10)")]
     #[case("!call(10) - 20", "(!call(10) - 20)")]
     fn not_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),
@@ -292,7 +292,7 @@ mod tests {
     #[case("20 % 10 != 10 || 30 <= 20", "(((20 % 10) != 10) || (30 <= 20))")]
     #[case("20 ^ 10 | 30", "(20 ^ (10 | 30))")]
     fn general_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),

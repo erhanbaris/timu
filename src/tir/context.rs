@@ -1,20 +1,23 @@
-use crate::nom_tools::Span;
+use std::{collections::HashMap, rc::Rc};
 
-use super::ProjectModule;
+use super::{ModuleSignature, ProjectModule};
 
 #[derive(Debug, Default)]
-pub struct TirContext<'a> {
-    pub modules: Vec<ProjectModule<'a>>,
+pub struct TirContext<'base> {
+    pub modules: Vec<Rc<ProjectModule<'base>>>,
+    pub signatures: HashMap<String, ModuleSignature<'base>>,
 }
 
-impl<'a> TirContext<'a> {
-    pub fn get_module(&self, path: &[Span<'a>]) -> Option<&ProjectModule<'a>> {
-        for module in self.modules.iter() {
-            if let Some(module) = module.get_module(path) {
+impl<'base> TirContext<'base> {
+    pub fn get_signature(&self, key: &'base str) -> Option<&ModuleSignature<'base>> {
+        self.signatures.get(key)
+        /*for code in self.modules.iter() {
+            if let Some(module) = code.get_signature(path) {
                 return Some(module);
             }
         }
-
+        
         None
+        */
     }
 }
