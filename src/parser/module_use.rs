@@ -1,8 +1,9 @@
+use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 
 use nom::bytes::complete::tag;
 use nom::character::complete::char;
-use nom::combinator::cut;
+use nom::combinator::{consumed, cut};
 use nom::error::context;
 use nom::multi::separated_list1;
 use nom::{IResult, Parser};
@@ -16,13 +17,24 @@ use super::TimuParserError;
 impl UseAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, UseAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("use")).parse(input)?;
-        let (input, paths) = context("Module path missing", cut(separated_list1(char('.'), ident()))).parse(input)?;
+        let (input, (import, splited_import)) = context("Module path missing", cut(consumed(cleanup(separated_list1(char('.'), ident()))))).parse(input)?;
+        let import = match import.fragment().contains(char::is_whitespace) {
+            true => {
+                let path = splited_import.iter().map(|path| path.fragment().clone())
+                .collect::<Vec<&str>>()
+                .join(".");
+                Cow::Owned(path)
+            }
+            false => Cow::Borrowed(import.fragment().clone())
+        };
+        
         let (input, _) = context("Missing ';'", cut(cleanup(char(';')))).parse(input)?;
 
         Ok((
             input,
             UseAst {
-                paths
+                import,
+                splited_import,
             },
         ))
     }
@@ -36,7 +48,7 @@ impl UseAst<'_> {
 impl Display for UseAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "use ")?;
-        for (i, path) in self.paths.iter().enumerate() {
+        for (i, path) in self.splited_import.iter().enumerate() {
             if i > 0 {
                 write!(f, ".")?;
             }
@@ -64,7 +76,7 @@ mod tests {
 use bar1.bar2.bar3;"#, r#"use foo1.foo2.foo3;
 use bar1.bar2.bar3;"#)]
     fn module_use_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),

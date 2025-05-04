@@ -9,8 +9,8 @@ use crate::{
     nom_tools::{State, ToRange},
 };
 
-type ParseError<'a> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'a str, State<'a>>>;
-type ParseResult<'a> = Result<(nom_locate::LocatedSpan<&'a str, State<'a>>, FileAst<'a>), ParseError<'a>>;
+pub type ParseError<'a> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'a str, State<'a>>>;
+pub type ParseResult<'a> = Result<(nom_locate::LocatedSpan<&'a str, State<'a>>, FileAst<'a>), ParseError<'a>>;
 
 fn print_error(ctx: &'static str, span_range: std::ops::Range<usize>, source_file: Rc<SourceFile<'_>>) {
     println!("{}", source_file.code());
@@ -52,7 +52,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn error_test() {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), "interface Myinterface : erhan {"));
+        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), "interface Myinterface : erhan {"));
 
         let state = State {
             file: source_file.clone(),

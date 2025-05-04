@@ -33,7 +33,7 @@ impl ClassDefinitionAst<'_> {
             FileStatementAst::Class(ClassDefinitionAst {
                 name,
                 fields,
-            }),
+            }.into()),
         ))
     }
 }

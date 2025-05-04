@@ -1,4 +1,6 @@
-use crate::nom_tools::Span;
+use std::{borrow::Cow, rc::Rc};
+
+use crate::{file::SourceFile, nom_tools::Span};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum PrimitiveType {
@@ -47,13 +49,14 @@ pub enum ExpressionOperatorType {
 
 #[derive(Debug)]
 pub struct FileAst<'a> {
+    pub file: Rc<SourceFile<'a>>,
     pub statements: Vec<FileStatementAst<'a>>,
 }
 
 #[derive(Debug)]
 pub enum FileStatementAst<'a> {
-    Class(ClassDefinitionAst<'a>),
-    Function(FunctionDefinitionAst<'a>),
+    Class(Rc<ClassDefinitionAst<'a>>),
+    Function(Rc<FunctionDefinitionAst<'a>>),
     Interface(InterfaceDefinitionAst<'a>),
     Extend(ExtendDefinitionAst<'a>),
     Use(UseAst<'a>),
@@ -61,7 +64,8 @@ pub enum FileStatementAst<'a> {
 
 #[derive(Debug)]
 pub struct UseAst<'a> {
-    pub paths: Vec<Span<'a>>,
+    pub splited_import: Vec<Span<'a>>,
+    pub import: Cow<'a, str>,
 }
 
 #[derive(Debug)]

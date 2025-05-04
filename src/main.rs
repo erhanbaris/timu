@@ -10,28 +10,29 @@ mod tir;
 #[cfg(test)]
 mod tests;
 
-use std::{error::Error, rc::Rc};
+use std::{error::Error, path::PathBuf, rc::Rc};
 
-use error::handle_parser;
+use ast::FileAst;
+use error::{ParseError, handle_parser};
 use file::SourceFile;
 use nom::Finish;
 use nom_tools::State;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let source_file = Rc::new(SourceFile::new("<memory>".into(), "use test1.test2;"));
+fn process_code<'a>(name: &'a str, path: PathBuf, code: &'a str) -> Result<FileAst<'a>, ParseError<'a>> {
+    let file = Rc::new(SourceFile::new(name, path, code));
 
     let state = State {
-        file: source_file.clone(),
+        file,
     };
 
     let response = parser::parse(state).finish();
-    let file_ast = handle_parser(response)?;
+    handle_parser(response)
+}
 
-    for ast in file_ast.statements.iter() {
-        println!("{}", ast);
-    }
-
-    crate::tir::build(vec![file_ast])?;
+fn main() -> Result<(), Box<dyn Error>> {
+    let ast_1 = process_code("source1", "<memory>".into(), " class testclass {} ")?;
+    let ast_2 = process_code("source2", "<memory>".into(), "use source1; use source1.testclass;")?;
+    crate::tir::build(vec![ast_1.into(), ast_2.into()])?;
 
     Ok(())
 }
