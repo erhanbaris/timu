@@ -40,12 +40,12 @@ impl<'a> FileAst<'a> {
             })
     }
 
-    pub fn get_interfaces(&self) -> impl Iterator<Item = &InterfaceDefinitionAst<'a>> {
+    pub fn get_interfaces(&self) -> impl Iterator<Item = Rc<InterfaceDefinitionAst<'a>>> {
         self.statements
             .iter()
             .filter_map(|statement| {
                 if let FileStatementAst::Interface(interface) = statement {
-                    Some(interface)
+                    Some(interface.clone())
                 } else {
                     None
                 }

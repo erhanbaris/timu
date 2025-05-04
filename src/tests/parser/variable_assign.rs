@@ -21,7 +21,7 @@ use crate::{file::SourceFile, nom_tools::State};
 #[case("a = -1.2;", "a = -1.2;")]
 #[case("a = b(-1.2);", "a = b(-1.2);")]
 fn custom_variable_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-    let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
+    let source_file = Rc::new(SourceFile::new("<memory>", "<memory>".into(), code));
 
     let state = State {
         file: source_file.clone(),

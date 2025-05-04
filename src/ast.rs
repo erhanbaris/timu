@@ -57,7 +57,7 @@ pub struct FileAst<'a> {
 pub enum FileStatementAst<'a> {
     Class(Rc<ClassDefinitionAst<'a>>),
     Function(Rc<FunctionDefinitionAst<'a>>),
-    Interface(InterfaceDefinitionAst<'a>),
+    Interface(Rc<InterfaceDefinitionAst<'a>>),
     Extend(ExtendDefinitionAst<'a>),
     Use(UseAst<'a>),
 }

@@ -31,7 +31,7 @@ fn process_code<'a>(name: &'a str, path: PathBuf, code: &'a str) -> Result<FileA
 
 fn main() -> Result<(), Box<dyn Error>> {
     let ast_1 = process_code("source1", "<memory>".into(), " class testclass {} ")?;
-    let ast_2 = process_code("source2", "<memory>".into(), "use source1; use source1.testclass;")?;
+    let ast_2 = process_code("source2", "<memory>".into(), "use source1; use source1.testclass; use source1.testclass;")?;
     crate::tir::build(vec![ast_1.into(), ast_2.into()])?;
 
     Ok(())

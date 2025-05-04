@@ -20,12 +20,12 @@ impl UseAst<'_> {
         let (input, (import, splited_import)) = context("Module path missing", cut(consumed(cleanup(separated_list1(char('.'), ident()))))).parse(input)?;
         let import = match import.fragment().contains(char::is_whitespace) {
             true => {
-                let path = splited_import.iter().map(|path| path.fragment().clone())
+                let path = splited_import.iter().map(|path| *path.fragment())
                 .collect::<Vec<&str>>()
                 .join(".");
                 Cow::Owned(path)
             }
-            false => Cow::Borrowed(import.fragment().clone())
+            false => Cow::Borrowed(*import.fragment())
         };
         
         let (input, _) = context("Missing ';'", cut(cleanup(char(';')))).parse(input)?;
@@ -76,7 +76,7 @@ mod tests {
 use bar1.bar2.bar3;"#, r#"use foo1.foo2.foo3;
 use bar1.bar2.bar3;"#)]
     fn module_use_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>", "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),
