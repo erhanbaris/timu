@@ -27,7 +27,7 @@ use crate::{file::SourceFile, nom_tools::State};
     "interface Myinterface {a: ?string.base;func init(): MyType;func init(): MyType;}"
 )]
 fn custom_interface_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-    let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
+    let source_file = Rc::new(SourceFile::new("<memory>", "<memory>".into(), code));
 
     let state = State {
         file: source_file.clone(),

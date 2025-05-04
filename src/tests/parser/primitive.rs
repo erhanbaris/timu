@@ -31,7 +31,7 @@ erhan
 erhan
 ""#, PrimitiveType::String("\n\"\nerhan\n".to_string()))]
 fn parse_primitive_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
-    let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
+    let source_file = Rc::new(SourceFile::new("<memory>", "<memory>".into(), code));
 
     let state = State {
         file: source_file.clone(),
@@ -47,7 +47,7 @@ fn parse_primitive_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveTy
 #[case("340282366920938463463374607431768211450", "Invalid number length")]
 #[case("340282366920938463463374607431768211455", "Invalid number length")]
 fn invalid_primitive_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-    let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
+    let source_file = Rc::new(SourceFile::new("<memory>", "<memory>".into(), code));
 
     let state = State {
         file: source_file.clone(),

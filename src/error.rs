@@ -52,7 +52,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn error_test() {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), "interface Myinterface : erhan {"));
+        let source_file = Rc::new(SourceFile::new("<memory>", "<memory>".into(), "interface Myinterface : erhan {"));
 
         let state = State {
             file: source_file.clone(),

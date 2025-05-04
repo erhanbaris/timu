@@ -95,7 +95,7 @@ else if false {}
     else {}
     "#, r#"if (true || false) {} else if false {} else if false {} else if false {} else {}"#)]
     fn if_condition_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-        let source_file = Rc::new(SourceFile::new("<memory>".into(), "<memory>".into(), code));
+        let source_file = Rc::new(SourceFile::new("<memory>", "<memory>".into(), code));
 
         let state = State {
             file: source_file.clone(),

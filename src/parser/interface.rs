@@ -43,7 +43,7 @@ impl InterfaceDefinitionAst<'_> {
                 name,
                 fields,
                 base_interfaces,
-            }),
+            }.into()),
         ))
     }
 }
