@@ -2,7 +2,9 @@ use std::rc::Rc;
 
 use snafu::Snafu;
 
-use super::signature::ModuleSignature;
+use crate::nom_tools::Span;
+
+use super::signature::Signature;
 
 #[derive(Debug, Snafu)]
 pub enum TirError<'base> {
@@ -10,8 +12,11 @@ pub enum TirError<'base> {
     ModuleNotFound { module: String },
 
     #[snafu(visibility(pub), display("Signature already defined"))]
-    SignatureAlreadyDefined { old_signature: Rc<ModuleSignature<'base>> },
+    SignatureAlreadyDefined { old_signature: Rc<Signature<'base>> },
 
     #[snafu(visibility(pub), display("Module already defined"))]
-    ModuleAlreadyDefined { old_signature: Rc<ModuleSignature<'base>> },
+    ModuleAlreadyDefined { old_signature: Rc<Signature<'base>> },
+
+    #[snafu(visibility(pub), display("Module already defined"))]
+    TypeNotFound { name: Span<'base> },
 }

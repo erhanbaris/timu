@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 
 use nom::bytes::complete::tag;
 use nom::character::complete::char;
-use nom::combinator::{consumed, cut};
+use nom::combinator::{consumed, cut, opt};
 use nom::error::context;
 use nom::multi::separated_list1;
 use nom::{IResult, Parser};
@@ -28,6 +28,14 @@ impl UseAst<'_> {
             false => Cow::Borrowed(*import.fragment())
         };
         
+        let (input, alias) = match opt(cleanup(tag("as"))).parse(input)? {
+            (input, Some(_)) => {
+                let (input, alias) = context("Module alias missing", cut(cleanup(ident()))).parse(input)?;
+                (input, Some(alias))
+            }
+            (input, None) => (input, None),
+        };
+        
         let (input, _) = context("Missing ';'", cut(cleanup(char(';')))).parse(input)?;
 
         Ok((
@@ -35,6 +43,7 @@ impl UseAst<'_> {
             UseAst {
                 import,
                 splited_import,
+                alias,
             },
         ))
     }
@@ -54,6 +63,10 @@ impl Display for UseAst<'_> {
             }
             write!(f, "{}", path.fragment())?;
         }
+
+        if let Some(alias) = &self.alias {
+            write!(f, " as {}", alias.fragment())?;
+        }
         write!(f, ";")
     }
 }
@@ -69,6 +82,7 @@ mod tests {
 
     #[rstest]
     #[case("use test;", "use test;")]
+    #[case("use test as a;", "use test as a;")]
     #[case(" use test ; ", "use test;")]
     #[case("use test1.test2;", "use test1.test2;")]
     #[case("use test1.test2.test3;", "use test1.test2.test3;")]

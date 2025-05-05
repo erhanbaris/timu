@@ -5,7 +5,7 @@ use crate::ast::{ClassDefinitionAst, FunctionDefinitionAst, InterfaceDefinitionA
 use super::{Module, TirError, context::TirContext};
 
 #[derive(Debug)]
-pub enum ModuleSignature<'base> {
+pub enum Signature<'base> {
     Module(#[allow(dead_code)] Rc<RefCell<Module<'base>>>),
     Class(#[allow(dead_code)]Rc<ClassDefinitionAst<'base>>),
     Function(#[allow(dead_code)]Rc<FunctionDefinitionAst<'base>>),
@@ -14,27 +14,27 @@ pub enum ModuleSignature<'base> {
 
 #[derive(Debug, Default)]
 pub struct SignatureHolder<'base> {
-    signatures: HashMap<String, Rc<ModuleSignature<'base>>>,
+    signatures: HashMap<String, Rc<Signature<'base>>>,
 }
 
 impl<'base> SignatureHolder<'base> {
     pub fn add_class(&mut self, name: String, class: Rc<ClassDefinitionAst<'base>>) -> Result<(), TirError<'base>> {
-        self.add_signature(name, ModuleSignature::Class(class))
+        self.add_signature(name, Signature::Class(class))
     }
 
     pub fn add_function(&mut self, name: String, func: Rc<FunctionDefinitionAst<'base>>) -> Result<(), TirError<'base>> {
-        self.add_signature(name, ModuleSignature::Function(func))
+        self.add_signature(name, Signature::Function(func))
     }
 
     pub fn add_interface(&mut self, name: String, interface: Rc<InterfaceDefinitionAst<'base>>) -> Result<(), TirError<'base>> {
-        self.add_signature(name, ModuleSignature::Interface(interface))
+        self.add_signature(name, Signature::Interface(interface))
     }
 
     pub fn add_module(&mut self, name: String, module: Rc<RefCell<Module<'base>>>) -> Result<(), TirError<'base>> {
-        self.add_signature(name, ModuleSignature::Module(module))
+        self.add_signature(name, Signature::Module(module))
     }
 
-    fn add_signature(&mut self, name: String, new_signature: ModuleSignature<'base>) -> Result<(), TirError<'base>> {
+    fn add_signature(&mut self, name: String, new_signature: Signature<'base>) -> Result<(), TirError<'base>> {
         match self.signatures.insert(name, new_signature.into()) {
             Some(old_signature) => Err(TirError::SignatureAlreadyDefined {
                 old_signature,
@@ -43,7 +43,7 @@ impl<'base> SignatureHolder<'base> {
         }
     }
 
-    pub fn get(&self, name: &str) -> Option<Rc<ModuleSignature<'base>>> {
+    pub fn get(&self, name: &str) -> Option<Rc<Signature<'base>>> {
         self.signatures.get(name).cloned()
     }
 }
