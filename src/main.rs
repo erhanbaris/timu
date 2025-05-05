@@ -18,7 +18,7 @@ use file::SourceFile;
 use nom::Finish;
 use nom_tools::State;
 
-fn process_code<'a>(path: Vec<String>, code: &'a str) -> Result<FileAst<'a>, ParseError<'a>> {
+fn process_code(path: Vec<String>, code: &'_ str) -> Result<FileAst<'_>, ParseError<'_>> {
     let file = Rc::new(SourceFile::new(path, code));
     let state = State {
         file,
