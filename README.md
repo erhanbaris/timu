@@ -121,12 +121,11 @@ func main() {
 
 ### Example code
 
-@use(std) as s;
-@use(std) as s;
-@use(std);
-@use(std.array);
-@use(std.integer);
-@use(std.*);
+use std  as s;
+use std ;
+use std.array;
+use std.integer;
+use std.*;
 
 @mut static ada = false;
 

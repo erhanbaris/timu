@@ -65,7 +65,14 @@ pub enum FileStatementAst<'a> {
 #[derive(Debug)]
 pub struct UseAst<'a> {
     pub splited_import: Vec<Span<'a>>,
+    pub alias: Option<Span<'a>>,
     pub import: Cow<'a, str>,
+}
+
+impl<'a> UseAst<'a> {
+    pub fn name(&self) -> Span<'a> {
+        self.splited_import.last().unwrap().clone()
+    }
 }
 
 #[derive(Debug)]
