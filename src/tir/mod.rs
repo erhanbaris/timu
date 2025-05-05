@@ -81,7 +81,7 @@ mod tests {
 
     use crate::{ast::FileAst, file::SourceFile, process_code, tir::signature::{build_module_signature, ModuleSignature}};
 
-    use super::Module;
+    use super::{error::TirError, Module};
 
     #[test]
     fn find_module_test_1() {
@@ -180,4 +180,37 @@ mod tests {
         crate::tir::build(vec![ast_1.into(), ast_2.into(), ast_3.into(), ast_4.into(), ast_5.into(), ast_6.into(), ast_7.into(), ast_8.into(), ast_9.into()])?;
         Ok(())
     }
+
+    #[test]
+    fn missing_module() -> Result<(), Box<dyn Error>> {
+        let ast = process_code(vec!["source1".to_string()], "use missing;")?;
+        let error = crate::tir::build(vec![ast.into()]).unwrap_err();
+
+        if let TirError::ModuleNotFound { module } = error {
+            assert_eq!(module.as_str(), "missing");
+        } else {
+            panic!("Expected TirError::ModuleNotFound");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn dublicated_module() -> Result<(), Box<dyn Error>> {
+        let ast_1 = process_code(vec!["source".to_string()], " class testclass {} ")?;
+        let ast_2 = process_code(vec!["lib".to_string()], "use source.testclass; use source.testclass;")?;
+        let error = crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap_err();
+
+        if let TirError::ModuleAlreadyDefined { old_signature } = error {
+            if let ModuleSignature::Class(class) = old_signature.as_ref() {
+                assert_eq!(*class.name.fragment(), "testclass");
+            } else {
+                panic!("Expected ModuleSignature::Class");
+            }
+        } else {
+            panic!("Expected TirError::ModuleAlreadyDefined");
+        }
+        Ok(())
+    }
+
 }

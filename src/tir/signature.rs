@@ -74,3 +74,27 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
     context.signatures.add_module(module_name, module.clone())?;
     Ok(module)
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+
+    use crate::process_code;
+
+    #[test]
+    fn signature_generation() -> Result<(), Box<dyn Error>> {
+        let ast_1 = process_code(vec!["source".to_string()], " class testclass {} func testfunction(): void {} interface testinterface {}")?;
+        let ast_2 = process_code(vec!["lib".to_string()], "use source; use source.testclass; use source.testfunction; use source.testinterface;")?;
+        crate::tir::build(vec![ast_1.into(), ast_2.into()])?;
+        Ok(())
+    }
+
+    #[test]
+    fn dublicate_signatures() -> Result<(), Box<dyn Error>> {
+        let ast = process_code(vec!["source".to_string()], " class test {} func test(): void {} interface test {}")?;
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+        Ok(())
+    }
+}
+
