@@ -1,4 +1,6 @@
-use std::{borrow::Cow, collections::HashMap, rc::Rc};
+use std::{
+    borrow::Cow, cell::{RefCell, RefMut}, collections::HashMap, rc::Rc
+};
 
 use context::TirContext;
 use error::TirError;
@@ -11,63 +13,55 @@ mod error;
 mod signature;
 
 #[derive(Debug)]
-pub struct ProjectModule<'base> {
-    name: &'base str,
-    modules: Vec<Rc<ProjectModule<'base>>>,
+pub struct Module<'base> {
+    name: String,
+    path: String,
     imported_modules: HashMap<Cow<'base, str>, Rc<ModuleSignature<'base>>>,
     signatures: SignatureHolder<'base>,
-}
-
-impl<'base> ProjectModule<'base> {
-    #[cfg(test)]
-    fn new(name: &'base str) -> Self {
-        Self {
-            name,
-            modules: Vec::new(),
-            imported_modules: HashMap::new(),
-            signatures: SignatureHolder::default(),
-        }
-    }
+    ast: Rc<FileAst<'base>>,
 }
 
 pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<(), TirError<'_>> {
     let mut context: TirContext = TirContext::default();
+    let mut modules = vec![];
 
-    for file in files.iter() {
-        build_module_signature(&mut context, file.clone())?;
+    for ast in files.into_iter() {
+        let module = Module {
+            name: ast.file.path()[ast.file.path().len() - 1].to_string(),
+            path: ast.file.path().join("."),
+            imported_modules: HashMap::new(),
+            signatures: Default::default(),
+            ast,
+        };
+
+        let module = build_module_signature(&mut context, module)?;
+        modules.push(module.clone());
     }
 
-    for file in files.into_iter() {
-        build_file(&mut context, file)?;
+    for module in modules.iter() {
+        build_file(&mut context, module.clone())?;
     }
 
+    context.modules = modules;
     println!("Context: {:#?}", context);
     Ok(())
 }
 
-fn build_file<'base>(context: &mut TirContext<'base>, file_ast: Rc<FileAst<'base>>) -> Result<(), TirError<'base>> {
-    let uses = file_ast.get_uses();
-    let mut module = ProjectModule {
-        name: file_ast.file.name(),
-        modules: Vec::new(),
-        imported_modules: HashMap::new(),
-        signatures: Default::default(),
-    };
+fn build_file<'base>(context: &mut TirContext<'base>, module: Rc<RefCell<Module<'base>>>) -> Result<(), TirError<'base>> {
+    let uses = module.borrow().ast.get_uses().collect::<Vec<_>>();
+    let mut module = module.borrow_mut();
 
     for use_item in uses {
         build_use(context, &mut module, use_item)?;
     }
-
-    context.modules.push(module.into());
-
     Ok(())
 }
 
-fn build_use<'base>(context: &'_ TirContext<'base>, module: &mut ProjectModule<'base>, use_item: &UseAst<'base>) -> Result<(), TirError<'base>> {
+fn build_use<'base>(context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>, use_item: Rc<UseAst<'base>>) -> Result<(), TirError<'base>> {
     if let Some(signature) = context.get_signature(&use_item.import) {
         println!("Module found: {}", module.name);
         if let Some(old_signature) = module.imported_modules.insert(use_item.import.clone(), signature.clone()) {
-            return Err(TirError::SignatureAlreadyDefined {
+            return Err(TirError::ModuleAlreadyDefined {
                 old_signature,
             });
         }
@@ -83,60 +77,107 @@ fn build_use<'base>(context: &'_ TirContext<'base>, module: &mut ProjectModule<'
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
+    use std::{error::Error, rc::Rc};
 
-    use crate::{file::SourceFile, nom_tools::State};
+    use crate::{ast::FileAst, file::SourceFile, process_code, tir::signature::{build_module_signature, ModuleSignature}};
 
-    use super::ProjectModule;
+    use super::Module;
 
     #[test]
     fn find_module_test_1() {
-        let source_file = Rc::new(SourceFile::new("<memory>", "<memory>".into(), ""));
-
-        let state = State {
-            file: source_file.clone(),
+        let source_file = Rc::new(SourceFile::new(vec!["<memory>".to_string()], ""));
+        let module1 = Module {
+            name: "test1".to_string(),
+            path: "test1".to_string(),
+            imported_modules: Default::default(),
+            signatures: Default::default(),
+            ast: Rc::new(FileAst {
+                file: source_file.clone(),
+                statements: vec![],
+            }),
         };
-        let mut module1 = ProjectModule::new("test1");
-        let mut module2 = ProjectModule::new("test2");
-        let module3 = ProjectModule::new("test3");
 
-        module2.modules.push(module3.into());
-        module1.modules.push(module2.into());
+        let module2 = Module {
+            name: "test2".to_string(),
+            path: "test1.test2".to_string(),
+            imported_modules: Default::default(),
+            signatures: Default::default(),
+            ast: Rc::new(FileAst {
+                file: source_file.clone(),
+                statements: vec![],
+            }),
+        };
+
+        let module3 = Module {
+            name: "test3".to_string(),
+            path: "test1.test2.test3".to_string(),
+            imported_modules: Default::default(),
+            signatures: Default::default(),
+            ast: Rc::new(FileAst {
+                file: source_file.clone(),
+                statements: vec![],
+            }),
+        };
 
         let mut context = super::TirContext::default();
-        context.modules.push(module1.into());
+        build_module_signature(&mut context, module1).unwrap();
+        build_module_signature(&mut context, module2).unwrap();
+        build_module_signature(&mut context, module3).unwrap();
 
         let found_module = context.get_signature("test1.test2.test3");
-        let found_module = found_module.unwrap();
+        if let ModuleSignature::Module(module) = found_module.unwrap().as_ref() {
+            assert_eq!(module.borrow().name, "test3");
+        } else {
+            panic!("Expected ModuleSignature::Module");
+        }
 
         let found_module = context.get_signature("test1.test2");
-        let found_module = found_module.unwrap();
-
+        if let ModuleSignature::Module(module) = found_module.unwrap().as_ref() {
+            assert_eq!(module.borrow().name, "test2");
+        } else {
+            panic!("Expected ModuleSignature::Module");
+        }
+        
         let found_module = context.get_signature("test1");
-        let found_module = found_module.unwrap();
+        if let ModuleSignature::Module(module) = found_module.unwrap().as_ref() {
+            assert_eq!(module.borrow().name, "test1");
+        } else {
+            panic!("Expected ModuleSignature::Module");
+        }
 
         let found_module = context.get_signature("");
+        assert!(found_module.is_none());
+
+        let found_module = context.get_signature("abc");
         assert!(found_module.is_none());
     }
 
     #[test]
-    fn module_not_found() {
-        let source_file = Rc::new(SourceFile::new("<memory>", "<memory>".into(), ""));
-
-        let state = State {
-            file: source_file.clone(),
-        };
-        let mut module1 = ProjectModule::new("test1");
-        let mut module2 = ProjectModule::new("test2");
-        let module3 = ProjectModule::new("test3");
-
-        module2.modules.push(module3.into());
-        module1.modules.push(module2.into());
-
-        let mut context = super::TirContext::default();
-        context.modules.push(module1.into());
-
-        let found_module = context.get_signature("abc");
-        assert!(found_module.is_none());
+    fn module_test() -> Result<(), Box<dyn Error>> {
+        let ast_1 = process_code(vec!["source1".to_string()], " class testclass1 {} ")?;
+        let ast_2 = process_code(vec!["source2".to_string()], "use source1; use source1.testclass1;")?;
+    
+        let ast_3 = process_code(vec!["sub".to_string(), "source3".to_string()], "class testclass2 {}")?;
+        let ast_4 = process_code(vec!["sub".to_string(), "source4".to_string()], "use source1; use source1.testclass1;")?;
+        let ast_5 = process_code(
+            vec!["sub".to_string(), "source5".to_string()],
+            "use source1; use source1.testclass1;",
+        )?;
+        let ast_6 = process_code( 
+            vec!["sub".to_string(), "source6".to_string()],
+            "use sub.source3; use sub.source3.testclass2;",
+        )?;
+        let ast_7 = process_code(
+            vec!["sub".to_string(), "source7".to_string()],
+            "use source1; use source1.testclass1; use sub.source3; use sub.source3.testclass2;",
+        )?;
+        let ast_8 = process_code(vec!["sub".to_string(), "source8".to_string()], "class testclass1 {}")?;
+        let ast_9 = process_code(
+            vec!["sub".to_string(), "source9".to_string()],
+            "use source1; use source1.testclass1; use sub.source3; use sub.source3.testclass2; use sub.source8; use sub.source8.testclass1;",
+        )?;
+    
+        crate::tir::build(vec![ast_1.into(), ast_2.into(), ast_3.into(), ast_4.into(), ast_5.into(), ast_6.into(), ast_7.into(), ast_8.into(), ast_9.into()])?;
+        Ok(())
     }
 }
