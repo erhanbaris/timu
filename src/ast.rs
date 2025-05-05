@@ -59,7 +59,7 @@ pub enum FileStatementAst<'a> {
     Function(Rc<FunctionDefinitionAst<'a>>),
     Interface(Rc<InterfaceDefinitionAst<'a>>),
     Extend(ExtendDefinitionAst<'a>),
-    Use(UseAst<'a>),
+    Use(Rc<UseAst<'a>>),
 }
 
 #[derive(Debug)]

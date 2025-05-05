@@ -1,10 +1,10 @@
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
-use super::{ModuleSignature, ProjectModule, signature::SignatureHolder};
+use super::{Module, ModuleSignature, signature::SignatureHolder};
 
 #[derive(Debug, Default)]
 pub struct TirContext<'base> {
-    pub modules: Vec<Rc<ProjectModule<'base>>>,
+    pub modules: Vec<Rc<RefCell<Module<'base>>>>,
     pub signatures: SignatureHolder<'base>,
 }
 

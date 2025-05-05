@@ -4,12 +4,12 @@ use std::{fmt::{Display, Formatter}, rc::Rc};
 use crate::ast::{ClassDefinitionAst, FileAst, FileStatementAst, FunctionDefinitionAst, InterfaceDefinitionAst, UseAst};
 
 impl<'a> FileAst<'a> {
-    pub fn get_uses(&self) -> impl Iterator<Item = &UseAst<'a>> {
+    pub fn get_uses(&self) -> impl Iterator<Item = Rc<UseAst<'a>>> {
         self.statements
             .iter()
             .filter_map(|statement| {
                 if let FileStatementAst::Use(import) = statement {
-                    Some(import)
+                    Some(import.clone())
                 } else {
                     None
                 }

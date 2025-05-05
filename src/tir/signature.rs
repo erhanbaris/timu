@@ -1,15 +1,15 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst};
+use crate::ast::{ClassDefinitionAst, FunctionDefinitionAst, InterfaceDefinitionAst};
 
-use super::{ProjectModule, TirError, context::TirContext};
+use super::{Module, TirError, context::TirContext};
 
 #[derive(Debug)]
 pub enum ModuleSignature<'base> {
-    Module(Rc<ProjectModule<'base>>),
-    Class(Rc<ClassDefinitionAst<'base>>),
-    Function(Rc<FunctionDefinitionAst<'base>>),
-    Interface(Rc<InterfaceDefinitionAst<'base>>),
+    Module(#[allow(dead_code)] Rc<RefCell<Module<'base>>>),
+    Class(#[allow(dead_code)]Rc<ClassDefinitionAst<'base>>),
+    Function(#[allow(dead_code)]Rc<FunctionDefinitionAst<'base>>),
+    Interface(#[allow(dead_code)]Rc<InterfaceDefinitionAst<'base>>),
 }
 
 #[derive(Debug, Default)]
@@ -30,7 +30,7 @@ impl<'base> SignatureHolder<'base> {
         self.add_signature(name, ModuleSignature::Interface(interface))
     }
 
-    pub fn add_module(&mut self, name: String, module: Rc<ProjectModule<'base>>) -> Result<(), TirError<'base>> {
+    pub fn add_module(&mut self, name: String, module: Rc<RefCell<Module<'base>>>) -> Result<(), TirError<'base>> {
         self.add_signature(name, ModuleSignature::Module(module))
     }
 
@@ -48,36 +48,29 @@ impl<'base> SignatureHolder<'base> {
     }
 }
 
-pub fn build_module_signature<'base>(context: &mut TirContext<'base>, file_ast: Rc<FileAst<'base>>) -> Result<(), TirError<'base>> {
-    let mut module_signatures = SignatureHolder::default();
+pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<Rc<RefCell<Module<'base>>>, TirError<'base>> {
+    let mut module = module;
+    let module_name = module.path.to_string();
 
     // Class signatures
-    for class in file_ast.get_classes() {
-        context.signatures.add_class(format!("{}.{}", file_ast.file.name(), class.name.fragment()), class.clone())?;
-        module_signatures.add_class(class.name.fragment().to_string(), class)?;
+    for class in module.ast.get_classes() {
+        context.signatures.add_class(format!("{}.{}", module.path, class.name.fragment()), class.clone())?;
+        module.signatures.add_class(class.name.fragment().to_string(), class)?;
     }
 
     // Function signatures
-    for func in file_ast.get_functions() {
-        context.signatures.add_function(format!("{}.{}", file_ast.file.name(), func.name.fragment()), func.clone())?;
-        module_signatures.add_function(func.name.fragment().to_string(), func)?;
+    for func in module.ast.get_functions() {
+        context.signatures.add_function(format!("{}.{}", module.path, func.name.fragment()), func.clone())?;
+        module.signatures.add_function(func.name.fragment().to_string(), func)?;
     }
 
     // Imterface signatures
-    for interface in file_ast.get_interfaces() {
-        context.signatures.add_interface(format!("{}.{}", file_ast.file.name(), interface.name.fragment()), interface.clone())?;
-        module_signatures.add_interface(interface.name.fragment().to_string(), interface)?;
+    for interface in module.ast.get_interfaces() {
+        context.signatures.add_interface(format!("{}.{}", module.path, interface.name.fragment()), interface.clone())?;
+        module.signatures.add_interface(interface.name.fragment().to_string(), interface)?;
     }
 
-    let module: Rc<ProjectModule> = ProjectModule {
-        name: file_ast.file.name(),
-        modules: Vec::new(),
-        imported_modules: HashMap::new(),
-        signatures: module_signatures,
-    }
-    .into();
-    context.modules.push(module.clone());
-    context.signatures.add_module(file_ast.file.name().to_string(), module)?;
-
-    Ok(())
+    let module = Rc::new(RefCell::new(module));
+    context.signatures.add_module(module_name, module.clone())?;
+    Ok(module)
 }
