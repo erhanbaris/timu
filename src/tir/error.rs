@@ -1,22 +1,27 @@
-use std::rc::Rc;
+use std::{error::Error, fmt::Display, rc::Rc};
 
-use snafu::Snafu;
+use super::{context::AstSignatureHolderType, signature::SignatureError, AstSignature};
 
-use crate::nom_tools::Span;
-
-use super::signature::Signature;
-
-#[derive(Debug, Snafu)]
+#[derive(Debug)]
 pub enum TirError<'base> {
-    #[snafu(visibility(pub), display("Module not found"))]
     ModuleNotFound { module: String },
+    AstModuleAlreadyDefined { old_signature: Rc<AstSignature<'base>> },
+    TypeNotFound { },
+    AstError {
+        source: SignatureError<AstSignatureHolderType<'base>>
+    },
+}
 
-    #[snafu(visibility(pub), display("Signature already defined"))]
-    SignatureAlreadyDefined { old_signature: Rc<Signature<'base>> },
+impl Display for TirError<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TirError::ModuleNotFound { module } => write!(f, "Module not found: {}", module),
+            TirError::AstModuleAlreadyDefined { old_signature } => write!(f, "Module already defined: {:?}", old_signature),
+            TirError::TypeNotFound { } => write!(f, "Type not found"),
+            TirError::AstError { source } => write!(f, "AST error: {:?}", source),
+        }
+    }
+}
 
-    #[snafu(visibility(pub), display("Module already defined"))]
-    ModuleAlreadyDefined { old_signature: Rc<Signature<'base>> },
-
-    #[snafu(visibility(pub), display("Module already defined"))]
-    TypeNotFound { name: Span<'base> },
+impl Error for TirError<'_> {
 }
