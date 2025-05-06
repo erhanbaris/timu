@@ -13,10 +13,11 @@ mod tests;
 use std::{error::Error, rc::Rc};
 
 use ast::FileAst;
-use error::{ParseError, handle_parser};
+use error::{handle_builder, handle_parser, ParseError};
 use file::SourceFile;
 use nom::Finish;
 use nom_tools::State;
+use tir::TirError;
 
 fn process_code(path: Vec<String>, code: &'_ str) -> Result<FileAst<'_>, ParseError<'_>> {
     let file = Rc::new(SourceFile::new(path, code));
@@ -26,6 +27,11 @@ fn process_code(path: Vec<String>, code: &'_ str) -> Result<FileAst<'_>, ParseEr
 
     let response = parser::parse(state).finish();
     handle_parser(response)
+}
+
+fn process_ast(files: Vec<Rc<FileAst>>) -> Result<(), TirError<'_>> {
+    let response = crate::tir::build(files);
+    handle_builder(response)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -52,7 +58,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         "use source1; use source1.testclass1; use sub.source3; use sub.source3.testclass2; use sub.source8; use sub.source8.testclass1;",
     )?;
 
-    crate::tir::build(vec![ast_1.into(), ast_2.into(), ast_3.into(), ast_4.into(), ast_5.into(), ast_6.into(), ast_7.into(), ast_8.into(), ast_9.into()])?;
+    process_ast(vec![ast_1.into(), ast_2.into(), ast_3.into(), ast_4.into(), ast_5.into(), ast_6.into(), ast_7.into(), ast_8.into(), ast_9.into()])?;
 
     Ok(())
 }

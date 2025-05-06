@@ -1,10 +1,15 @@
 use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
+use crate::file::SourceFile;
+
 use super::{context::{AstSignatureHolderType, TirContext}, Module};
 
 #[derive(Debug)]
-pub enum SignatureError<T: SignatureHolderType> {
-    AlreadyDefined { #[allow(dead_code)] old_signature: Rc<Signature<T>> },
+pub enum SignatureError<'base, T: SignatureHolderType> {
+    AlreadyDefined {
+        #[allow(dead_code)] old_signature: Rc<Signature<T>>,
+        source: Rc<SourceFile<'base>>
+    },
 }
 
 pub trait SignatureHolderType: Debug {
@@ -29,7 +34,7 @@ pub struct SignatureHolder<'base, T: SignatureHolderType> {
 }
 
 
-impl<T> SignatureHolder<'_, T> where T: SignatureHolderType {
+impl<'base, T> SignatureHolder<'base, T> where T: SignatureHolderType {
     pub fn add_class(&mut self, name: String, class: Rc<T::ClassType>) -> Result<(), SignatureError<T>> {
         self.add_signature(name, Signature::Class(class))
     }
@@ -58,7 +63,7 @@ impl<T> SignatureHolder<'_, T> where T: SignatureHolderType {
     }
 }
 
-pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<Rc<RefCell<Module<'base>>>, SignatureError<AstSignatureHolderType<'base>>> {
+pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<Rc<RefCell<Module<'base>>>, SignatureError<'base, AstSignatureHolderType<'base>>> {
     let mut module = module;
     let module_name = module.path.to_string();
 

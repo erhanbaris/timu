@@ -4,7 +4,7 @@ use std::{
 
 use builder::build_file;
 use context::{AstSignatureHolderType, TirContext};
-use error::TirError;
+pub use error::TirError;
 use module::Module;
 use signature::{build_module_signature, Signature, SignatureHolder};
 
@@ -33,7 +33,7 @@ pub fn build(files: Vec<Rc<FileAst>>) -> Result<(), TirError> {
         };
 
         let module = build_module_signature(&mut context, module)
-            .map_err(|err| TirError::AstError { source: err })?;
+            .map_err(|err| TirError::AstError { error: err })?;
         modules.push(module.clone());
     }
 

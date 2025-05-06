@@ -1,6 +1,6 @@
-use std::{borrow::Cow, rc::Rc};
+use std::rc::Rc;
 
-use crate::{file::SourceFile, nom_tools::Span};
+use crate::{file::SourceFile, nom_tools::Span, parser::splited_path::SplitedPath};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum PrimitiveType {
@@ -64,14 +64,13 @@ pub enum FileStatementAst<'a> {
 
 #[derive(Debug)]
 pub struct UseAst<'a> {
-    pub splited_import: Vec<Span<'a>>,
     pub alias: Option<Span<'a>>,
-    pub import: Cow<'a, str>,
+    pub import: SplitedPath<'a>,
 }
 
 impl<'a> UseAst<'a> {
     pub fn name(&self) -> Span<'a> {
-        self.splited_import.last().unwrap().clone()
+        self.import.paths.last().unwrap().clone()
     }
 }
 

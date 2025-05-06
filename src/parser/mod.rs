@@ -1,4 +1,3 @@
-
 use nom::bytes::complete::{tag, take_until};
 use nom::character::complete::{alpha1, alphanumeric1, char};
 use nom::combinator::{cut, map, opt, recognize};
@@ -28,6 +27,7 @@ mod primitive;
 mod ref_info;
 mod type_info;
 mod variable;
+pub mod splited_path;
 
 pub type TimuParserError<'a> = VerboseError<Span<'a>>;
 
@@ -60,7 +60,6 @@ pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, TimuParserError
         },
     ))
 }
-
 
 #[allow(warnings)]
 pub fn comment<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>, TimuParserError<'a>> {

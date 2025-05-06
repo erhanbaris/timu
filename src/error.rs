@@ -6,22 +6,35 @@ use nom_language::error::VerboseErrorKind;
 use crate::{
     ast::FileAst,
     file::SourceFile,
-    nom_tools::{State, ToRange},
+    nom_tools::{State, ToRange}, tir::TirError,
 };
 
 pub type ParseError<'a> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'a str, State<'a>>>;
 pub type ParseResult<'a> = Result<(nom_locate::LocatedSpan<&'a str, State<'a>>, FileAst<'a>), ParseError<'a>>;
 
-fn print_error(ctx: &'static str, span_range: std::ops::Range<usize>, source_file: Rc<SourceFile<'_>>) {
+pub type TirResult<'a> = Result<(), TirError<'a>>;
+
+pub fn print_error(error_message: &str, span_range: std::ops::Range<usize>, source_file: Rc<SourceFile<'_>>) {
     println!("{}", source_file.code());
     let file_name = format!("{:?}", source_file.path());
     Report::build(ReportKind::Error, (file_name.as_str(), 12..12))
         .with_code(1)
         .with_message("Syntax error")
-        .with_label(Label::new((file_name.as_str(), span_range)).with_message(ctx).with_color(Color::Red))
+        .with_label(Label::new((file_name.as_str(), span_range)).with_message(error_message).with_color(Color::Red))
         .finish()
         .print((file_name.as_str(), Source::from(source_file.code())))
         .unwrap();
+}
+
+pub fn handle_builder(result: TirResult<'_>) -> Result<(), TirError<'_>> {
+    match result {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            let (range, message, source) = error.get_error();
+            print_error(&message, range, source);
+            Err(error)
+        }
+    }
 }
 
 pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, ParseError<'_>> {
@@ -29,9 +42,9 @@ pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, ParseError<
         Ok((_, parsed)) => Ok(parsed),
         Err(error) => {
             error.errors.iter().for_each(|(input, error_kind)| {
-                if let VerboseErrorKind::Context(context) = error_kind {
-                    println!("Context: {:?}", context);
-                    print_error(context, input.to_range(), input.extra.file.clone());
+                if let VerboseErrorKind::Context(error_message) = error_kind {
+                    println!("error_message: {:?}", error_message);
+                    print_error(error_message, input.to_range(), input.extra.file.clone());
                 }
             });
             Err(error)

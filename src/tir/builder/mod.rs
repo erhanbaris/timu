@@ -33,7 +33,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: Rc<RefCell<Mod
 impl<'base> Builder<'base> for UseAst<'base> {
     type Result = ();
     fn build(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Result, TirError<'base>> {
-        if let Some(signature) = context.get_ast_signature(&self.import) {
+        if let Some(signature) = context.get_ast_signature(&self.import.text) {
             println!("Module found: {}", module.name);
             
             let name = match &self.alias {
@@ -43,13 +43,16 @@ impl<'base> Builder<'base> for UseAst<'base> {
     
             if let Some(old_signature) = module.imported_modules.insert(name, signature.clone()) {
                 return Err(TirError::AstModuleAlreadyDefined {
-                    old_signature
+                    old_signature,
+                    source: self.name().extra.file.clone(),
                 });
             }
         } else {
             println!("Module not found: {}", self);
             return Err(TirError::ModuleNotFound {
-                module: self.import.clone().into(),
+                module: self.import.text.clone(),
+                position: self.import.to_range(),
+                source: self.name().extra.file.clone(),
             });
         }
 
@@ -97,6 +100,7 @@ impl<'base> Builder<'base> for FunctionDefinitionAst<'base> {
             Some(signature) => signature,
             None => {
                 return Err(TirError::TypeNotFound {
+                    source: self.return_type.names.last().unwrap().extra.file.clone(),
                 });
             }
         };
@@ -107,7 +111,8 @@ impl<'base> Builder<'base> for FunctionDefinitionAst<'base> {
                 Some(signature) => signature,
                 None => {
                     return Err(TirError::TypeNotFound {
-                    });
+                        source: arg.field_type.names.last().unwrap().extra.file.clone(),
+                });
                 }
             };
 
