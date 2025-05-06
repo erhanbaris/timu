@@ -3,10 +3,10 @@ use std::{
 };
 
 use builder::build_file;
-use context::TirContext;
+use context::{AstSignatureHolderType, TirContext};
 use error::TirError;
 use module::Module;
-use signature::{Signature, build_module_signature};
+use signature::{build_module_signature, Signature, SignatureHolder};
 
 use crate::ast::FileAst;
 
@@ -16,8 +16,10 @@ mod error;
 mod module;
 mod signature;
 
+pub type AstSignature<'base> = Signature<AstSignatureHolderType<'base>>;
+pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureHolderType<'base>>;
 
-pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<(), TirError<'_>> {
+pub fn build(files: Vec<Rc<FileAst>>) -> Result<(), TirError> {
     let mut context: TirContext = TirContext::default();
     let mut modules = vec![];
 
@@ -30,7 +32,8 @@ pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<(), TirError<'_>> {
             ast,
         };
 
-        let module = build_module_signature(&mut context, module)?;
+        let module = build_module_signature(&mut context, module)
+            .map_err(|err| TirError::AstError { source: err })?;
         modules.push(module.clone());
     }
 
@@ -92,31 +95,31 @@ mod tests {
         build_module_signature(&mut context, module2).unwrap();
         build_module_signature(&mut context, module3).unwrap();
 
-        let found_module = context.get_signature("test1.test2.test3");
+        let found_module = context.get_ast_signature("test1.test2.test3");
         if let Signature::Module(module) = found_module.unwrap().as_ref() {
             assert_eq!(module.borrow().name, "test3");
         } else {
             panic!("Expected ModuleSignature::Module");
         }
 
-        let found_module = context.get_signature("test1.test2");
+        let found_module = context.get_ast_signature("test1.test2");
         if let Signature::Module(module) = found_module.unwrap().as_ref() {
             assert_eq!(module.borrow().name, "test2");
         } else {
             panic!("Expected ModuleSignature::Module");
         }
         
-        let found_module = context.get_signature("test1");
+        let found_module = context.get_ast_signature("test1");
         if let Signature::Module(module) = found_module.unwrap().as_ref() {
             assert_eq!(module.borrow().name, "test1");
         } else {
             panic!("Expected ModuleSignature::Module");
         }
 
-        let found_module = context.get_signature("");
+        let found_module = context.get_ast_signature("");
         assert!(found_module.is_none());
 
-        let found_module = context.get_signature("abc");
+        let found_module = context.get_ast_signature("abc");
         assert!(found_module.is_none());
     }
 
@@ -169,14 +172,14 @@ mod tests {
         let ast_2 = process_code(vec!["lib".to_string()], "use source.testclass; use source.testclass;")?;
         let error = crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap_err();
 
-        if let TirError::ModuleAlreadyDefined { old_signature } = error {
+        if let TirError::AstModuleAlreadyDefined { old_signature } = error {
             if let Signature::Class(class) = old_signature.as_ref() {
                 assert_eq!(*class.name.fragment(), "testclass");
             } else {
                 panic!("Expected ModuleSignature::Class");
             }
         } else {
-            panic!("Expected TirError::ModuleAlreadyDefined");
+            panic!("Expected TirError::AstModuleAlreadyDefined");
         }
         Ok(())
     }

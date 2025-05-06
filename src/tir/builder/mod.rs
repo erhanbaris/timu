@@ -2,14 +2,14 @@ use std::{cell::{RefCell, RefMut}, fmt::Debug, rc::Rc};
 
 use crate::{ast::{BodyAst, FunctionDefinitionAst, TypeNameAst, UseAst}, nom_tools::Span};
 
-use super::{context::TirContext, error::TirError, module::Module, signature::Signature};
+use super::{context::TirContext, error::TirError, module::Module, AstSignature};
 
 pub trait Builder<'base> {
     type Result;
     fn build(&self, context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Result, TirError<'base>>;
 }
 
-fn build_type_name<'base>(ast: &TypeNameAst<'base>) -> String {
+fn build_type_name(ast: &TypeNameAst) -> String {
     ast.names.iter().map(|path| *path.fragment()).collect::<Vec<&str>>().join(".")
 }
 
@@ -33,7 +33,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: Rc<RefCell<Mod
 impl<'base> Builder<'base> for UseAst<'base> {
     type Result = ();
     fn build(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Result, TirError<'base>> {
-        if let Some(signature) = context.get_signature(&self.import) {
+        if let Some(signature) = context.get_ast_signature(&self.import) {
             println!("Module found: {}", module.name);
             
             let name = match &self.alias {
@@ -42,8 +42,8 @@ impl<'base> Builder<'base> for UseAst<'base> {
             };
     
             if let Some(old_signature) = module.imported_modules.insert(name, signature.clone()) {
-                return Err(TirError::ModuleAlreadyDefined {
-                    old_signature,
+                return Err(TirError::AstModuleAlreadyDefined {
+                    old_signature
                 });
             }
         } else {
@@ -59,11 +59,11 @@ impl<'base> Builder<'base> for UseAst<'base> {
 
 #[derive(Debug)]
 pub struct SpannedValue<'a, T: Debug> {
-    pub span: Span<'a>,
+    #[allow(dead_code)] pub span: Span<'a>,
     pub value: T,
 }
 
-impl<'a, T> std::ops::Deref for SpannedValue<'a, T> where T: Debug {
+impl<T> std::ops::Deref for SpannedValue<'_, T> where T: Debug {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.value
@@ -71,16 +71,18 @@ impl<'a, T> std::ops::Deref for SpannedValue<'a, T> where T: Debug {
 }
 
 #[derive(Debug)]
-pub struct FunctionArgumen<'base> {
+#[allow(dead_code)]
+pub struct FunctionArgument<'base> {
     pub name: Span<'base>,
-    pub field_type: SpannedValue<'base, Rc<Signature<'base>>>,
+    pub field_type: SpannedValue<'base, Rc<AstSignature<'base>>>,
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct FunctionDefinition<'base> {
     pub is_public: bool,
     pub name: Span<'base>,
-    pub arguments: Vec<FunctionArgumen<'base>>,
+    pub arguments: Vec<FunctionArgument<'base>>,
     pub return_type: TypeNameAst<'base>,
     pub body: BodyAst<'base>,
 }
@@ -90,12 +92,21 @@ impl<'base> Builder<'base> for FunctionDefinitionAst<'base> {
     fn build(&self, _: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Result, TirError<'base>> {
         let mut arguments = vec![];
 
+        let return_type_name = build_type_name(&self.return_type);
+        match module.signatures.get(return_type_name.as_str()) {
+            Some(signature) => signature,
+            None => {
+                return Err(TirError::TypeNotFound {
+                });
+            }
+        };
+
         for arg in self.arguments.iter() {
-            let field_type = match module.signatures.get(build_type_name(&arg.field_type).as_str()) {
+            let type_name = build_type_name(&arg.field_type);
+            let field_type = match module.signatures.get(type_name.as_str()) {
                 Some(signature) => signature,
                 None => {
                     return Err(TirError::TypeNotFound {
-                        name: arg.name.clone(),
                     });
                 }
             };

@@ -1,77 +1,87 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
-use crate::ast::{ClassDefinitionAst, FunctionDefinitionAst, InterfaceDefinitionAst};
-
-use super::{Module, TirError, context::TirContext};
+use super::{context::{AstSignatureHolderType, TirContext}, Module};
 
 #[derive(Debug)]
-pub enum Signature<'base> {
-    Module(#[allow(dead_code)] Rc<RefCell<Module<'base>>>),
-    Class(#[allow(dead_code)]Rc<ClassDefinitionAst<'base>>),
-    Function(#[allow(dead_code)]Rc<FunctionDefinitionAst<'base>>),
-    Interface(#[allow(dead_code)]Rc<InterfaceDefinitionAst<'base>>),
+pub enum SignatureError<T: SignatureHolderType> {
+    AlreadyDefined { #[allow(dead_code)] old_signature: Rc<Signature<T>> },
+}
+
+pub trait SignatureHolderType: Debug {
+    type ModuleType: Debug;
+    type ClassType: Debug;
+    type FunctionType: Debug;
+    type InterfaceType: Debug;
+} 
+
+#[derive(Debug)]
+pub enum Signature<T: SignatureHolderType> {
+    Module(#[allow(dead_code)] Rc<RefCell<T::ModuleType>>),
+    Class(#[allow(dead_code)]Rc<T::ClassType>),
+    Function(#[allow(dead_code)]Rc<T::FunctionType>),
+    Interface(#[allow(dead_code)]Rc<T::InterfaceType>),
 }
 
 #[derive(Debug, Default)]
-pub struct SignatureHolder<'base> {
-    signatures: HashMap<String, Rc<Signature<'base>>>,
+pub struct SignatureHolder<'base, T: SignatureHolderType> {
+    signatures: HashMap<String, Rc<Signature<T>>>,
+    _marker: std::marker::PhantomData<&'base ()>,
 }
 
-impl<'base> SignatureHolder<'base> {
-    pub fn add_class(&mut self, name: String, class: Rc<ClassDefinitionAst<'base>>) -> Result<(), TirError<'base>> {
+
+impl<T> SignatureHolder<'_, T> where T: SignatureHolderType {
+    pub fn add_class(&mut self, name: String, class: Rc<T::ClassType>) -> Result<(), SignatureError<T>> {
         self.add_signature(name, Signature::Class(class))
     }
 
-    pub fn add_function(&mut self, name: String, func: Rc<FunctionDefinitionAst<'base>>) -> Result<(), TirError<'base>> {
+    pub fn add_function(&mut self, name: String, func: Rc<T::FunctionType>) -> Result<(), SignatureError<T>> {
         self.add_signature(name, Signature::Function(func))
     }
 
-    pub fn add_interface(&mut self, name: String, interface: Rc<InterfaceDefinitionAst<'base>>) -> Result<(), TirError<'base>> {
+    pub fn add_interface(&mut self, name: String, interface: Rc<T::InterfaceType>) -> Result<(), SignatureError<T>> {
         self.add_signature(name, Signature::Interface(interface))
     }
 
-    pub fn add_module(&mut self, name: String, module: Rc<RefCell<Module<'base>>>) -> Result<(), TirError<'base>> {
+    pub fn add_module(&mut self, name: String, module: Rc<RefCell<T::ModuleType>>) -> Result<(), SignatureError<T>> {
         self.add_signature(name, Signature::Module(module))
     }
 
-    fn add_signature(&mut self, name: String, new_signature: Signature<'base>) -> Result<(), TirError<'base>> {
+    fn add_signature(&mut self, name: String, new_signature: Signature::<T>) -> Result<(), SignatureError<T>> {
         match self.signatures.insert(name, new_signature.into()) {
-            Some(old_signature) => Err(TirError::SignatureAlreadyDefined {
-                old_signature,
-            }),
+            Some(old_signature) => Err(SignatureError::AlreadyDefined { old_signature }),
             None => Ok(()),
         }
     }
 
-    pub fn get(&self, name: &str) -> Option<Rc<Signature<'base>>> {
+    pub fn get(&self, name: &str) -> Option<Rc<Signature::<T>>> {
         self.signatures.get(name).cloned()
     }
 }
 
-pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<Rc<RefCell<Module<'base>>>, TirError<'base>> {
+pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<Rc<RefCell<Module<'base>>>, SignatureError<AstSignatureHolderType<'base>>> {
     let mut module = module;
     let module_name = module.path.to_string();
 
     // Class signatures
     for class in module.ast.get_classes() {
-        context.signatures.add_class(format!("{}.{}", module.path, class.name.fragment()), class.clone())?;
+        context.ast_signatures.add_class(format!("{}.{}", module.path, class.name.fragment()), class.clone())?;
         module.signatures.add_class(class.name.fragment().to_string(), class)?;
     }
 
     // Function signatures
     for func in module.ast.get_functions() {
-        context.signatures.add_function(format!("{}.{}", module.path, func.name.fragment()), func.clone())?;
+        context.ast_signatures.add_function(format!("{}.{}", module.path, func.name.fragment()), func.clone())?;
         module.signatures.add_function(func.name.fragment().to_string(), func)?;
     }
 
     // Imterface signatures
     for interface in module.ast.get_interfaces() {
-        context.signatures.add_interface(format!("{}.{}", module.path, interface.name.fragment()), interface.clone())?;
+        context.ast_signatures.add_interface(format!("{}.{}", module.path, interface.name.fragment()), interface.clone())?;
         module.signatures.add_interface(interface.name.fragment().to_string(), interface)?;
     }
 
     let module = Rc::new(RefCell::new(module));
-    context.signatures.add_module(module_name, module.clone())?;
+    context.ast_signatures.add_module(module_name, module.clone())?;
     Ok(module)
 }
 
@@ -84,7 +94,7 @@ mod tests {
 
     #[test]
     fn signature_generation() -> Result<(), Box<dyn Error>> {
-        let ast_1 = process_code(vec!["source".to_string()], " class testclass {} func testfunction(): void {} interface testinterface {}")?;
+        let ast_1 = process_code(vec!["source".to_string()], " class testclass {} func testfunction(): testclass {} interface testinterface {}")?;
         let ast_2 = process_code(vec!["lib".to_string()], "use source; use source.testclass; use source.testfunction; use source.testinterface;")?;
         crate::tir::build(vec![ast_1.into(), ast_2.into()])?;
         Ok(())
