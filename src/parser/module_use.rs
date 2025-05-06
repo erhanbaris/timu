@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fmt::{Display, Formatter};
 
 use nom::bytes::complete::tag;
@@ -12,21 +11,14 @@ use crate::ast::{FileStatementAst, UseAst};
 use crate::nom_tools::{Span, cleanup};
 use crate::parser::ident;
 
+use super::splited_path::SplitedPath;
 use super::TimuParserError;
 
 impl UseAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, UseAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("use")).parse(input)?;
         let (input, (import, splited_import)) = context("Module path missing", cut(consumed(cleanup(separated_list1(char('.'), ident()))))).parse(input)?;
-        let import = match import.fragment().contains(char::is_whitespace) {
-            true => {
-                let path = splited_import.iter().map(|path| *path.fragment())
-                .collect::<Vec<&str>>()
-                .join(".");
-                Cow::Owned(path)
-            }
-            false => Cow::Borrowed(*import.fragment())
-        };
+        let import = SplitedPath::new(import, splited_import);
         
         let (input, alias) = match opt(cleanup(tag("as"))).parse(input)? {
             (input, Some(_)) => {
@@ -42,7 +34,6 @@ impl UseAst<'_> {
             input,
             UseAst {
                 import,
-                splited_import,
                 alias,
             },
         ))
@@ -57,13 +48,7 @@ impl UseAst<'_> {
 impl Display for UseAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "use ")?;
-        for (i, path) in self.splited_import.iter().enumerate() {
-            if i > 0 {
-                write!(f, ".")?;
-            }
-            write!(f, "{}", path.fragment())?;
-        }
-
+        write!(f, "{}", self.import.text)?;
         if let Some(alias) = &self.alias {
             write!(f, " as {}", alias.fragment())?;
         }
