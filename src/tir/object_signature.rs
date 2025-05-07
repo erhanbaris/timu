@@ -7,6 +7,7 @@ use super::{resolver::function_definition::FunctionDefinition, signature::Signat
 #[derive(Debug)]
 pub enum ObjectSignatureValue<'base> {
     Function(#[allow(dead_code)]Rc<FunctionDefinition<'base>>),
+    Class,
 }
 
 impl<'base> From<Rc<FunctionDefinition<'base>>> for Signature<'base, ObjectSignatureValue<'base>> {

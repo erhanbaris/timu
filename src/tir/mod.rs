@@ -70,6 +70,7 @@ mod tests {
             path: "test1".to_string(),
             imported_modules: Default::default(),
             ast_signatures: Default::default(),
+            object_signatures: Default::default(),
             file: source_file.clone(),
             ast: Rc::new(FileAst {
                 file: source_file.clone(),
@@ -82,6 +83,7 @@ mod tests {
             path: "test1.test2".to_string(),
             imported_modules: Default::default(),
             ast_signatures: Default::default(),
+            object_signatures: Default::default(),
             file: source_file.clone(),
             ast: Rc::new(FileAst {
                 file: source_file.clone(),
@@ -94,6 +96,7 @@ mod tests {
             path: "test1.test2.test3".to_string(),
             imported_modules: Default::default(),
             ast_signatures: Default::default(),
+            object_signatures: Default::default(),
             file: source_file.clone(),
             ast: Rc::new(FileAst {
                 file: source_file.clone(),

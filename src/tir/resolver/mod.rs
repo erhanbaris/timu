@@ -2,14 +2,16 @@ use std::{cell::{RefCell, RefMut}, fmt::Debug, rc::Rc};
 
 use crate::{ast::TypeNameAst, nom_tools::Span};
 
-use super::{context::TirContext, error::TirError, module::Module};
+use super::{context::TirContext, error::TirError, module::Module, ObjectSignature};
 
 pub mod function_definition;
-mod module_use;
+pub mod interface_definition;
+pub mod class_definition;
+pub mod module_use;
+pub mod module_definition;
 
 pub trait ResolveSignature<'base> {
-    type Result;
-    fn resolve(&self, context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Result, TirError<'base>>;
+    fn resolve(&self, context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<(), TirError<'base>>;
 }
 
 fn build_type_name(ast: &TypeNameAst) -> String {
@@ -24,7 +26,6 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: Rc<RefCell<Mod
 
     for use_item in uses {
         use_item.resolve(context, &mut module)?;
-        //try_resolve_signature(context, &mut module, use_item)?;
     }
 
     for function in functions {
@@ -34,8 +35,27 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: Rc<RefCell<Mod
     Ok(())
 }
 
-pub fn try_resolve_signature<'base, T: ResolveSignature<'base>>(context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>, signature: Rc<T>) -> Result<T::Result, TirError<'base>> {
-    signature.resolve(context, module)
+pub fn try_resolve_signature<'base, K: AsRef<str>>(context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>, key: K) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
+    if let Some(signature) = module.object_signatures.get(key.as_ref()) {
+        return Ok(Some(signature));
+    }
+
+    let signature = match module.imported_modules.get(key.as_ref()) {
+        Some(signature) => signature.clone(),
+        None => {
+
+            let signature = match module.ast_signatures.get(key.as_ref()) {
+                Some(signature) => signature.clone(),
+                None => return Ok(None)
+            };
+        
+            signature.value.resolve(context, module)?;
+            return Ok(module.object_signatures.get(key.as_ref()));
+        }
+    };
+
+    signature.value.resolve(context, module)?;
+    Ok(module.object_signatures.get(key.as_ref()))
 }
 
 #[derive(Debug)]
