@@ -3,6 +3,7 @@ use std::{borrow::Cow, ops::Range};
 use crate::nom_tools::Span;
 
 
+#[allow(dead_code)]
 pub enum SplitedPathEnum<'base> {
     Path(Span<'base>),
     Splited(Vec<Span<'base>>),
