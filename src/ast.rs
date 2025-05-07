@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::{file::SourceFile, nom_tools::Span, parser::splited_path::SplitedPath};
+use crate::{file::SourceFile, nom_tools::{Span, ToRange}, parser::splited_path::SplitedPath};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum PrimitiveType {
@@ -112,6 +112,14 @@ pub struct TypeNameAst<'a> {
     pub names: Vec<Span<'a>>,
 }
 
+impl ToRange for TypeNameAst<'_> {
+    fn to_range(&self) -> std::ops::Range<usize> {
+        let start = self.names.first().map_or(0, |path| path.location_offset());
+        let end = self.names.last().map_or(0, |path| path.location_offset() + path.fragment().len());
+        start..end
+    }
+}
+
 #[derive(Debug)]
 pub struct RefAst<'a> {
     pub names: Vec<Span<'a>>,
@@ -121,6 +129,12 @@ pub struct RefAst<'a> {
 pub struct FunctionArgumentAst<'a> {
     pub name: Span<'a>,
     pub field_type: TypeNameAst<'a>,
+}
+
+impl ToRange for FunctionArgumentAst<'_> {
+    fn to_range(&self) -> std::ops::Range<usize> {
+        self.name.to_range()
+    }
 }
 
 #[derive(Debug)]
