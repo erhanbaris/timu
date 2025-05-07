@@ -7,10 +7,11 @@ use super::{AstSignature, AstSignatureHolder, Module, ObjectSignature, ObjectSig
 pub struct TirContext<'base> {
     pub modules: Vec<Rc<RefCell<Module<'base>>>>,
     pub ast_signatures: AstSignatureHolder<'base>,
-    pub object_signatures: ObjectSignatureHolder<'base>,
+    #[allow(dead_code)] pub object_signatures: ObjectSignatureHolder<'base>,
 }
 
 impl<'base> TirContext<'base> {
+    #[allow(dead_code)]
     pub fn get_object_signature<T: AsRef<str>>(&self, key: T) -> Option<Rc<ObjectSignature<'base>>> {
         self.object_signatures.get(key.as_ref())
     }

@@ -5,8 +5,7 @@ use crate::{ast::UseAst, tir::{context::TirContext, module::Module, TirError}};
 use super::ResolveSignature;
 
 impl<'base> ResolveSignature<'base> for UseAst<'base> {
-    type Result = ();
-    fn resolve(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Result, TirError<'base>> {
+    fn resolve(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<(), TirError<'base>> {
         if let Some(signature) = context.get_ast_signature(&self.import.text) {
             
             let name = match &self.alias {

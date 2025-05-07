@@ -1,9 +1,8 @@
 use std::{cell::RefMut, rc::Rc};
 
-use crate::{ast::FunctionDefinitionAst, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::Module, AstSignature, ObjectSignature, TirError}};
+use crate::{ast::FunctionDefinitionAst, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::Module, ObjectSignature, TirError}};
 
-use super::{build_type_name, ResolveSignature};
-
+use super::{build_type_name, try_resolve_signature, ResolveSignature};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -18,18 +17,16 @@ pub struct FunctionDefinition<'base> {
     pub is_public: bool,
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgument<'base>>,
-    pub return_type: Rc<AstSignature<'base>>,
+    pub return_type: Rc<ObjectSignature<'base>>,
     // pub body: BodyAst<'base>,
 }
 
 impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
-    type Result = FunctionDefinition<'base>;
-
-    fn resolve(&self, _: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Result, TirError<'base>> {
+    fn resolve(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<(), TirError<'base>> {
         let mut arguments = vec![];
 
         let return_type_name = build_type_name(&self.return_type);
-        let return_type = match module.imported_modules.get(return_type_name.as_str()) {
+        let _return_type = match try_resolve_signature(context, module, return_type_name.as_str())? {
             Some(return_type) => return_type.clone(),
             None => {
                 return Err(TirError::TypeNotFound {
@@ -40,8 +37,8 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         };
 
         for arg in self.arguments.iter() {
-            let type_name = build_type_name(&arg.field_type);
-            let field_type = match module.imported_modules.get(type_name.as_str()) {
+            let _type_name = build_type_name(&arg.field_type);
+            let field_type = match try_resolve_signature(context, module, return_type_name.as_str())? {
                 Some(field_type) => field_type.clone(),
                 None => {
                     return Err(TirError::TypeNotFound {
@@ -64,12 +61,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             });
         }
 
-        Ok(FunctionDefinition {
-            is_public: self.is_public.is_some(),
-            name: self.name.clone(),
-            arguments,
-            return_type,
-        })
+        Ok(())
     }
 }
 

@@ -1,8 +1,8 @@
-use std::{cell::RefCell, fmt::Debug, rc::Rc};
+use std::{cell::{RefCell, RefMut}, fmt::Debug, rc::Rc};
 
 use crate::{ast::{ClassDefinitionAst, FunctionDefinitionAst, InterfaceDefinitionAst}, nom_tools::ToRange};
 
-use super::{context::TirContext, module::Module, signature::Signature, TirError};
+use super::{context::TirContext, module::Module, resolver::ResolveSignature, signature::Signature, TirError};
 
 #[derive(Debug)]
 pub enum AstSignatureValue<'base> {
@@ -10,6 +10,20 @@ pub enum AstSignatureValue<'base> {
     Class(#[allow(dead_code)]Rc<ClassDefinitionAst<'base>>),
     Function(#[allow(dead_code)]Rc<FunctionDefinitionAst<'base>>),
     Interface(#[allow(dead_code)]Rc<InterfaceDefinitionAst<'base>>),
+}
+
+impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
+    fn resolve(&self, context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<(), TirError<'base>> {
+        match self {
+            AstSignatureValue::Module(target_module) => {
+                let target_module = target_module.borrow_mut();
+                target_module.resolve(context, module)
+            }
+            AstSignatureValue::Class(class) => class.resolve(context, module),
+            AstSignatureValue::Function(function) => function.resolve(context, module),
+            AstSignatureValue::Interface(interface) => interface.resolve(context, module),
+        }
+    }
 }
 
 pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<Rc<RefCell<Module<'base>>>, TirError<'base>> {
