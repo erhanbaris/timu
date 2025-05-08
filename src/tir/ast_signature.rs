@@ -1,8 +1,8 @@
-use std::{cell::{RefCell, RefMut}, fmt::Debug, rc::Rc};
+use std::{cell::{RefCell, RefMut}, collections::HashMap, fmt::Debug, rc::Rc};
 
-use crate::{ast::{ClassDefinitionAst, FunctionDefinitionAst, InterfaceDefinitionAst}, nom_tools::ToRange};
+use crate::{ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst}, nom_tools::ToRange};
 
-use super::{context::TirContext, module::Module, resolver::ResolveSignature, signature::Signature, TirError};
+use super::{context::TirContext, module::Module, object_signature::ObjectSignatureValue, resolver::ResolveSignature, signature::{Signature, SignatureHolder}, TirError};
 
 #[derive(Debug)]
 pub enum AstSignatureValue<'base> {
@@ -24,6 +24,52 @@ impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
             AstSignatureValue::Interface(interface) => interface.resolve(context, module),
         }
     }
+}
+
+pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'base>>, modules: &mut Vec<Rc<RefCell<Module<'base>>>>) -> Result<(), TirError<'base>> {
+    let module_path = ast.file.path().clone();
+    let file = ast.file.clone();
+
+    let module = Module {
+        name: ast.file.path()[ast.file.path().len() - 1].to_string(),
+        file: ast.file.clone(),
+        path: ast.file.path().join("."),
+        imported_modules: HashMap::new(),
+        object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
+        ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
+        ast: ast.clone(),
+    };
+
+    if module_path.len() > 1 {
+        for (index, name) in module_path[0..module_path.len() - 1].iter().enumerate() {
+            let full_module_path = module_path[..index + 1].join(".");
+
+            if context.get_ast_signature(full_module_path.as_str()).is_none() {
+                let module = Module {
+                    name: name.to_string(),
+                    file: file.clone(),
+                    path: full_module_path.clone(),
+                    imported_modules: HashMap::new(),
+                    object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
+                    ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
+                    ast: ast.clone(),
+                };
+                
+                let module = Rc::new(RefCell::new(module));
+                let signature = Rc::new(Signature::from(module.clone()));
+
+                context.ast_signatures.add_signature(full_module_path, signature).map_or(Ok(()), |_| {
+                    Err(TirError::ModuleAlreadyDefined {
+                        source: module.borrow().file.clone(),
+                    })
+                })?;
+            }
+        }   
+    }
+
+    let module = build_module_signature(context, module)?;
+    modules.push(module.clone());
+    Ok(())
 }
 
 pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<Rc<RefCell<Module<'base>>>, TirError<'base>> {
