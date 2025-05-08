@@ -8,6 +8,7 @@ use super::{resolver::function_definition::FunctionDefinition, signature::Signat
 pub enum ObjectSignatureValue<'base> {
     Function(#[allow(dead_code)]Rc<FunctionDefinition<'base>>),
     Class,
+    Module
 }
 
 impl<'base> From<Rc<FunctionDefinition<'base>>> for Signature<'base, ObjectSignatureValue<'base>> {

@@ -1,8 +1,6 @@
-use std::{
-    collections::HashMap, rc::Rc
-};
+use std::rc::Rc;
 
-use ast_signature::{build_module_signature, AstSignatureValue};
+use ast_signature::{build_module, AstSignatureValue};
 use object_signature::ObjectSignatureValue;
 use resolver::build_file;
 use context::TirContext;
@@ -31,18 +29,7 @@ pub fn build(files: Vec<Rc<FileAst>>) -> Result<(), TirError> {
     let mut modules = vec![];
 
     for ast in files.into_iter() {
-        let module = Module {
-            name: ast.file.path()[ast.file.path().len() - 1].to_string(),
-            file: ast.file.clone(),
-            path: ast.file.path().join("."),
-            imported_modules: HashMap::new(),
-            object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
-            ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
-            ast,
-        };
-
-        let module = build_module_signature(&mut context, module)?;
-        modules.push(module.clone());
+        build_module(&mut context, ast, &mut modules)?;
     }
 
     for module in modules.iter() {

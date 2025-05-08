@@ -1,6 +1,6 @@
 use std::{cell::{RefCell, RefMut}, fmt::Debug, rc::Rc};
 
-use crate::{ast::TypeNameAst, nom_tools::Span};
+use crate::{ast::TypeNameAst, nom_tools::Span, tir::ast_signature::AstSignatureValue};
 
 use super::{context::TirContext, error::TirError, module::Module, ObjectSignature};
 
@@ -36,21 +36,39 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: Rc<RefCell<Mod
 }
 
 pub fn try_resolve_signature<'base, K: AsRef<str>>(context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>, key: K) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
+
+    // Check if the key is a module name
+    if key.as_ref().contains('.') {
+        let mut parts = key.as_ref().split('.');
+        let module_name = match parts.next() {
+            Some(module_name) => module_name,
+            None => return Ok(None)
+        };
+
+        let signature_name = parts.collect::<Vec<_>>().join(".");
+        let signature = match module.imported_modules.get(module_name) {
+            Some(signature) => signature.clone(),
+            None => return Ok(None)
+        };
+
+        if let AstSignatureValue::Module(found_module) = &signature.value {
+            let mut found_module = found_module.borrow_mut();
+            return try_resolve_signature(context, &mut found_module, signature_name.as_str());
+        }
+    
+        signature.value.resolve(context, module)?;
+        return Ok(module.object_signatures.get(key.as_ref()));
+    }
+
     if let Some(signature) = module.object_signatures.get(key.as_ref()) {
         return Ok(Some(signature));
     }
-
+    
     let signature = match module.imported_modules.get(key.as_ref()) {
         Some(signature) => signature.clone(),
-        None => {
-
-            let signature = match module.ast_signatures.get(key.as_ref()) {
-                Some(signature) => signature.clone(),
-                None => return Ok(None)
-            };
-        
-            signature.value.resolve(context, module)?;
-            return Ok(module.object_signatures.get(key.as_ref()));
+        None => match module.ast_signatures.get(key.as_ref()) {
+            Some(signature) => signature.clone(),
+            None => return Ok(None)
         }
     };
 
@@ -83,12 +101,26 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference() -> Result<(), ()> {
+    fn cross_reference1() -> Result<(), ()> {
         let ast_1 = process_code(vec!["source1".to_string()], " class testclass1 {} ")?;
         let ast_9 = process_code(
             vec!["sub".to_string(), "source9".to_string()],
             r#"use source1.testclass1;
     func testfunction1(): testclass1 {}"#,
+        )?;
+
+        process_ast(vec![ast_1.into(), ast_9.into()])?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn cross_reference2() -> Result<(), ()> {
+        let ast_1 = process_code(vec!["source1".to_string()], " class testclass1 {} ")?;
+        let ast_9 = process_code(
+            vec!["sub".to_string(), "source9".to_string()],
+            r#"use source1;
+    func testfunction1(): source1.testclass1 {}"#,
         )?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
