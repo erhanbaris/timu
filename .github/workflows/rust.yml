@@ -51,8 +51,7 @@ jobs:
         grcov . \
             --binary-path ./target/debug/deps/ \
             --source-dir . \
-            --excl-start 'mod test \{' \
-            --excl-start 'mod tests \{' \
+            --excl-start 'mod test' \
             --ignore '*test*' \
             --ignore "*test.rs" \
             --ignore "*main.rs" \
