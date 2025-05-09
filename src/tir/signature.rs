@@ -32,6 +32,7 @@ impl<'base, T> SignatureHolder<'base, T> where T: Debug {
     }
 
     pub fn add_signature(&mut self, name: String, signature: Rc<Signature::<'base, T>>) -> Option<Rc<Signature<'base, T>>> {
+        println!("Adding signature: {}", name);
         self.signatures.insert(name.into(), signature)
     }
 

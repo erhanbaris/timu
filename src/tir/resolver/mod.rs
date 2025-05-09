@@ -39,25 +39,70 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(context: &TirContext<'base>, 
 
     // Check if the key is a module name
     if key.as_ref().contains('.') {
+        let mut parts = key.as_ref().split('.').peekable();
+        let module_name = match parts.next() {
+            Some(module_name) => module_name,
+            None => return Ok(None)
+        };
+
+        let signature_name = match parts.peek() {
+            Some(signature_name) => signature_name,
+            None => return Ok(None)
+        };
+        
+        let found_signature = match module.imported_modules.get(module_name) {
+            Some(found_module) => found_module.clone(),
+            None => return Ok(None)
+        };
+
+
+        if let AstSignatureValue::Module(found_module) = &found_signature.value {
+            let mut found_module = found_module.borrow_mut();
+            let signature_name = parts.collect::<Vec<_>>().join(".");
+            return inner_try_resolve_signature(context, &mut found_module, signature_name);
+        }
+
+        return Ok(None);
+    }
+
+    if let Some(signature) = module.object_signatures.get(key.as_ref()) {
+        return Ok(Some(signature));
+    }
+    
+    let signature = match module.imported_modules.get(key.as_ref()) {
+        Some(signature) => signature.clone(),
+        None => match module.ast_signatures.get(key.as_ref()) {
+            Some(signature) => signature.clone(),
+            None => return Ok(None)
+        }
+    };
+
+    signature.value.resolve(context, module)?;
+    Ok(module.object_signatures.get(key.as_ref()))
+}
+
+fn inner_try_resolve_signature<'base, K: AsRef<str>>(context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>, key: K) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
+
+    // Check if the key is a module name
+    if key.as_ref().contains('.') {
         let mut parts = key.as_ref().split('.');
         let module_name = match parts.next() {
             Some(module_name) => module_name,
             None => return Ok(None)
         };
 
-        let signature_name = parts.collect::<Vec<_>>().join(".");
-        let signature = match module.imported_modules.get(module_name) {
-            Some(signature) => signature.clone(),
+        let signature_name = match parts.next() {
+            Some(signature_name) => signature_name,
             None => return Ok(None)
         };
+        
+        let found_module = match module.modules.get(module_name) {
+            Some(found_module) => found_module.clone(),
+            None => return Ok(None)
+        };
+        let mut found_module = found_module.borrow_mut();
 
-        if let AstSignatureValue::Module(found_module) = &signature.value {
-            let mut found_module = found_module.borrow_mut();
-            return try_resolve_signature(context, &mut found_module, signature_name.as_str());
-        }
-    
-        signature.value.resolve(context, module)?;
-        return Ok(module.object_signatures.get(key.as_ref()));
+        return inner_try_resolve_signature(context, &mut found_module, signature_name);
     }
 
     if let Some(signature) = module.object_signatures.get(key.as_ref()) {

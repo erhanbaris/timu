@@ -16,7 +16,7 @@ impl Display for TirError<'_> {
         match self {
             TirError::ModuleNotFound { module, position: _ , source: _ } => write!(f, "Module not found: {}", module),
             TirError::ModuleAlreadyDefined { source: _ } => write!(f, "Module already defined"),
-            TirError::AstModuleAlreadyDefined { position: _, source: _ } => write!(f, "Module already defined"),
+            TirError::AstModuleAlreadyDefined { position: _, source: _ } => write!(f, "Ast Module already defined"),
             TirError::AlreadyDefined { position: _, source: _ } => write!(f, "Already defined"),
             TirError::TypeNotFound { source: _, position: _ } => write!(f, "Type not found"),
         }

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{ast::FileAst, file::SourceFile};
 
@@ -13,4 +13,5 @@ pub struct Module<'base> {
     pub ast_signatures: AstSignatureHolder<'base>,
     pub object_signatures: ObjectSignatureHolder<'base>,
     pub ast: Rc<FileAst<'base>>,
+    pub modules: HashMap<Cow<'base, str>, Rc<RefCell<Module<'base>>>>,
 }

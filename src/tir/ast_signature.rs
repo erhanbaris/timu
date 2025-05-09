@@ -1,4 +1,4 @@
-use std::{cell::{RefCell, RefMut}, collections::HashMap, fmt::Debug, rc::Rc};
+use std::{borrow::Cow, cell::{RefCell, RefMut}, collections::HashMap, rc::Rc};
 
 use crate::{ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst}, nom_tools::ToRange};
 
@@ -26,26 +26,18 @@ impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
     }
 }
 
-pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'base>>, modules: &mut Vec<Rc<RefCell<Module<'base>>>>) -> Result<(), TirError<'base>> {
+pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'base>>, modules: &mut HashMap<Cow<'base, str>, Rc<RefCell<Module<'base>>>>) -> Result<(), TirError<'base>> {
     let module_path = ast.file.path().clone();
     let file = ast.file.clone();
 
-    let module = Module {
-        name: ast.file.path()[ast.file.path().len() - 1].to_string(),
-        file: ast.file.clone(),
-        path: ast.file.path().join("."),
-        imported_modules: HashMap::new(),
-        object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
-        ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
-        ast: ast.clone(),
-    };
-
     if module_path.len() > 1 {
-        for (index, name) in module_path[0..module_path.len() - 1].iter().enumerate() {
+        let mut base_module_path = String::new();
+
+        for (index, name) in module_path[0..module_path.len()].iter().enumerate() {
             let full_module_path = module_path[..index + 1].join(".");
 
             if context.get_ast_signature(full_module_path.as_str()).is_none() {
-                let module = Module {
+                let sub_module = Module {
                     name: name.to_string(),
                     file: file.clone(),
                     path: full_module_path.clone(),
@@ -53,22 +45,43 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
                     object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
                     ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
                     ast: ast.clone(),
+                    modules: Default::default(),
                 };
                 
-                let module = Rc::new(RefCell::new(module));
-                let signature = Rc::new(Signature::from(module.clone()));
+                let sub_module = Rc::new(RefCell::new(sub_module));
+                let signature = Rc::new(Signature::from(sub_module.clone()));
+                modules.insert(full_module_path.clone().into(), sub_module.clone());
 
+                if !base_module_path.is_empty() {
+                    println!("Adding submodule {} to base module {}", full_module_path, base_module_path);
+                    modules.get_mut(base_module_path.as_str()).map(|base_module| {
+                        base_module.borrow_mut().modules.insert(name.to_string().into(), sub_module.clone());
+                    });
+                }
+
+                base_module_path = full_module_path.clone();
                 context.ast_signatures.add_signature(full_module_path, signature).map_or(Ok(()), |_| {
                     Err(TirError::ModuleAlreadyDefined {
-                        source: module.borrow().file.clone(),
+                        source: sub_module.borrow().file.clone(),
                     })
                 })?;
             }
         }   
+    } else {
+        let module = Module {
+            name: ast.file.path()[ast.file.path().len() - 1].to_string(),
+            file: ast.file.clone(),
+            path: ast.file.path().join("."),
+            imported_modules: HashMap::new(),
+            object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
+            ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
+            ast: ast.clone(),
+            modules: Default::default(),
+        };
+        let module = build_module_signature(context, module)?;
+        modules.insert(ast.file.path().join(".").into(), module.clone());
     }
 
-    let module = build_module_signature(context, module)?;
-    modules.push(module.clone());
     Ok(())
 }
 
@@ -103,7 +116,8 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
     let module = Rc::new(RefCell::new(module));
     let signature = Rc::new(Signature::from(module.clone()));
 
-    context.ast_signatures.add_signature(module_name, signature).map_or(Ok(()), |_| {
+    context.ast_signatures.add_signature(module_name, signature).map_or(Ok(()), |item| {
+        println!("Module already defined: {:?}", item);
         Err(TirError::ModuleAlreadyDefined {
             source: module.borrow().file.clone(),
         })

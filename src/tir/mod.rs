@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use ast_signature::{build_module, AstSignatureValue};
 use object_signature::ObjectSignatureValue;
@@ -26,13 +26,13 @@ pub type ObjectSignatureHolder<'base> = SignatureHolder<'base, ObjectSignatureVa
 
 pub fn build(files: Vec<Rc<FileAst>>) -> Result<(), TirError> {
     let mut context: TirContext = TirContext::default();
-    let mut modules = vec![];
+    let mut modules = HashMap::new();
 
     for ast in files.into_iter() {
         build_module(&mut context, ast, &mut modules)?;
     }
 
-    for module in modules.iter() {
+    for (_, module) in modules.iter() {
         build_file(&mut context, module.clone())?;
     }
 
@@ -59,6 +59,7 @@ mod tests {
             ast_signatures: Default::default(),
             object_signatures: Default::default(),
             file: source_file.clone(),
+            modules: Default::default(),
             ast: Rc::new(FileAst {
                 file: source_file.clone(),
                 statements: vec![],
@@ -72,6 +73,7 @@ mod tests {
             ast_signatures: Default::default(),
             object_signatures: Default::default(),
             file: source_file.clone(),
+            modules: Default::default(),
             ast: Rc::new(FileAst {
                 file: source_file.clone(),
                 statements: vec![],
@@ -85,6 +87,7 @@ mod tests {
             ast_signatures: Default::default(),
             object_signatures: Default::default(),
             file: source_file.clone(),
+            modules: Default::default(),
             ast: Rc::new(FileAst {
                 file: source_file.clone(),
                 statements: vec![],
