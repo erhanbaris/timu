@@ -243,4 +243,17 @@ mod tests {
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
     }
+
+    #[test]
+    fn import_alias3() -> Result<(), ()> {
+        let ast_1 = process_code(vec!["base1".to_string(), "test1".to_string(), "source1".to_string()], " class testclass1 {} ")?;
+        let ast_9 = process_code(
+            vec!["sub".to_string(), "source9".to_string()],
+            r#"use base1.test1.source1.testclass1 as test;
+    func testfunction1(): test {}"#,
+        )?;
+    
+        process_ast(vec![ast_1.into(), ast_9.into()])?;
+        Ok(())
+    }
 }

@@ -189,4 +189,12 @@ mod tests {
         }
         Ok(())
     }
+
+    #[test]
+    fn no_dublicated_module() -> Result<(), ()> {
+        let ast_1 = process_code(vec!["source".to_string()], " class testclass {} ")?;
+        let ast_2 = process_code(vec!["lib".to_string()], "use source.testclass as t1; use source.testclass as t2;")?;
+        crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap();
+        Ok(())
+    }
 }
