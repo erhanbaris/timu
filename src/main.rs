@@ -37,11 +37,11 @@ fn process_ast(files: Vec<Rc<FileAst>>) -> Result<(), ()> {
 fn main() -> Result<(), ()> {
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, Config::default(), TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
 
-    let ast_1 = process_code(vec!["source1".to_string()], " class testclass1 {} ")?;
+    let ast_1 = process_code(vec!["base1".to_string(), "test1".to_string(), "source1".to_string()], " class testclass1 {} ")?;
     let ast_9 = process_code(
         vec!["sub".to_string(), "source9".to_string()],
-        r#"use source1 as abc;
-func testfunction1(): abc.testclass1 {}"#,
+        r#"use base1.test1.source1.testclass1 as test;
+func testfunction1(a: test): test {}"#,
     )?;
 
     process_ast(vec![ast_1.into(), ast_9.into()])?;

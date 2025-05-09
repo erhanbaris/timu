@@ -1,14 +1,19 @@
-use std::cell::RefMut;
+use std::{cell::RefMut, rc::Rc};
 
 use crate::{
     ast::InterfaceDefinitionAst,
-    tir::{TirError, context::TirContext, module::Module},
+    nom_tools::ToRange,
+    tir::{ObjectSignature, TirError, context::TirContext, module::Module, object_signature::ObjectSignatureValue},
 };
 
 use super::ResolveSignature;
 
 impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
-    fn resolve(&self, _: &'_ TirContext<'base>, _: &mut RefMut<'_, Module<'base>>) -> Result<(), TirError<'base>> {
-        Ok(())
+    type Item = Rc<ObjectSignature<'base>>;
+
+    fn resolve(&self, _: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>> {
+        let signature = Rc::new(ObjectSignature::new(ObjectSignatureValue::Interface, self.name.extra.file.clone(), self.name.to_range()));
+        module.object_signatures.add_signature(self.name.fragment().to_string(), signature.clone());
+        Ok(signature)
     }
 }

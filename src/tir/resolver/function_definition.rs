@@ -3,7 +3,7 @@ use std::{cell::RefMut, rc::Rc};
 use crate::{
     ast::FunctionDefinitionAst,
     nom_tools::{Span, ToRange},
-    tir::{ObjectSignature, TirError, context::TirContext, module::Module},
+    tir::{ObjectSignature, TirError, context::TirContext, module::Module, object_signature::ObjectSignatureValue},
 };
 
 use super::{ResolveSignature, build_type_name, try_resolve_signature};
@@ -26,11 +26,14 @@ pub struct FunctionDefinition<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
-    fn resolve(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<(), TirError<'base>> {
+    type Item = Rc<ObjectSignature<'base>>;
+
+    fn resolve(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>> {
+        simplelog::info!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let mut arguments = vec![];
 
         let return_type_name = build_type_name(&self.return_type);
-        let _return_type = match try_resolve_signature(context, module, return_type_name.as_str())? {
+        let return_type = match try_resolve_signature(context, module, return_type_name.as_str())? {
             Some(return_type) => return_type.clone(),
             None => {
                 return Err(TirError::TypeNotFound {
@@ -41,8 +44,8 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         };
 
         for arg in self.arguments.iter() {
-            let _type_name = build_type_name(&arg.field_type);
-            let field_type = match try_resolve_signature(context, module, return_type_name.as_str())? {
+            let type_name = build_type_name(&arg.field_type);
+            let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
                 Some(field_type) => field_type.clone(),
                 None => {
                     return Err(TirError::TypeNotFound {
@@ -65,7 +68,21 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             });
         }
 
-        Ok(())
+        let signature = Rc::new(ObjectSignature::new(
+            ObjectSignatureValue::Function(
+                FunctionDefinition {
+                    is_public: self.is_public.is_some(),
+                    name: self.name.clone(),
+                    arguments,
+                    return_type,
+                }
+                .into(),
+            ),
+            self.name.extra.file.clone(),
+            self.name.to_range(),
+        ));
+        module.object_signatures.add_signature(self.name.fragment().to_string(), signature.clone());
+        Ok(signature)
     }
 }
 
