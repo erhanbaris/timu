@@ -1,6 +1,10 @@
 use std::cell::RefMut;
 
-use crate::{ast::ClassDefinitionAst, nom_tools::ToRange, tir::{context::TirContext, module::Module, object_signature::ObjectSignatureValue, ObjectSignature, TirError}};
+use crate::{
+    ast::ClassDefinitionAst,
+    nom_tools::ToRange,
+    tir::{ObjectSignature, TirError, context::TirContext, module::Module, object_signature::ObjectSignatureValue},
+};
 
 use super::ResolveSignature;
 

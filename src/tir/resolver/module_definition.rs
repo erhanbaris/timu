@@ -1,6 +1,6 @@
 use std::cell::RefMut;
 
-use crate::tir::{context::TirContext, module::Module, object_signature::ObjectSignatureValue, ObjectSignature, TirError};
+use crate::tir::{ObjectSignature, TirError, context::TirContext, module::Module, object_signature::ObjectSignatureValue};
 
 use super::ResolveSignature;
 

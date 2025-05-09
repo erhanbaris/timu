@@ -1,17 +1,28 @@
 use std::{borrow::Cow, collections::HashMap, fmt::Debug, ops::Range, rc::Rc};
 
+use log::debug;
+
 use crate::file::SourceFile;
 
 #[derive(Debug)]
 pub struct Signature<'base, T: Debug> {
-    #[allow(dead_code)] pub value: T,
+    #[allow(dead_code)]
+    pub value: T,
     pub file: Rc<SourceFile<'base>>,
-    #[allow(dead_code)] pub position: Range<usize>,
+    #[allow(dead_code)]
+    pub position: Range<usize>,
 }
 
-impl<'base, T> Signature<'base, T> where T: Debug {
+impl<'base, T> Signature<'base, T>
+where
+    T: Debug,
+{
     pub fn new(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>) -> Self {
-        Self { value, file, position }
+        Self {
+            value,
+            file,
+            position,
+        }
     }
 }
 
@@ -20,23 +31,33 @@ pub struct SignatureHolder<'base, T: Debug> {
     signatures: HashMap<Cow<'base, str>, Rc<Signature<'base, T>>>,
 }
 
-impl<T> Default for SignatureHolder<'_, T> where T: Debug {
+impl<T> Default for SignatureHolder<'_, T>
+where
+    T: Debug,
+{
     fn default() -> Self {
-        Self { signatures: HashMap::new() }
+        Self {
+            signatures: HashMap::new(),
+        }
     }
 }
 
-impl<'base, T> SignatureHolder<'base, T> where T: Debug {
+impl<'base, T> SignatureHolder<'base, T>
+where
+    T: Debug,
+{
     pub fn new() -> Self {
-        Self { signatures: HashMap::new() }
+        Self {
+            signatures: HashMap::new(),
+        }
     }
 
-    pub fn add_signature(&mut self, name: String, signature: Rc<Signature::<'base, T>>) -> Option<Rc<Signature<'base, T>>> {
-        println!("Adding signature: {}", name);
+    pub fn add_signature(&mut self, name: String, signature: Rc<Signature<'base, T>>) -> Option<Rc<Signature<'base, T>>> {
+        debug!("Adding signature: {}", name);
         self.signatures.insert(name.into(), signature)
     }
 
-    pub fn get(&self, name: &str) -> Option<Rc<Signature::<'base, T>>> {
+    pub fn get(&self, name: &str) -> Option<Rc<Signature<'base, T>>> {
         self.signatures.get(name).cloned()
     }
 }
