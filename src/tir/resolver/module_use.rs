@@ -8,7 +8,9 @@ use crate::{
 use super::ResolveSignature;
 
 impl<'base> ResolveSignature<'base> for UseAst<'base> {
-    fn resolve(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<(), TirError<'base>> {
+    type Item = ();
+
+    fn resolve(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>> {
         if let Some(signature) = context.get_ast_signature(&self.import.text) {
             let name = match &self.alias {
                 Some(alias) => std::borrow::Cow::Borrowed(*alias.fragment()),

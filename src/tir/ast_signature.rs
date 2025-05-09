@@ -6,7 +6,7 @@ use std::{
     rc::Rc,
 };
 
-use log::{debug, error, info};
+use simplelog::{debug, error, info};
 
 use crate::{
     ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst},
@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    TirError,
+    ObjectSignature, TirError,
     context::TirContext,
     module::Module,
     object_signature::ObjectSignatureValue,
@@ -31,7 +31,9 @@ pub enum AstSignatureValue<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
-    fn resolve(&self, context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<(), TirError<'base>> {
+    type Item = Rc<ObjectSignature<'base>>;
+
+    fn resolve(&self, context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>> {
         match self {
             AstSignatureValue::Module(target_module) => {
                 let target_module = target_module.borrow_mut();
@@ -49,10 +51,11 @@ pub fn build_module<'base>(
 ) -> Result<(), TirError<'base>> {
     let module_path = ast.file.path().clone();
     let file = ast.file.clone();
-    info!("Building module: {:?}", module_path);
+    info!("Building module: <u><b>{:?}</b></u>", module_path);
 
     if module_path.len() > 1 {
         let mut base_module_path = String::new();
+        let total_item = module_path.len();
 
         for (index, name) in module_path[0..module_path.len()].iter().enumerate() {
             let full_module_path = module_path[..index + 1].join(".");
@@ -67,7 +70,10 @@ pub fn build_module<'base>(
                     imported_modules: HashMap::new(),
                     object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
                     ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
-                    ast: Default::default(),
+                    ast: match total_item == index + 1 {
+                        true => Some(ast.clone()),
+                        false => None,
+                    },
                     modules: Default::default(),
                 };
                 debug!("Adding module {} to context", full_module_path);

@@ -15,7 +15,9 @@ pub mod module_definition;
 pub mod module_use;
 
 pub trait ResolveSignature<'base> {
-    fn resolve(&self, context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<(), TirError<'base>>;
+    type Item;
+
+    fn resolve(&self, context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>>;
 }
 
 fn build_type_name(ast: &TypeNameAst) -> String {
@@ -24,6 +26,7 @@ fn build_type_name(ast: &TypeNameAst) -> String {
 
 pub fn build_file<'base>(context: &mut TirContext<'base>, module: Rc<RefCell<Module<'base>>>) -> Result<(), TirError<'base>> {
     let mut module = module.borrow_mut();
+    log::debug!("Building file: {:?}", module.path);
 
     if let Some(ast) = &module.ast {
         let uses = ast.get_uses().collect::<Vec<_>>();
@@ -41,6 +44,22 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: Rc<RefCell<Mod
     Ok(())
 }
 
+fn find_module<'base, K: AsRef<str>>(module: &mut RefMut<'_, Module<'base>>, key: K) -> Option<Rc<RefCell<Module<'base>>>> {
+    let mut parts = key.as_ref().split('.').peekable();
+    let module_name = parts.next()?;
+
+    match module.imported_modules.get(module_name) {
+        Some(found_module) => {
+            if let AstSignatureValue::Module(found_module) = &found_module.value {
+                Some(found_module.clone())
+            } else {
+                None
+            }
+        }
+        None => module.modules.get(module_name).cloned(),
+    }
+}
+
 pub fn try_resolve_signature<'base, K: AsRef<str>>(
     context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>, key: K,
 ) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
@@ -52,45 +71,13 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
             None => return Ok(None),
         };
 
-        let found_signature = match module.imported_modules.get(module_name) {
-            Some(found_module) => found_module.clone(),
+        let found_module = match find_module(module, module_name) {
+            Some(found_module) => found_module,
             None => return Ok(None),
         };
 
-        if let AstSignatureValue::Module(found_module) = &found_signature.value {
-            let mut found_module = found_module.borrow_mut();
-            let signature_name = parts.collect::<Vec<_>>().join(".");
-            return inner_try_resolve_signature(context, &mut found_module, signature_name);
-        }
-
-        return Ok(None);
-    }
-
-    inner_try_resolve_signature(context, module, key)
-}
-
-fn inner_try_resolve_signature<'base, K: AsRef<str>>(
-    context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>, key: K,
-) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
-    // Check if the key is a module name
-    if key.as_ref().contains('.') {
-        let mut parts = key.as_ref().split('.');
-        let module_name = match parts.next() {
-            Some(module_name) => module_name,
-            None => return Ok(None),
-        };
-
-        let signature_name = match parts.next() {
-            Some(signature_name) => signature_name,
-            None => return Ok(None),
-        };
-
-        let found_module = match module.modules.get(module_name) {
-            Some(found_module) => found_module.clone(),
-            None => return Ok(None),
-        };
         let mut found_module = found_module.borrow_mut();
-
+        let signature_name = parts.collect::<Vec<_>>().join(".");
         return try_resolve_signature(context, &mut found_module, signature_name);
     }
 
@@ -106,8 +93,7 @@ fn inner_try_resolve_signature<'base, K: AsRef<str>>(
         },
     };
 
-    signature.value.resolve(context, module)?;
-    Ok(module.object_signatures.get(key.as_ref()))
+    Ok(Some(signature.value.resolve(context, module)?))
 }
 
 #[derive(Debug)]
@@ -200,7 +186,7 @@ mod tests {
             r#"use base1.test1;
     func testfunction1(): test1.source1.testclass1 {}"#,
         )?;
-    
+
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
     }
@@ -213,7 +199,7 @@ mod tests {
             r#"use base1.test1.source1;
     func testfunction1(): source1.testclass1 {}"#,
         )?;
-    
+
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
     }
@@ -226,7 +212,7 @@ mod tests {
             r#"use source1 as abc;
     func testfunction1(): abc.testclass1 {}"#,
         )?;
-    
+
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
     }
@@ -239,7 +225,7 @@ mod tests {
             r#"use base1.test1.source1 as test;
     func testfunction1(): test.testclass1 {}"#,
         )?;
-    
+
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
     }
@@ -250,9 +236,9 @@ mod tests {
         let ast_9 = process_code(
             vec!["sub".to_string(), "source9".to_string()],
             r#"use base1.test1.source1.testclass1 as test;
-    func testfunction1(): test {}"#,
+func testfunction1(a: test): test {}"#,
         )?;
-    
+
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
     }
