@@ -1,6 +1,10 @@
 use std::rc::Rc;
 
-use crate::{file::SourceFile, nom_tools::{Span, ToRange}, parser::splited_path::SplitedPath};
+use crate::{
+    file::SourceFile,
+    nom_tools::{Span, ToRange},
+    parser::splited_path::SplitedPath,
+};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum PrimitiveType {

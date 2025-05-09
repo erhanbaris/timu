@@ -1,8 +1,12 @@
 use std::{cell::RefMut, rc::Rc};
 
-use crate::{ast::FunctionDefinitionAst, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::Module, ObjectSignature, TirError}};
+use crate::{
+    ast::FunctionDefinitionAst,
+    nom_tools::{Span, ToRange},
+    tir::{ObjectSignature, TirError, context::TirContext, module::Module},
+};
 
-use super::{build_type_name, try_resolve_signature, ResolveSignature};
+use super::{ResolveSignature, build_type_name, try_resolve_signature};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -44,7 +48,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
                     return Err(TirError::TypeNotFound {
                         source: arg.field_type.names.last().unwrap().extra.file.clone(),
                         position: arg.field_type.to_range(),
-                });
+                    });
                 }
             };
 
@@ -75,13 +79,17 @@ mod tests {
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
-    
+
     #[test]
     fn dublicated_function_argument() -> Result<(), ()> {
         let ast = process_code(vec!["source".to_string()], "class a {} func test(a: a, a: a): a {} ")?;
         let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
-        if let TirError::AlreadyDefined { position, source } = error {
+        if let TirError::AlreadyDefined {
+            position,
+            source,
+        } = error
+        {
             assert_eq!(position, 27..28);
             assert_eq!(source.path().join("/"), "source");
         } else {

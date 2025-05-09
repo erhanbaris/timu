@@ -6,9 +6,9 @@ use super::{resolver::function_definition::FunctionDefinition, signature::Signat
 
 #[derive(Debug)]
 pub enum ObjectSignatureValue<'base> {
-    Function(#[allow(dead_code)]Rc<FunctionDefinition<'base>>),
+    Function(#[allow(dead_code)] Rc<FunctionDefinition<'base>>),
     Class,
-    Module
+    Module,
 }
 
 impl<'base> From<Rc<FunctionDefinition<'base>>> for Signature<'base, ObjectSignatureValue<'base>> {
@@ -16,10 +16,6 @@ impl<'base> From<Rc<FunctionDefinition<'base>>> for Signature<'base, ObjectSigna
         let position = function.name.to_range();
         let file = function.name.extra.file.clone();
 
-        Signature::new(
-            ObjectSignatureValue::Function(function),
-            file,
-            position,
-        )
+        Signature::new(ObjectSignatureValue::Function(function), file, position)
     }
 }

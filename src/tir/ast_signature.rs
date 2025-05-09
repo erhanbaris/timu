@@ -1,15 +1,33 @@
-use std::{borrow::Cow, cell::{RefCell, RefMut}, collections::HashMap, rc::Rc};
+use std::{
+    borrow::Cow,
+    cell::{RefCell, RefMut},
+    collections::HashMap,
+    panic,
+    rc::Rc,
+};
 
-use crate::{ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst}, nom_tools::ToRange};
+use log::{debug, error, info};
 
-use super::{context::TirContext, module::Module, object_signature::ObjectSignatureValue, resolver::ResolveSignature, signature::{Signature, SignatureHolder}, TirError};
+use crate::{
+    ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst},
+    nom_tools::ToRange,
+};
+
+use super::{
+    TirError,
+    context::TirContext,
+    module::Module,
+    object_signature::ObjectSignatureValue,
+    resolver::ResolveSignature,
+    signature::{Signature, SignatureHolder},
+};
 
 #[derive(Debug)]
 pub enum AstSignatureValue<'base> {
     Module(#[allow(dead_code)] Rc<RefCell<Module<'base>>>),
-    Class(#[allow(dead_code)]Rc<ClassDefinitionAst<'base>>),
-    Function(#[allow(dead_code)]Rc<FunctionDefinitionAst<'base>>),
-    Interface(#[allow(dead_code)]Rc<InterfaceDefinitionAst<'base>>),
+    Class(#[allow(dead_code)] Rc<ClassDefinitionAst<'base>>),
+    Function(#[allow(dead_code)] Rc<FunctionDefinitionAst<'base>>),
+    Interface(#[allow(dead_code)] Rc<InterfaceDefinitionAst<'base>>),
 }
 
 impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
@@ -26,17 +44,22 @@ impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
     }
 }
 
-pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'base>>, modules: &mut HashMap<Cow<'base, str>, Rc<RefCell<Module<'base>>>>) -> Result<(), TirError<'base>> {
+pub fn build_module<'base>(
+    context: &mut TirContext<'base>, ast: Rc<FileAst<'base>>, modules: &mut HashMap<Cow<'base, str>, Rc<RefCell<Module<'base>>>>,
+) -> Result<(), TirError<'base>> {
     let module_path = ast.file.path().clone();
     let file = ast.file.clone();
+    info!("Building module: {:?}", module_path);
 
     if module_path.len() > 1 {
         let mut base_module_path = String::new();
 
         for (index, name) in module_path[0..module_path.len()].iter().enumerate() {
             let full_module_path = module_path[..index + 1].join(".");
+            let is_module_missing = context.get_ast_signature(full_module_path.as_str()).is_none();
+            debug!("Searching module {}. Is missing: {}", full_module_path, is_module_missing);
 
-            if context.get_ast_signature(full_module_path.as_str()).is_none() {
+            if is_module_missing {
                 let sub_module = Module {
                     name: name.to_string(),
                     file: file.clone(),
@@ -44,29 +67,26 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
                     imported_modules: HashMap::new(),
                     object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
                     ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
-                    ast: ast.clone(),
+                    ast: Default::default(),
                     modules: Default::default(),
                 };
-                
-                let sub_module = Rc::new(RefCell::new(sub_module));
-                let signature = Rc::new(Signature::from(sub_module.clone()));
+                debug!("Adding module {} to context", full_module_path);
+
+                let sub_module = build_module_signature(context, sub_module)?;
                 modules.insert(full_module_path.clone().into(), sub_module.clone());
 
                 if !base_module_path.is_empty() {
-                    println!("Adding submodule {} to base module {}", full_module_path, base_module_path);
-                    modules.get_mut(base_module_path.as_str()).map(|base_module| {
-                        base_module.borrow_mut().modules.insert(name.to_string().into(), sub_module.clone());
-                    });
-                }
+                    debug!("Adding submodule {} to base module {}", full_module_path, base_module_path);
 
+                    if let Some(base_module) = modules.get_mut(base_module_path.as_str()) {
+                        base_module.borrow_mut().modules.insert(name.to_string().into(), sub_module.clone());
+                    } else {
+                        panic!("Base module {} not found in context", base_module_path);
+                    }
+                }
                 base_module_path = full_module_path.clone();
-                context.ast_signatures.add_signature(full_module_path, signature).map_or(Ok(()), |_| {
-                    Err(TirError::ModuleAlreadyDefined {
-                        source: sub_module.borrow().file.clone(),
-                    })
-                })?;
             }
-        }   
+        }
     } else {
         let module = Module {
             name: ast.file.path()[ast.file.path().len() - 1].to_string(),
@@ -75,9 +95,10 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             imported_modules: HashMap::new(),
             object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
             ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
-            ast: ast.clone(),
+            ast: Some(ast.clone()),
             modules: Default::default(),
         };
+        debug!("Adding module {} to context", module.path);
         let module = build_module_signature(context, module)?;
         modules.insert(ast.file.path().join(".").into(), module.clone());
     }
@@ -89,35 +110,52 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
     let mut module = module;
     let module_name = module.path.to_string();
 
-    // Class signatures
-    for class in module.ast.get_classes() {
-        let signature = Rc::new(Signature::from(class.clone()));
+    if let Some(ast) = &module.ast {
+        // Class signatures
+        for class in ast.get_classes() {
+            let signature = Rc::new(Signature::from(class.clone()));
 
-        context.ast_signatures.add_signature(format!("{}.{}", module.path, class.name.fragment()), signature.clone()).map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), signature.file.clone())))?;
-        module.ast_signatures.add_signature(class.name.fragment().to_string(), signature.clone()).map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), signature.file.clone())))?;
-    }
+            context
+                .add_ast_signature(format!("{}.{}", module.path, class.name.fragment()), signature.clone())
+                .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), signature.file.clone())))?;
+            module
+                .ast_signatures
+                .add_signature(class.name.fragment().to_string(), signature.clone())
+                .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), signature.file.clone())))?;
+        }
 
-    // Function signatures
-    for func in module.ast.get_functions() {
-        let signature = Rc::new(Signature::from(func.clone()));
+        // Function signatures
+        for func in ast.get_functions() {
+            let signature = Rc::new(Signature::from(func.clone()));
 
-        context.ast_signatures.add_signature(format!("{}.{}", module.path, func.name.fragment()), signature.clone()).map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), signature.file.clone())))?;
-        module.ast_signatures.add_signature(func.name.fragment().to_string(), signature.clone()).map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), signature.file.clone())))?;
-    }
+            context
+                .add_ast_signature(format!("{}.{}", module.path, func.name.fragment()), signature.clone())
+                .map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), signature.file.clone())))?;
+            module
+                .ast_signatures
+                .add_signature(func.name.fragment().to_string(), signature.clone())
+                .map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), signature.file.clone())))?;
+        }
 
-    // Interface signatures
-    for interface in module.ast.get_interfaces() {
-        let signature = Rc::new(Signature::from(interface.clone()));
+        // Interface signatures
+        for interface in ast.get_interfaces() {
+            let signature = Rc::new(Signature::from(interface.clone()));
 
-        context.ast_signatures.add_signature(format!("{}.{}", module.path, interface.name.fragment()), signature.clone()).map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), signature.file.clone())))?;
-        module.ast_signatures.add_signature(interface.name.fragment().to_string(), signature.clone()).map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), signature.file.clone())))?;
+            context
+                .add_ast_signature(format!("{}.{}", module.path, interface.name.fragment()), signature.clone())
+                .map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), signature.file.clone())))?;
+            module
+                .ast_signatures
+                .add_signature(interface.name.fragment().to_string(), signature.clone())
+                .map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), signature.file.clone())))?;
+        }
     }
 
     let module = Rc::new(RefCell::new(module));
     let signature = Rc::new(Signature::from(module.clone()));
 
-    context.ast_signatures.add_signature(module_name, signature).map_or(Ok(()), |item| {
-        println!("Module already defined: {:?}", item);
+    context.add_ast_signature(module_name, signature).map_or(Ok(()), |item| {
+        error!("Module already defined: {:?}", item);
         Err(TirError::ModuleAlreadyDefined {
             source: module.borrow().file.clone(),
         })
@@ -131,11 +169,7 @@ impl<'base> From<Rc<FunctionDefinitionAst<'base>>> for Signature<'base, AstSigna
         let position = function.name.to_range();
         let file = function.name.extra.file.clone();
 
-        Signature::new(
-            AstSignatureValue::Function(function),
-            file,
-            position,
-        )
+        Signature::new(AstSignatureValue::Function(function), file, position)
     }
 }
 
@@ -144,11 +178,7 @@ impl<'base> From<Rc<ClassDefinitionAst<'base>>> for Signature<'base, AstSignatur
         let position = class.name.to_range();
         let file = class.name.extra.file.clone();
 
-        Signature::new(
-            AstSignatureValue::Class(class),
-            file,
-            position,
-        )
+        Signature::new(AstSignatureValue::Class(class), file, position)
     }
 }
 
@@ -157,11 +187,7 @@ impl<'base> From<Rc<InterfaceDefinitionAst<'base>>> for Signature<'base, AstSign
         let position = interface.name.to_range();
         let file = interface.name.extra.file.clone();
 
-        Signature::new(
-            AstSignatureValue::Interface(interface),
-            file,
-            position,
-        )
+        Signature::new(AstSignatureValue::Interface(interface), file, position)
     }
 }
 

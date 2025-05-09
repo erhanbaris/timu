@@ -1,6 +1,9 @@
 use std::cell::RefMut;
 
-use crate::{ast::InterfaceDefinitionAst, tir::{context::TirContext, module::Module, TirError}};
+use crate::{
+    ast::InterfaceDefinitionAst,
+    tir::{TirError, context::TirContext, module::Module},
+};
 
 use super::ResolveSignature;
 

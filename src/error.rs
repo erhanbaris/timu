@@ -6,7 +6,8 @@ use nom_language::error::VerboseErrorKind;
 use crate::{
     ast::FileAst,
     file::SourceFile,
-    nom_tools::{State, ToRange}, tir::TirError,
+    nom_tools::{State, ToRange},
+    tir::TirError,
 };
 
 pub type ParseError<'a> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'a str, State<'a>>>;
