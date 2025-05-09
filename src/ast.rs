@@ -135,12 +135,6 @@ pub struct FunctionArgumentAst<'a> {
     pub field_type: TypeNameAst<'a>,
 }
 
-impl ToRange for FunctionArgumentAst<'_> {
-    fn to_range(&self) -> std::ops::Range<usize> {
-        self.name.to_range()
-    }
-}
-
 #[derive(Debug)]
 pub enum BodyStatementAst<'a> {
     VariableDefinition(VariableDefinitionAst<'a>),

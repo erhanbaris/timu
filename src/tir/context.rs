@@ -1,6 +1,6 @@
 use std::{borrow::Cow, cell::RefCell, collections::HashMap, rc::Rc};
 
-use super::{AstSignature, AstSignatureHolder, Module, ObjectSignature, ObjectSignatureHolder};
+use super::{AstSignature, AstSignatureHolder, Module, ObjectSignatureHolder};
 
 #[derive(Debug, Default)]
 pub struct TirContext<'base> {
@@ -11,11 +11,6 @@ pub struct TirContext<'base> {
 }
 
 impl<'base> TirContext<'base> {
-    #[allow(dead_code)]
-    pub fn get_object_signature<T: AsRef<str>>(&self, key: T) -> Option<Rc<ObjectSignature<'base>>> {
-        self.object_signatures.get(key.as_ref())
-    }
-
     pub fn get_ast_signature<T: AsRef<str>>(&self, key: T) -> Option<Rc<AstSignature<'base>>> {
         self.ast_signatures.get(key.as_ref())
     }
