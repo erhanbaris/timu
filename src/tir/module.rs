@@ -7,8 +7,8 @@ use super::{AstSignature, AstSignatureHolder, ObjectSignatureHolder};
 #[derive(Debug)]
 pub struct Module<'base> {
     #[allow(dead_code)]
-    pub name: String,
-    pub path: String,
+    pub name: Cow<'base, str>,
+    pub path: Cow<'base, str>,
     pub file: Rc<SourceFile<'base>>,
     pub imported_modules: HashMap<Cow<'base, str>, Rc<AstSignature<'base>>>,
     pub ast_signatures: AstSignatureHolder<'base>,

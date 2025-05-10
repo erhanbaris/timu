@@ -15,7 +15,7 @@ impl<'base> TirContext<'base> {
         self.ast_signatures.get(key.as_ref())
     }
 
-    pub fn add_ast_signature(&mut self, key: String, signature: Rc<AstSignature<'base>>) -> Option<Rc<AstSignature<'base>>> {
+    pub fn add_ast_signature(&mut self, key: Cow<'base, str>, signature: Rc<AstSignature<'base>>) -> Option<Rc<AstSignature<'base>>> {
         self.ast_signatures.add_signature(key, signature)
     }
 }

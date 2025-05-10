@@ -1,4 +1,4 @@
-use std::{cell::RefMut, rc::Rc};
+use std::{borrow::Cow, cell::RefMut, rc::Rc};
 
 use crate::{
     ast::FunctionDefinitionAst,
@@ -81,7 +81,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             self.name.extra.file.clone(),
             self.name.to_range(),
         ));
-        module.object_signatures.add_signature(self.name.fragment().to_string(), signature.clone());
+        module.object_signatures.add_signature(Cow::Borrowed(self.name.fragment()), signature.clone());
         Ok(signature)
     }
 }
@@ -92,14 +92,14 @@ mod tests {
 
     #[test]
     fn missing_type() -> Result<(), ()> {
-        let ast = process_code(vec!["source".to_string()], "func test(a: a): a {} ")?;
+        let ast = process_code(vec!["source".into()], "func test(a: a): a {} ")?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn dublicated_function_argument() -> Result<(), ()> {
-        let ast = process_code(vec!["source".to_string()], "class a {} func test(a: a, a: a): a {} ")?;
+        let ast = process_code(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ")?;
         let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
         if let TirError::AlreadyDefined {

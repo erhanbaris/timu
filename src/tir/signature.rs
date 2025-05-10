@@ -52,9 +52,9 @@ where
         }
     }
 
-    pub fn add_signature(&mut self, name: String, signature: Rc<Signature<'base, T>>) -> Option<Rc<Signature<'base, T>>> {
+    pub fn add_signature(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T>>) -> Option<Rc<Signature<'base, T>>> {
         debug!("Adding signature: {}", name);
-        self.signatures.insert(name.into(), signature)
+        self.signatures.insert(name, signature)
     }
 
     pub fn get(&self, name: &str) -> Option<Rc<Signature<'base, T>>> {
@@ -68,15 +68,15 @@ mod tests {
 
     #[test]
     fn signature_generation() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source".to_string()], " class testclass {} func testfunction(): testclass {} interface testinterface {}")?;
-        let ast_2 = process_code(vec!["lib".to_string()], "use source; use source.testclass; use source.testfunction; use source.testinterface;")?;
+        let ast_1 = process_code(vec!["source".into()], " class testclass {} func testfunction(): testclass {} interface testinterface {}")?;
+        let ast_2 = process_code(vec!["lib".into()], "use source; use source.testclass; use source.testfunction; use source.testinterface;")?;
         crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn dublicate_signatures() -> Result<(), ()> {
-        let ast = process_code(vec!["source".to_string()], " class test {} func test(): void {} interface test {}")?;
+        let ast = process_code(vec!["source".into()], " class test {} func test(): void {} interface test {}")?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }

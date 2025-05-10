@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{borrow::Cow, rc::Rc};
 
 use crate::{
     file::SourceFile,
@@ -7,8 +7,8 @@ use crate::{
 };
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum PrimitiveType {
-    String(String),
+pub enum PrimitiveType<'a> {
+    String(Cow<'a, str>),
     Bool(bool),
     //Array(Vec<Box<TimuAst<'a>>>),
     I8(i8),
@@ -191,7 +191,7 @@ pub struct FieldAst<'a> {
 
 #[derive(Debug)]
 pub enum ExpressionAst<'a> {
-    Primitive(PrimitiveType),
+    Primitive(PrimitiveType<'a>),
     Ref(RefAst<'a>),
     Not(Box<ExpressionAst<'a>>),
     Ident(Span<'a>),

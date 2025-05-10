@@ -9,7 +9,7 @@ impl<'base> ResolveSignature<'base> for Module<'base> {
 
     fn resolve(&self, _: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>> {
         let signature = Rc::new(ObjectSignature::new(ObjectSignatureValue::Module, self.file.clone(), 0..0));
-        module.object_signatures.add_signature(self.name.to_string(), signature.clone());
+        module.object_signatures.add_signature(self.name.clone(), signature.clone());
         Ok(signature)
     }
 }

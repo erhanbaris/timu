@@ -75,7 +75,7 @@ mod tests {
 use bar1.bar2.bar3;"#, r#"use foo1.foo2.foo3;
 use bar1.bar2.bar3;"#)]
     fn module_use_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".to_string()], code));
+        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
             file: source_file.clone(),

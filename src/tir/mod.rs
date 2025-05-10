@@ -55,10 +55,10 @@ mod tests {
 
     #[test]
     fn find_module_test_1() {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".to_string()], ""));
+        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], ""));
         let module1 = Module {
-            name: "test1".to_string(),
-            path: "test1".to_string(),
+            name: "test1".into(),
+            path: "test1".into(),
             imported_modules: Default::default(),
             ast_signatures: Default::default(),
             object_signatures: Default::default(),
@@ -71,8 +71,8 @@ mod tests {
         };
 
         let module2 = Module {
-            name: "test2".to_string(),
-            path: "test1.test2".to_string(),
+            name: "test2".into(),
+            path: "test1.test2".into(),
             imported_modules: Default::default(),
             ast_signatures: Default::default(),
             object_signatures: Default::default(),
@@ -85,8 +85,8 @@ mod tests {
         };
 
         let module3 = Module {
-            name: "test3".to_string(),
-            path: "test1.test2.test3".to_string(),
+            name: "test3".into(),
+            path: "test1.test2.test3".into(),
             imported_modules: Default::default(),
             ast_signatures: Default::default(),
             object_signatures: Default::default(),
@@ -133,18 +133,18 @@ mod tests {
 
     #[test]
     fn module_test() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source1".to_string()], " class testclass1 {} ")?;
-        let ast_2 = process_code(vec!["source2".to_string()], "use source1; use source1.testclass1;")?;
+        let ast_1 = process_code(vec!["source1".into()], " class testclass1 {} ")?;
+        let ast_2 = process_code(vec!["source2".into()], "use source1; use source1.testclass1;")?;
 
-        let ast_3 = process_code(vec!["sub".to_string(), "source3".to_string()], "class testclass2 {}")?;
-        let ast_4 = process_code(vec!["sub".to_string(), "source4".to_string()], "use source1; use source1.testclass1;")?;
-        let ast_5 = process_code(vec!["sub".to_string(), "source5".to_string()], "use source1; use source1.testclass1;")?;
-        let ast_6 = process_code(vec!["sub".to_string(), "source6".to_string()], "use sub.source3; use sub.source3.testclass2;")?;
+        let ast_3 = process_code(vec!["sub".into(), "source3".into()], "class testclass2 {}")?;
+        let ast_4 = process_code(vec!["sub".into(), "source4".into()], "use source1; use source1.testclass1;")?;
+        let ast_5 = process_code(vec!["sub".into(), "source5".into()], "use source1; use source1.testclass1;")?;
+        let ast_6 = process_code(vec!["sub".into(), "source6".into()], "use sub.source3; use sub.source3.testclass2;")?;
         let ast_7 =
-            process_code(vec!["sub".to_string(), "source7".to_string()], "use source1; use source1.testclass1; use sub.source3; use sub.source3.testclass2;")?;
-        let ast_8 = process_code(vec!["sub".to_string(), "source8".to_string()], "class testclass1 {}")?;
+            process_code(vec!["sub".into(), "source7".into()], "use source1; use source1.testclass1; use sub.source3; use sub.source3.testclass2;")?;
+        let ast_8 = process_code(vec!["sub".into(), "source8".into()], "class testclass1 {}")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             "use source1; use source1.testclass1; use sub.source3; use sub.source3.testclass2; use sub.source8; use sub.source8.testclass1 as newtestclass1;",
         )?;
 
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn missing_module() -> Result<(), ()> {
-        let ast = process_code(vec!["source1".to_string()], "use missing;")?;
+        let ast = process_code(vec!["source1".into()], "use missing;")?;
         let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
         if let TirError::ModuleNotFound {
@@ -174,8 +174,8 @@ mod tests {
 
     #[test]
     fn dublicated_module() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source".to_string()], " class testclass {} ")?;
-        let ast_2 = process_code(vec!["lib".to_string()], "use source.testclass; use source.testclass;")?;
+        let ast_1 = process_code(vec!["source".into()], " class testclass {} ")?;
+        let ast_2 = process_code(vec!["lib".into()], "use source.testclass; use source.testclass;")?;
         let error = crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap_err();
 
         if let TirError::AstModuleAlreadyDefined {
@@ -192,8 +192,8 @@ mod tests {
 
     #[test]
     fn no_dublicated_module() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source".to_string()], " class testclass {} ")?;
-        let ast_2 = process_code(vec!["lib".to_string()], "use source.testclass as t1; use source.testclass as t2;")?;
+        let ast_1 = process_code(vec!["source".into()], " class testclass {} ")?;
+        let ast_2 = process_code(vec!["lib".into()], "use source.testclass as t1; use source.testclass as t2;")?;
         crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap();
         Ok(())
     }

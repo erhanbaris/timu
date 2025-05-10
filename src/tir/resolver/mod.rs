@@ -119,16 +119,16 @@ mod tests {
 
     #[test]
     fn found_type() -> Result<(), ()> {
-        let ast = process_code(vec!["source".to_string()], "class a {} func test(a: a): a {} ")?;
+        let ast = process_code(vec!["source".into()], "class a {} func test(a: a): a {} ")?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn cross_reference1() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source1".to_string()], " class testclass1 {} ")?;
+        let ast_1 = process_code(vec!["source1".into()], " class testclass1 {} ")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             r#"use source1.testclass1;
     func testfunction1(): testclass1 {}"#,
         )?;
@@ -140,9 +140,9 @@ mod tests {
 
     #[test]
     fn cross_reference2() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source1".to_string()], " class testclass1 {} ")?;
+        let ast_1 = process_code(vec!["source1".into()], " class testclass1 {} ")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             r#"use source1;
     func testfunction1(): source1.testclass1 {}"#,
         )?;
@@ -154,9 +154,9 @@ mod tests {
 
     #[test]
     fn cross_reference3() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["test1".to_string(), "source1".to_string()], " class testclass1 {} ")?;
+        let ast_1 = process_code(vec!["test1".into(), "source1".into()], " class testclass1 {} ")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             r#"use test1;
     func testfunction1(): test1.source1.testclass1 {}"#,
         )?;
@@ -167,9 +167,9 @@ mod tests {
 
     #[test]
     fn cross_reference4() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".to_string(), "test1".to_string(), "source1".to_string()], " class testclass1 {} ")?;
+        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             r#"use base1;
     func testfunction1(): base1.test1.source1.testclass1 {}"#,
         )?;
@@ -180,9 +180,9 @@ mod tests {
 
     #[test]
     fn cross_reference5() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".to_string(), "test1".to_string(), "source1".to_string()], " class testclass1 {} ")?;
+        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             r#"use base1.test1;
     func testfunction1(): test1.source1.testclass1 {}"#,
         )?;
@@ -193,9 +193,9 @@ mod tests {
 
     #[test]
     fn cross_reference6() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".to_string(), "test1".to_string(), "source1".to_string()], " class testclass1 {} ")?;
+        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             r#"use base1.test1.source1;
     func testfunction1(): source1.testclass1 {}"#,
         )?;
@@ -206,9 +206,9 @@ mod tests {
 
     #[test]
     fn import_alias1() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source1".to_string()], " class testclass1 {} ")?;
+        let ast_1 = process_code(vec!["source1".into()], " class testclass1 {} ")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             r#"use source1 as abc;
     func testfunction1(): abc.testclass1 {}"#,
         )?;
@@ -219,9 +219,9 @@ mod tests {
 
     #[test]
     fn import_alias2() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".to_string(), "test1".to_string(), "source1".to_string()], " class testclass1 {} ")?;
+        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             r#"use base1.test1.source1 as test;
     func testfunction1(): test.testclass1 {}"#,
         )?;
@@ -232,9 +232,9 @@ mod tests {
 
     #[test]
     fn import_alias3() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".to_string(), "test1".to_string(), "source1".to_string()], " class testclass1 {} ")?;
+        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
         let ast_9 = process_code(
-            vec!["sub".to_string(), "source9".to_string()],
+            vec!["sub".into(), "source9".into()],
             r#"use base1.test1.source1.testclass1 as test;
 func testfunction1(a: test): test {}"#,
         )?;
