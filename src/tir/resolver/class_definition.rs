@@ -1,4 +1,4 @@
-use std::{cell::RefMut, rc::Rc};
+use std::{borrow::Cow, cell::RefMut, rc::Rc};
 
 use crate::{
     ast::ClassDefinitionAst,
@@ -13,7 +13,7 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
 
     fn resolve(&self, _: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>> {
         let signature = Rc::new(ObjectSignature::new(ObjectSignatureValue::Class, self.name.extra.file.clone(), self.name.to_range()));
-        module.object_signatures.add_signature(self.name.fragment().to_string(), signature.clone());
+        module.object_signatures.add_signature(Cow::Borrowed(self.name.fragment()), signature.clone());
         Ok(signature)
     }
 }

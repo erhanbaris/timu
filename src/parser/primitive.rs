@@ -51,10 +51,10 @@ pub fn string(input: Span<'_>) -> IResult<Span<'_>, PrimitiveType, TimuParserErr
     )
     .parse(input)?;
 
-    Ok((input, PrimitiveType::String(string)))
+    Ok((input, PrimitiveType::String(string.into())))
 }
 
-pub fn number<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, TimuParserError<'a>> {
+pub fn number<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType<'a>, TimuParserError<'a>> {
     let (input, (representing, (number, floating))) = (
         opt(one_of("+-")),
         (
@@ -144,7 +144,7 @@ pub fn number<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType, TimuParse
     Ok((input, number))
 }
 
-impl PrimitiveType {
+impl PrimitiveType<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, PrimitiveType, TimuParserError<'_>> {
         let (input, value) =
             cleanup(alt((
@@ -166,7 +166,7 @@ impl PrimitiveType {
     }
 }
 
-impl Display for PrimitiveType {
+impl Display for PrimitiveType<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             PrimitiveType::String(value) => write!(f, "{}", value),

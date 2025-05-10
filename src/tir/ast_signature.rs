@@ -64,9 +64,9 @@ pub fn build_module<'base>(
 
             if is_module_missing {
                 let sub_module = Module {
-                    name: name.to_string(),
+                    name: name.clone(),
                     file: file.clone(),
-                    path: full_module_path.clone(),
+                    path: full_module_path.clone().into(),
                     imported_modules: HashMap::new(),
                     object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
                     ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
@@ -76,7 +76,7 @@ pub fn build_module<'base>(
                     },
                     modules: Default::default(),
                 };
-                debug!("Adding module {} to context", full_module_path);
+                //debug!("Adding module {} to context", &full_module_path);
 
                 let sub_module = build_module_signature(context, sub_module)?;
                 modules.insert(full_module_path.clone().into(), sub_module.clone());
@@ -95,9 +95,9 @@ pub fn build_module<'base>(
         }
     } else {
         let module = Module {
-            name: ast.file.path()[ast.file.path().len() - 1].to_string(),
+            name: ast.file.path()[ast.file.path().len() - 1].clone().clone(),
             file: ast.file.clone(),
-            path: ast.file.path().join("."),
+            path: ast.file.path().join(".").into(),
             imported_modules: HashMap::new(),
             object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
             ast_signatures: SignatureHolder::<AstSignatureValue>::new(),
@@ -122,11 +122,11 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
             let signature = Rc::new(Signature::from(class.clone()));
 
             context
-                .add_ast_signature(format!("{}.{}", module.path, class.name.fragment()), signature.clone())
+                .add_ast_signature(format!("{}.{}", module.path, class.name.fragment()).into(), signature.clone())
                 .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), signature.file.clone())))?;
             module
                 .ast_signatures
-                .add_signature(class.name.fragment().to_string(), signature.clone())
+                .add_signature((*class.name.fragment()).into(), signature.clone())
                 .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), signature.file.clone())))?;
         }
 
@@ -135,11 +135,11 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
             let signature = Rc::new(Signature::from(func.clone()));
 
             context
-                .add_ast_signature(format!("{}.{}", module.path, func.name.fragment()), signature.clone())
+                .add_ast_signature(format!("{}.{}", module.path, func.name.fragment()).into(), signature.clone())
                 .map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), signature.file.clone())))?;
             module
                 .ast_signatures
-                .add_signature(func.name.fragment().to_string(), signature.clone())
+                .add_signature((*func.name.fragment()).into(), signature.clone())
                 .map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), signature.file.clone())))?;
         }
 
@@ -148,11 +148,11 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
             let signature = Rc::new(Signature::from(interface.clone()));
 
             context
-                .add_ast_signature(format!("{}.{}", module.path, interface.name.fragment()), signature.clone())
+                .add_ast_signature(format!("{}.{}", module.path, interface.name.fragment()).into(), signature.clone())
                 .map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), signature.file.clone())))?;
             module
                 .ast_signatures
-                .add_signature(interface.name.fragment().to_string(), signature.clone())
+                .add_signature((*interface.name.fragment()).into(), signature.clone())
                 .map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), signature.file.clone())))?;
         }
     }
@@ -160,7 +160,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
     let module = Rc::new(RefCell::new(module));
     let signature = Rc::new(Signature::from(module.clone()));
 
-    context.add_ast_signature(module_name, signature).map_or(Ok(()), |item| {
+    context.add_ast_signature(module_name.into(), signature).map_or(Ok(()), |item| {
         error!("Module already defined: {:?}", item);
         Err(TirError::ModuleAlreadyDefined {
             source: module.borrow().file.clone(),

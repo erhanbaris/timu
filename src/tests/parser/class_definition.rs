@@ -39,7 +39,7 @@ use crate::{file::SourceFile, nom_tools::State};
     "class Myclass {func init(): MyType {if (true || false) {} else if false {} else if false {} else if false {} else {}}}"
 )]
 fn custom_class_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
-    let source_file = Rc::new(SourceFile::new(vec!["<memory>".to_string()], code));
+    let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
     let state = State {
         file: source_file.clone(),

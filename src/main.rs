@@ -10,7 +10,7 @@ mod tir;
 #[cfg(test)]
 mod tests;
 
-use std::rc::Rc;
+use std::{borrow::Cow, rc::Rc};
 
 use ast::FileAst;
 use error::{handle_builder, handle_parser};
@@ -19,7 +19,7 @@ use nom::Finish;
 use nom_tools::State;
 use simplelog::*;
 
-fn process_code(path: Vec<String>, code: &'_ str) -> Result<FileAst<'_>, ()> {
+fn process_code<'a>(path: Vec<Cow<'a, str>>, code: &'a str) -> Result<FileAst<'a>, ()> {
     let file = Rc::new(SourceFile::new(path, code));
     let state = State {
         file,
@@ -37,9 +37,9 @@ fn process_ast(files: Vec<Rc<FileAst>>) -> Result<(), ()> {
 fn main() -> Result<(), ()> {
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, Config::default(), TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
 
-    let ast_1 = process_code(vec!["base1".to_string(), "test1".to_string(), "source1".to_string()], " class testclass1 {} ")?;
+    let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
     let ast_9 = process_code(
-        vec!["sub".to_string(), "source9".to_string()],
+        vec!["sub".into(), "source9".into()],
         r#"use base1.test1.source1.testclass1 as test;
 func testfunction1(a: test): test {}"#,
     )?;
