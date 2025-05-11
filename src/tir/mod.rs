@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{borrow::Cow, rc::Rc};
 
 use ast_signature::{AstSignatureValue, build_module};
 pub use context::TirContext;
@@ -18,25 +18,25 @@ mod object_signature;
 mod resolver;
 mod signature;
 
-pub type AstSignature<'base> = Signature<'base, AstSignatureValue<'base>>;
-pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>>;
+pub type AstSignature<'base> = Signature<'base, AstSignatureValue<'base>, Cow<'base, str>>;
+pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, Cow<'base, str>>;
 
 pub type ObjectSignature<'base> = Signature<'base, ObjectSignatureValue<'base>>;
 pub type ObjectSignatureHolder<'base> = SignatureHolder<'base, ObjectSignatureValue<'base>>;
 
 pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError<'_>> {
     let mut context = TirContext::default();
-    let mut modules = HashMap::new();
 
     for ast in files.into_iter() {
-        build_module(&mut context, ast, &mut modules)?;
+        build_module(&mut context, ast)?;
     }
 
-    for (_, module) in modules.iter() {
+    // TODO: Check for circular dependencies
+    let modules = context.modules.iter().map(|(_, module)| module.clone()).collect::<Vec<_>>();
+    for module in modules.into_iter() {
         build_file(&mut context, module.clone())?;
     }
 
-    context.modules = modules;
     Ok(context)
 }
 
@@ -105,21 +105,23 @@ mod tests {
 
         let found_module = context.get_ast_signature("test1.test2.test3");
         if let AstSignatureValue::Module(module) = &found_module.unwrap().value {
-            assert_eq!(module.borrow().name, "test3");
+            assert_eq!(module, "test1.test2.test3");
+            assert_eq!(context.modules.get(module).unwrap().borrow().name, "test3");
         } else {
             panic!("Expected ModuleSignature::Module");
         }
 
         let found_module = context.get_ast_signature("test1.test2");
         if let AstSignatureValue::Module(module) = &found_module.unwrap().value {
-            assert_eq!(module.borrow().name, "test2");
+            assert_eq!(module, "test1.test2");
         } else {
             panic!("Expected ModuleSignature::Module");
         }
 
         let found_module = context.get_ast_signature("test1");
         if let AstSignatureValue::Module(module) = &found_module.unwrap().value {
-            assert_eq!(module.borrow().name, "test1");
+            assert_eq!(module, "test1");
+            assert_eq!(context.modules.get(module).unwrap().borrow().name, "test1");
         } else {
             panic!("Expected ModuleSignature::Module");
         }
@@ -158,7 +160,7 @@ mod tests {
         let ast = process_code(vec!["source1".into()], "use missing;")?;
         let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
-        if let TirError::ModuleNotFound {
+        if let TirError::ImportNotFound {
             module,
             position: _,
             source: _,

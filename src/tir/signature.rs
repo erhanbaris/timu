@@ -5,35 +5,48 @@ use log::debug;
 use crate::file::SourceFile;
 
 #[derive(Debug)]
-pub struct Signature<'base, T: Debug> {
+pub struct Signature<'base, T: Debug, E: Debug = ()> {
     #[allow(dead_code)]
     pub value: T,
     pub file: Rc<SourceFile<'base>>,
     #[allow(dead_code)]
     pub position: Range<usize>,
+    pub extra: Option<E>,
 }
 
-impl<'base, T> Signature<'base, T>
+impl<'base, T, E> Signature<'base, T, E>
 where
     T: Debug,
+    E: Debug,
 {
     pub fn new(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>) -> Self {
         Self {
             value,
             file,
             position,
+            extra: None,
+        }
+    }
+
+    pub fn new_with_extra(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>, extra: E) -> Self {
+        Self {
+            value,
+            file,
+            position,
+            extra: Some(extra),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct SignatureHolder<'base, T: Debug> {
-    signatures: HashMap<Cow<'base, str>, Rc<Signature<'base, T>>>,
+pub struct SignatureHolder<'base, T: Debug, E: Debug = ()> {
+    signatures: HashMap<Cow<'base, str>, Rc<Signature<'base, T, E>>>,
 }
 
-impl<T> Default for SignatureHolder<'_, T>
+impl<T, E> Default for SignatureHolder<'_, T, E>
 where
     T: Debug,
+    E: Debug,
 {
     fn default() -> Self {
         Self {
@@ -42,9 +55,10 @@ where
     }
 }
 
-impl<'base, T> SignatureHolder<'base, T>
+impl<'base, T, E> SignatureHolder<'base, T, E>
 where
     T: Debug,
+    E: Debug,
 {
     pub fn new() -> Self {
         Self {
@@ -52,12 +66,12 @@ where
         }
     }
 
-    pub fn add_signature(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T>>) -> Option<Rc<Signature<'base, T>>> {
+    pub fn add_signature(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T, E>>) -> Option<Rc<Signature<'base, T, E>>> {
         debug!("Adding signature: {}", name);
         self.signatures.insert(name, signature)
     }
 
-    pub fn get(&self, name: &str) -> Option<Rc<Signature<'base, T>>> {
+    pub fn get(&self, name: &str) -> Option<Rc<Signature<'base, T, E>>> {
         self.signatures.get(name).cloned()
     }
 }

@@ -1,7 +1,5 @@
 use std::{
-    cell::{RefCell, RefMut},
-    fmt::Debug,
-    rc::Rc,
+    cell::{RefCell, RefMut}, fmt::Debug, rc::Rc
 };
 
 use crate::{ast::TypeNameAst, nom_tools::Span, tir::ast_signature::AstSignatureValue};
@@ -13,6 +11,16 @@ pub mod function_definition;
 pub mod interface_definition;
 pub mod module_definition;
 pub mod module_use;
+
+
+/*
+pub struct ModuleRef<'base>(Cow<'base, str>);
+
+impl<'base> ModuleRef<'base> {
+    pub fn new(module: Cow<'base, str>) -> Self {
+        ModuleRef(module)
+    }
+} */
 
 pub trait ResolveSignature<'base> {
     type Item;
@@ -44,14 +52,14 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: Rc<RefCell<Mod
     Ok(())
 }
 
-fn find_module<'base, K: AsRef<str>>(module: &mut RefMut<'_, Module<'base>>, key: K) -> Option<Rc<RefCell<Module<'base>>>> {
+fn find_module<'base, K: AsRef<str>>(context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>, key: K) -> Option<Rc<RefCell<Module<'base>>>> {
     let mut parts = key.as_ref().split('.').peekable();
     let module_name = parts.next()?;
 
     match module.imported_modules.get(module_name) {
         Some(found_module) => {
             if let AstSignatureValue::Module(found_module) = &found_module.value {
-                Some(found_module.clone())
+                context.modules.get(found_module.as_ref()).cloned()
             } else {
                 None
             }
@@ -71,7 +79,7 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
             None => return Ok(None),
         };
 
-        let found_module = match find_module(module, module_name) {
+        let found_module = match find_module(context, module, module_name) {
             Some(found_module) => found_module,
             None => return Ok(None),
         };
@@ -93,7 +101,18 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
         },
     };
 
-    Ok(Some(signature.value.resolve(context, module)?))
+    let signature_module = match &signature.extra {
+        Some(signature_module) => {
+            match context.modules.get(signature_module.as_ref()) {
+                Some(signature_module) => signature_module.clone(),
+                None => return Err(TirError::ModuleNotFound { module: signature_module.clone(), source: module.file.clone() }),
+            }
+        }
+        None => return Err(TirError::AstSignatureNotFound { signature, source: module.file.clone() })
+    };
+
+    let mut signature_module = signature_module.borrow_mut();
+    Ok(Some(signature.value.resolve(context, &mut signature_module)?))
 }
 
 #[derive(Debug)]

@@ -2,9 +2,13 @@ use std::{borrow::Cow, error::Error, fmt::Display, ops::Range, rc::Rc};
 
 use crate::file::SourceFile;
 
+use super::{ast_signature::AstSignatureValue, signature::Signature};
+
 #[derive(Debug)]
 pub enum TirError<'base> {
-    ModuleNotFound { module: Cow<'base, str>, position: Range<usize>, source: Rc<SourceFile<'base>> },
+    ModuleNotFound { module: Cow<'base, str>, source: Rc<SourceFile<'base>> },
+    AstSignatureNotFound { signature: Rc<Signature<'base, AstSignatureValue<'base>, Cow<'base, str>>>, source: Rc<SourceFile<'base>> },
+    ImportNotFound { module: Cow<'base, str>, position: Range<usize>, source: Rc<SourceFile<'base>> },
     ModuleAlreadyDefined { source: Rc<SourceFile<'base>> },
     AstModuleAlreadyDefined { position: Range<usize>, source: Rc<SourceFile<'base>> },
     TypeNotFound { source: Rc<SourceFile<'base>>, position: Range<usize> },
@@ -14,11 +18,19 @@ pub enum TirError<'base> {
 impl Display for TirError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            TirError::AstSignatureNotFound {
+                signature: _,
+                source: _,
+            } => write!(f, "AST signature not found"),
             TirError::ModuleNotFound {
+                module,
+                source: _,
+            } => write!(f, "Module not found: {}", module),
+            TirError::ImportNotFound {
                 module,
                 position: _,
                 source: _,
-            } => write!(f, "Module not found: {}", module),
+            } => write!(f, "Import not found: {}", module),
             TirError::ModuleAlreadyDefined {
                 source: _,
             } => write!(f, "Module already defined"),
@@ -51,6 +63,14 @@ impl<'base> TirError<'base> {
     pub fn get_error(&self) -> (Range<usize>, String, Rc<SourceFile<'_>>) {
         match self {
             TirError::ModuleNotFound {
+                module: _,
+                source,
+            } => (0..0, format!("{}", self), source.clone()),
+            TirError::AstSignatureNotFound {
+                signature: _,
+                source,
+            } => (0..0, format!("{}", self), source.clone()),
+            TirError::ImportNotFound {
                 module: _,
                 position,
                 source,
