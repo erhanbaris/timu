@@ -24,7 +24,7 @@ impl<'base> ResolveSignature<'base> for UseAst<'base> {
                 });
             }
         } else {
-            return Err(TirError::ModuleNotFound {
+            return Err(TirError::ImportNotFound {
                 module: self.import.text.clone(),
                 position: self.import.to_range(),
                 source: self.name().extra.file.clone(),

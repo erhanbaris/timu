@@ -16,3 +16,31 @@ pub struct Module<'base> {
     pub ast: Option<Rc<FileAst<'base>>>,
     pub modules: HashMap<Cow<'base, str>, Rc<RefCell<Module<'base>>>>,
 }
+
+impl<'base> Module<'base> {
+    pub fn new(name: Cow<'base, str>, path: Cow<'base, str>, file: Rc<SourceFile<'base>>, ast: Rc<FileAst<'base>>) -> Self {
+        Self {
+            name,
+            path,
+            file,
+            imported_modules: HashMap::new(),
+            ast_signatures: AstSignatureHolder::default(),
+            object_signatures: ObjectSignatureHolder::default(),
+            ast: Some(ast),
+            modules: HashMap::new(),
+        }
+    }
+
+    pub fn phantom(name: Cow<'base, str>, path: Cow<'base, str>, file: Rc<SourceFile<'base>>) -> Self {
+        Self {
+            name,
+            path,
+            file,
+            imported_modules: HashMap::new(),
+            ast_signatures: AstSignatureHolder::default(),
+            object_signatures: ObjectSignatureHolder::default(),
+            ast: None,
+            modules: HashMap::new(),
+        }
+    }
+}

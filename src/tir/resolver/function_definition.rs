@@ -124,7 +124,20 @@ mod tests {
     func main(a: test): test {}"#,
         )?;
 
-        process_ast(vec![source_2.into(), source_1.into()])?;
+        let context = process_ast(vec![source_2.into(), source_1.into()])?;
+        assert_eq!(context.modules.len(), 2);
+
+        let main_module = context.modules.iter().find(|(name, _)| *name == "main").unwrap();
+        let lib_module = context.modules.iter().find(|(name, _)| *name == "lib").unwrap();
+
+        main_module.1.borrow().object_signatures.get("main").unwrap();
+
+        assert!(main_module.1.borrow().imported_modules.get("testclass1").is_none());
+        assert!(main_module.1.borrow().imported_modules.get("test").is_some());
+        assert!(main_module.1.borrow().object_signatures.get("testclass1").is_none());
+
+        lib_module.1.borrow().object_signatures.get("testclass1").unwrap();
+
         Ok(())
     }
 }
