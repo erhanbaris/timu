@@ -1,9 +1,9 @@
-use std::{borrow::Cow, cell::RefMut, rc::Rc};
+use std::{borrow::Cow, rc::Rc};
 
 use crate::{
     ast::FunctionDefinitionAst,
     nom_tools::{Span, ToRange},
-    tir::{ObjectSignature, TirError, context::TirContext, module::Module, object_signature::ObjectSignatureValue},
+    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, ObjectSignature, TirError},
 };
 
 use super::{ResolveSignature, build_type_name, try_resolve_signature};
@@ -28,7 +28,7 @@ pub struct FunctionDefinition<'base> {
 impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
     type Item = Rc<ObjectSignature<'base>>;
 
-    fn resolve(&self, context: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
         simplelog::info!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let mut arguments = vec![];
 
@@ -43,27 +43,27 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             }
         };
 
-        for arg in self.arguments.iter() {
-            let type_name = build_type_name(&arg.field_type);
+        for argument in self.arguments.iter() {
+            let type_name = build_type_name(&argument.field_type);
             let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
                 Some(field_type) => field_type.clone(),
                 None => {
                     return Err(TirError::TypeNotFound {
-                        source: arg.field_type.names.last().unwrap().extra.file.clone(),
-                        position: arg.field_type.to_range(),
+                        source: argument.field_type.names.last().unwrap().extra.file.clone(),
+                        position: argument.field_type.to_range(),
                     });
                 }
             };
 
-            if arguments.iter().any(|item: &FunctionArgument| item.name.fragment() == arg.name.fragment()) {
+            if arguments.iter().any(|item: &FunctionArgument| item.name.fragment() == argument.name.fragment()) {
                 return Err(TirError::AlreadyDefined {
-                    position: arg.name.to_range(),
-                    source: arg.name.extra.file.clone(),
+                    position: argument.name.to_range(),
+                    source: argument.name.extra.file.clone(),
                 });
             }
 
             arguments.push(FunctionArgument {
-                name: arg.name.clone(),
+                name: argument.name.clone(),
                 field_type,
             });
         }
@@ -81,6 +81,8 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             self.name.extra.file.clone(),
             self.name.to_range(),
         ));
+        
+        let module = context.modules.get_mut(module.as_ref()).unwrap();
         module.object_signatures.add_signature(Cow::Borrowed(self.name.fragment()), signature.clone());
         Ok(signature)
     }
@@ -130,13 +132,13 @@ mod tests {
         let main_module = context.modules.iter().find(|(name, _)| *name == "main").unwrap();
         let lib_module = context.modules.iter().find(|(name, _)| *name == "lib").unwrap();
 
-        main_module.1.borrow().object_signatures.get("main").unwrap();
+        main_module.1.object_signatures.get("main").unwrap();
 
-        assert!(main_module.1.borrow().imported_modules.get("testclass1").is_none());
-        assert!(main_module.1.borrow().imported_modules.get("test").is_some());
-        assert!(main_module.1.borrow().object_signatures.get("testclass1").is_none());
+        assert!(main_module.1.imported_modules.get("testclass1").is_none());
+        assert!(main_module.1.imported_modules.get("test").is_some());
+        assert!(main_module.1.object_signatures.get("testclass1").is_none());
 
-        lib_module.1.borrow().object_signatures.get("testclass1").unwrap();
+        lib_module.1.object_signatures.get("testclass1").unwrap();
 
         Ok(())
     }

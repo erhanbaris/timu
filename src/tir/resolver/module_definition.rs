@@ -1,15 +1,16 @@
-use std::{cell::RefMut, rc::Rc};
+use std::rc::Rc;
 
-use crate::tir::{ObjectSignature, TirError, context::TirContext, module::Module, object_signature::ObjectSignatureValue};
+use crate::tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, ObjectSignature, TirError};
 
 use super::ResolveSignature;
 
-impl<'base> ResolveSignature<'base> for Module<'base> {
+impl<'base> ResolveSignature<'base> for ModuleRef<'base> {
     type Item = Rc<ObjectSignature<'base>>;
 
-    fn resolve(&self, _: &'_ TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>> {
-        let signature = Rc::new(ObjectSignature::new(ObjectSignatureValue::Module, self.file.clone(), 0..0));
-        module.object_signatures.add_signature(self.name.clone(), signature.clone());
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
+        let signature = Rc::new(ObjectSignature::new(ObjectSignatureValue::Module, self.file(), 0..0));
+        let module = context.modules.get_mut(module.as_ref()).unwrap();
+        module.object_signatures.add_signature(self.as_cow(), signature.clone());
         Ok(signature)
     }
 }

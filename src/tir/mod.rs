@@ -1,9 +1,9 @@
-use std::{borrow::Cow, rc::Rc};
+use std::rc::Rc;
 
 use ast_signature::{AstSignatureValue, build_module};
 pub use context::TirContext;
 pub use error::TirError;
-use module::Module;
+use module::{Module, ModuleRef};
 use object_signature::ObjectSignatureValue;
 use resolver::build_file;
 use signature::{Signature, SignatureHolder};
@@ -18,8 +18,8 @@ mod object_signature;
 mod resolver;
 mod signature;
 
-pub type AstSignature<'base> = Signature<'base, AstSignatureValue<'base>, Cow<'base, str>>;
-pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, Cow<'base, str>>;
+pub type AstSignature<'base> = Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>;
+pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, ModuleRef<'base>>;
 
 pub type ObjectSignature<'base> = Signature<'base, ObjectSignatureValue<'base>>;
 pub type ObjectSignatureHolder<'base> = SignatureHolder<'base, ObjectSignatureValue<'base>>;
@@ -31,10 +31,9 @@ pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError<'_>
         build_module(&mut context, ast)?;
     }
 
-    // TODO: Check for circular dependencies
-    let modules = context.modules.iter().map(|(_, module)| module.clone()).collect::<Vec<_>>();
+    let modules = context.modules.iter().map(|(_, module)| module.get_ref()).collect::<Vec<_>>(); 
     for module in modules.into_iter() {
-        build_file(&mut context, module.clone())?;
+        build_file(&mut context, module)?;
     }
 
     Ok(context)
@@ -105,23 +104,23 @@ mod tests {
 
         let found_module = context.get_ast_signature("test1.test2.test3");
         if let AstSignatureValue::Module(module) = &found_module.unwrap().value {
-            assert_eq!(module, "test1.test2.test3");
-            assert_eq!(context.modules.get(module).unwrap().borrow().name, "test3");
+            assert_eq!(module.as_ref(), "test1.test2.test3");
+            assert_eq!(context.modules.get(module.as_ref()).unwrap().name, "test3");
         } else {
             panic!("Expected ModuleSignature::Module");
         }
 
         let found_module = context.get_ast_signature("test1.test2");
         if let AstSignatureValue::Module(module) = &found_module.unwrap().value {
-            assert_eq!(module, "test1.test2");
+            assert_eq!(module.as_ref(), "test1.test2");
         } else {
             panic!("Expected ModuleSignature::Module");
         }
 
         let found_module = context.get_ast_signature("test1");
         if let AstSignatureValue::Module(module) = &found_module.unwrap().value {
-            assert_eq!(module, "test1");
-            assert_eq!(context.modules.get(module).unwrap().borrow().name, "test1");
+            assert_eq!(module.as_ref(), "test1");
+            assert_eq!(context.modules.get(module.as_ref()).unwrap().name, "test1");
         } else {
             panic!("Expected ModuleSignature::Module");
         }
