@@ -54,20 +54,20 @@ pub fn string(input: Span<'_>) -> IResult<Span<'_>, PrimitiveType, TimuParserErr
     Ok((input, PrimitiveType::String(string.into())))
 }
 
-pub fn number<'a>(input: Span<'a>) -> IResult<Span<'a>, PrimitiveType<'a>, TimuParserError<'a>> {
+pub fn number<'base>(input: Span<'base>) -> IResult<Span<'base>, PrimitiveType<'base>, TimuParserError<'base>> {
     let (input, (representing, (number, floating))) = (
         opt(one_of("+-")),
         (
-            recognize::<Span<'a>, TimuParserError<'a>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
+            recognize::<Span<'base>, TimuParserError<'base>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
             opt(preceded(
                 char('.'),
                 (
-                    recognize::<Span<'a>, TimuParserError<'a>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
+                    recognize::<Span<'base>, TimuParserError<'base>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
                     opt(preceded(
                         one_of("Ee"),
                         (
                             opt(alt((value(true, char('-')), value(false, char('+'))))),
-                            recognize::<Span<'a>, TimuParserError<'a>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
+                            recognize::<Span<'base>, TimuParserError<'base>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
                         ),
                     )),
                 ),

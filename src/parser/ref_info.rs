@@ -54,7 +54,7 @@ mod tests {
     #[case("&a.b", "&a.b")]
     #[case(" & a ", "&a")]
     #[case("&a . b  ", "&a.b")]
-    fn reference_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    fn reference_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {

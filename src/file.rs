@@ -1,24 +1,24 @@
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SourceFile<'a> {
-    path: Vec<Cow<'a, str>>,
-    code: &'a str,
+pub struct SourceFile<'base> {
+    path: Vec<Cow<'base, str>>,
+    code: &'base str,
 }
 
-impl<'a> SourceFile<'a> {
-    pub fn new(path: Vec<Cow<'a, str>>, code: &'a str) -> Self {
+impl<'base> SourceFile<'base> {
+    pub fn new(path: Vec<Cow<'base, str>>, code: &'base str) -> Self {
         Self {
             path,
             code,
         }
     }
 
-    pub fn path(&self) -> &Vec<Cow<'a, str>> {
+    pub fn path(&self) -> &Vec<Cow<'base, str>> {
         &self.path
     }
 
-    pub fn code(&self) -> &'a str {
+    pub fn code(&self) -> &'base str {
         self.code
     }
 }

@@ -97,9 +97,9 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
 }
 
 #[derive(Debug)]
-pub struct SpannedValue<'a, T: Debug> {
+pub struct SpannedValue<'base, T: Debug> {
     #[allow(dead_code)]
-    pub span: Span<'a>,
+    pub span: Span<'base>,
     pub value: T,
 }
 

@@ -7,13 +7,13 @@ use crate::{
     ast::FileAst,
     file::SourceFile,
     nom_tools::{State, ToRange},
-    tir::TirError,
+    tir::{TirContext, TirError},
 };
 
-pub type ParseError<'a> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'a str, State<'a>>>;
-pub type ParseResult<'a> = Result<(nom_locate::LocatedSpan<&'a str, State<'a>>, FileAst<'a>), ParseError<'a>>;
+pub type ParseError<'base> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'base str, State<'base>>>;
+pub type ParseResult<'base> = Result<(nom_locate::LocatedSpan<&'base str, State<'base>>, FileAst<'base>), ParseError<'base>>;
 
-pub type TirResult<'a> = Result<(), TirError<'a>>;
+pub type TirResult<'base> = Result<TirContext<'base>, TirError<'base>>;
 
 pub fn print_error(error_type: &str, error_message: &str, span_range: std::ops::Range<usize>, source_file: Rc<SourceFile<'_>>) {
     let file_name = source_file.path().join("/");
@@ -26,9 +26,9 @@ pub fn print_error(error_type: &str, error_message: &str, span_range: std::ops::
         .unwrap();
 }
 
-pub fn handle_builder(result: TirResult<'_>) -> Result<(), ()> {
+pub fn handle_builder(result: TirResult<'_>) -> Result<TirContext<'_>, ()> {
     match result {
-        Ok(_) => Ok(()),
+        Ok(context) => Ok(context),
         Err(error) => {
             let (range, message, source) = error.get_error();
             print_error("Definition issue", &message, range, source);

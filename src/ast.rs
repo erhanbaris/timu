@@ -7,10 +7,10 @@ use crate::{
 };
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum PrimitiveType<'a> {
-    String(Cow<'a, str>),
+pub enum PrimitiveType<'base> {
+    String(Cow<'base, str>),
     Bool(bool),
-    //Array(Vec<Box<TimuAst<'a>>>),
+    //Array(Vec<Box<TimuAst<'base>>>),
     I8(i8),
     U8(u8),
     I16(i16),
@@ -52,68 +52,68 @@ pub enum ExpressionOperatorType {
 }
 
 #[derive(Debug)]
-pub struct FileAst<'a> {
-    pub file: Rc<SourceFile<'a>>,
-    pub statements: Vec<FileStatementAst<'a>>,
+pub struct FileAst<'base> {
+    pub file: Rc<SourceFile<'base>>,
+    pub statements: Vec<FileStatementAst<'base>>,
 }
 
 #[derive(Debug)]
-pub enum FileStatementAst<'a> {
-    Class(Rc<ClassDefinitionAst<'a>>),
-    Function(Rc<FunctionDefinitionAst<'a>>),
-    Interface(Rc<InterfaceDefinitionAst<'a>>),
-    Extend(ExtendDefinitionAst<'a>),
-    Use(Rc<UseAst<'a>>),
+pub enum FileStatementAst<'base> {
+    Class(Rc<ClassDefinitionAst<'base>>),
+    Function(Rc<FunctionDefinitionAst<'base>>),
+    Interface(Rc<InterfaceDefinitionAst<'base>>),
+    Extend(ExtendDefinitionAst<'base>),
+    Use(Rc<UseAst<'base>>),
 }
 
 #[derive(Debug)]
-pub struct UseAst<'a> {
-    pub alias: Option<Span<'a>>,
-    pub import: SplitedPath<'a>,
+pub struct UseAst<'base> {
+    pub alias: Option<Span<'base>>,
+    pub import: SplitedPath<'base>,
 }
 
-impl<'a> UseAst<'a> {
-    pub fn name(&self) -> Span<'a> {
+impl<'base> UseAst<'base> {
+    pub fn name(&self) -> Span<'base> {
         self.import.paths.last().unwrap().clone()
     }
 }
 
 #[derive(Debug)]
-pub struct ClassDefinitionAst<'a> {
-    pub name: Span<'a>,
-    pub fields: Vec<ClassDefinitionFieldAst<'a>>,
+pub struct ClassDefinitionAst<'base> {
+    pub name: Span<'base>,
+    pub fields: Vec<ClassDefinitionFieldAst<'base>>,
 }
 
 #[derive(Debug)]
-pub struct InterfaceDefinitionAst<'a> {
-    pub name: Span<'a>,
-    pub fields: Vec<InterfaceDefinitionFieldAst<'a>>,
-    pub base_interfaces: Vec<TypeNameAst<'a>>,
+pub struct InterfaceDefinitionAst<'base> {
+    pub name: Span<'base>,
+    pub fields: Vec<InterfaceDefinitionFieldAst<'base>>,
+    pub base_interfaces: Vec<TypeNameAst<'base>>,
 }
 
 #[derive(Debug)]
-pub enum InterfaceDefinitionFieldAst<'a> {
-    Function(InterfaceFunctionDefinitionAst<'a>),
-    Field(FieldAst<'a>),
+pub enum InterfaceDefinitionFieldAst<'base> {
+    Function(InterfaceFunctionDefinitionAst<'base>),
+    Field(FieldAst<'base>),
 }
 
 #[derive(Debug)]
-pub struct ExtendDefinitionAst<'a> {
-    pub name: Span<'a>,
-    pub fields: Vec<ExtendDefinitionFieldAst<'a>>,
-    pub base_interfaces: Vec<TypeNameAst<'a>>,
+pub struct ExtendDefinitionAst<'base> {
+    pub name: Span<'base>,
+    pub fields: Vec<ExtendDefinitionFieldAst<'base>>,
+    pub base_interfaces: Vec<TypeNameAst<'base>>,
 }
 
 #[derive(Debug)]
-pub enum ExtendDefinitionFieldAst<'a> {
-    Function(FunctionDefinitionAst<'a>),
-    Field(FieldAst<'a>),
+pub enum ExtendDefinitionFieldAst<'base> {
+    Function(FunctionDefinitionAst<'base>),
+    Field(FieldAst<'base>),
 }
 
 #[derive(Debug)]
-pub struct TypeNameAst<'a> {
+pub struct TypeNameAst<'base> {
     pub nullable: bool,
-    pub names: Vec<Span<'a>>,
+    pub names: Vec<Span<'base>>,
 }
 
 impl ToRange for TypeNameAst<'_> {
@@ -125,98 +125,98 @@ impl ToRange for TypeNameAst<'_> {
 }
 
 #[derive(Debug)]
-pub struct RefAst<'a> {
-    pub names: Vec<Span<'a>>,
+pub struct RefAst<'base> {
+    pub names: Vec<Span<'base>>,
 }
 
 #[derive(Debug)]
-pub struct FunctionArgumentAst<'a> {
-    pub name: Span<'a>,
-    pub field_type: TypeNameAst<'a>,
+pub struct FunctionArgumentAst<'base> {
+    pub name: Span<'base>,
+    pub field_type: TypeNameAst<'base>,
 }
 
 #[derive(Debug)]
-pub enum BodyStatementAst<'a> {
-    VariableDefinition(VariableDefinitionAst<'a>),
-    VariableAssign(VariableAssignAst<'a>),
-    FunctionCall(FunctionCallAst<'a>),
-    IfCondition(IfConditionAst<'a>),
+pub enum BodyStatementAst<'base> {
+    VariableDefinition(VariableDefinitionAst<'base>),
+    VariableAssign(VariableAssignAst<'base>),
+    FunctionCall(FunctionCallAst<'base>),
+    IfCondition(IfConditionAst<'base>),
 }
 
 #[derive(Debug)]
-pub struct BodyAst<'a> {
-    pub statements: Vec<BodyStatementAst<'a>>,
+pub struct BodyAst<'base> {
+    pub statements: Vec<BodyStatementAst<'base>>,
 }
 
 #[derive(Debug)]
-pub struct FunctionDefinitionAst<'a> {
-    pub is_public: Option<Span<'a>>,
-    pub name: Span<'a>,
-    pub arguments: Vec<FunctionArgumentAst<'a>>,
-    pub return_type: TypeNameAst<'a>,
-    pub body: BodyAst<'a>,
+pub struct FunctionDefinitionAst<'base> {
+    pub is_public: Option<Span<'base>>,
+    pub name: Span<'base>,
+    pub arguments: Vec<FunctionArgumentAst<'base>>,
+    pub return_type: TypeNameAst<'base>,
+    pub body: BodyAst<'base>,
 }
 
 #[derive(Debug)]
-pub struct FunctionCallAst<'a> {
-    pub paths: Vec<FunctionCallPathAst<'a>>,
-    pub arguments: Vec<ExpressionAst<'a>>,
+pub struct FunctionCallAst<'base> {
+    pub paths: Vec<FunctionCallPathAst<'base>>,
+    pub arguments: Vec<ExpressionAst<'base>>,
 }
 
 #[derive(Debug)]
-pub enum FunctionCallPathAst<'a> {
-    Ident(Span<'a>),
-    TypeName(TypeNameAst<'a>),
+pub enum FunctionCallPathAst<'base> {
+    Ident(Span<'base>),
+    TypeName(TypeNameAst<'base>),
 }
 
 #[derive(Debug)]
-pub struct InterfaceFunctionDefinitionAst<'a> {
-    pub name: Span<'a>,
-    pub arguments: Vec<FunctionArgumentAst<'a>>,
-    pub return_type: TypeNameAst<'a>,
+pub struct InterfaceFunctionDefinitionAst<'base> {
+    pub name: Span<'base>,
+    pub arguments: Vec<FunctionArgumentAst<'base>>,
+    pub return_type: TypeNameAst<'base>,
 }
 
 #[derive(Debug)]
-pub enum ClassDefinitionFieldAst<'a> {
-    ClassField(FieldAst<'a>),
-    ClassFunction(FunctionDefinitionAst<'a>),
+pub enum ClassDefinitionFieldAst<'base> {
+    ClassField(FieldAst<'base>),
+    ClassFunction(FunctionDefinitionAst<'base>),
 }
 
 #[derive(Debug)]
-pub struct FieldAst<'a> {
-    pub is_public: Option<Span<'a>>,
-    pub name: Span<'a>,
-    pub field_type: TypeNameAst<'a>,
+pub struct FieldAst<'base> {
+    pub is_public: Option<Span<'base>>,
+    pub name: Span<'base>,
+    pub field_type: TypeNameAst<'base>,
 }
 
 #[derive(Debug)]
-pub enum ExpressionAst<'a> {
-    Primitive(PrimitiveType<'a>),
-    Ref(RefAst<'a>),
-    Not(Box<ExpressionAst<'a>>),
-    Ident(Span<'a>),
-    FunctionCall(FunctionCallAst<'a>),
-    Operation { left: Box<ExpressionAst<'a>>, operator: ExpressionOperatorType, right: Box<ExpressionAst<'a>> },
+pub enum ExpressionAst<'base> {
+    Primitive(PrimitiveType<'base>),
+    Ref(RefAst<'base>),
+    Not(Box<ExpressionAst<'base>>),
+    Ident(Span<'base>),
+    FunctionCall(FunctionCallAst<'base>),
+    Operation { left: Box<ExpressionAst<'base>>, operator: ExpressionOperatorType, right: Box<ExpressionAst<'base>> },
 }
 
 #[derive(Debug)]
-pub struct IfConditionAst<'a> {
-    pub expression: ExpressionAst<'a>,
-    pub true_body: BodyAst<'a>,
-    pub else_ifs: Vec<(ExpressionAst<'a>, BodyAst<'a>)>,
-    pub false_body: Option<BodyAst<'a>>,
+pub struct IfConditionAst<'base> {
+    pub expression: ExpressionAst<'base>,
+    pub true_body: BodyAst<'base>,
+    pub else_ifs: Vec<(ExpressionAst<'base>, BodyAst<'base>)>,
+    pub false_body: Option<BodyAst<'base>>,
 }
 
 #[derive(Debug)]
-pub struct VariableDefinitionAst<'a> {
+pub struct VariableDefinitionAst<'base> {
     pub variable_definition_type: VariableDefinitionType,
-    pub name: Span<'a>,
-    pub expected_type: Option<TypeNameAst<'a>>,
-    pub expression: Option<ExpressionAst<'a>>,
+    pub name: Span<'base>,
+    pub expected_type: Option<TypeNameAst<'base>>,
+    pub expression: Option<ExpressionAst<'base>>,
 }
 
 #[derive(Debug)]
-pub struct VariableAssignAst<'a> {
-    pub name: Span<'a>,
-    pub expression: ExpressionAst<'a>,
+pub struct VariableAssignAst<'base> {
+    pub name: Span<'base>,
+    pub expression: ExpressionAst<'base>,
 }

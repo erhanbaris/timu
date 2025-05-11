@@ -6,7 +6,7 @@ use crate::{ast::{ExpressionAst, ExpressionOperatorType, FunctionCallAst, Primit
 
 use super::{ident, TimuParserError};
 
-pub type ControlExpressionGeneratorFn<'a, T> = fn(ExpressionAst<'a>, T, ExpressionAst<'a>) -> ExpressionAst<'a>;
+pub type ControlExpressionGeneratorFn<'base, T> = fn(ExpressionAst<'base>, T, ExpressionAst<'base>) -> ExpressionAst<'base>;
 
 pub trait TimuExpressionParser {
     fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>>;
@@ -148,7 +148,7 @@ impl ExpressionAst<'_> {
         ))
     }
 
-    pub fn expr_builder<'a>(left: ExpressionAst<'a>, operator: ExpressionOperatorType, right: ExpressionAst<'a>) -> ExpressionAst<'a> {
+    pub fn expr_builder<'base>(left: ExpressionAst<'base>, operator: ExpressionOperatorType, right: ExpressionAst<'base>) -> ExpressionAst<'base> {
         ExpressionAst::Operation {
             left: Box::new(left),
             operator,
@@ -157,28 +157,28 @@ impl ExpressionAst<'_> {
     }
 
     #[allow(private_bounds)]
-    pub fn single_parser<'a, P: TimuExpressionParser, T: Copy, F: Parser<Span<'a>, Error = TimuParserError<'a>>>(input: Span<'a>, val: T, parser: F, expr_func: ControlExpressionGeneratorFn<'a, T>) -> IResult<Span<'a>, ExpressionAst<'a>, TimuParserError<'a>> {
+    pub fn single_parser<'base, P: TimuExpressionParser, T: Copy, F: Parser<Span<'base>, Error = TimuParserError<'base>>>(input: Span<'base>, val: T, parser: F, expr_func: ControlExpressionGeneratorFn<'base, T>) -> IResult<Span<'base>, ExpressionAst<'base>, TimuParserError<'base>> {
         let (input, initial) = P::parse(input)?;
         let (input, remainder): (Span<'_>, Vec<ExpressionAst<'_>>) = many(0.., preceded(parser, P::parse)).parse(input)?;
         Ok((input, Self::single_fold_exprs::<T>(initial, val, remainder, expr_func)))
     }
     
     #[allow(private_bounds)]
-    pub fn value_parser<'a, P: TimuExpressionParser, T: Copy, F: Parser<Span<'a>, Error = TimuParserError<'a>>>(input: Span<'a>, parser: F, expr_func: ControlExpressionGeneratorFn<'a, T>) -> IResult<Span<'a>, ExpressionAst<'a>, TimuParserError<'a>> 
-        where Vec<(T, ExpressionAst<'a>)>: Extend<(<F as Parser<Span<'a>>>::Output, ExpressionAst<'a>)>
+    pub fn value_parser<'base, P: TimuExpressionParser, T: Copy, F: Parser<Span<'base>, Error = TimuParserError<'base>>>(input: Span<'base>, parser: F, expr_func: ControlExpressionGeneratorFn<'base, T>) -> IResult<Span<'base>, ExpressionAst<'base>, TimuParserError<'base>> 
+        where Vec<(T, ExpressionAst<'base>)>: Extend<(<F as Parser<Span<'base>>>::Output, ExpressionAst<'base>)>
     {
         let (input, initial) = P::parse(input)?;
         let (input, remainder): (Span<'_>, Vec<(T, ExpressionAst<'_>)>) = many(0.., pair(parser, P::parse)).parse(input)?;
         Ok((input, Self::value_fold_exprs::<T>(initial, remainder, expr_func)))
     }
 
-    pub fn single_fold_exprs<'a, T: Copy>(initial: ExpressionAst<'a>, operator: T, remainder: Vec<ExpressionAst<'a>>, expr_func: ControlExpressionGeneratorFn<'a, T>) -> ExpressionAst<'a> {
+    pub fn single_fold_exprs<'base, T: Copy>(initial: ExpressionAst<'base>, operator: T, remainder: Vec<ExpressionAst<'base>>, expr_func: ControlExpressionGeneratorFn<'base, T>) -> ExpressionAst<'base> {
         remainder.into_iter().fold(initial, |left, right| {
           expr_func(left, operator, right)
         })
     }
 
-    pub fn value_fold_exprs<'a, T: Copy>(initial: ExpressionAst<'a>, remainder: Vec<(T, ExpressionAst<'a>)>, expr_func: ControlExpressionGeneratorFn<'a, T>) -> ExpressionAst<'a> {
+    pub fn value_fold_exprs<'base, T: Copy>(initial: ExpressionAst<'base>, remainder: Vec<(T, ExpressionAst<'base>)>, expr_func: ControlExpressionGeneratorFn<'base, T>) -> ExpressionAst<'base> {
         remainder.into_iter().fold(initial, |left, (operator, right)| {
           expr_func(left, operator, right)
         })
@@ -247,7 +247,7 @@ mod tests {
     #[case("    call(1,2,3) / 2  ", "(call(1, 2, 3) / 2)")]
     #[case("  \r\n\t  1 \r\n\t/\r\n\t 2  \r\n\t", "(1 / 2)")]
     #[case("2*2/ 2 * 22 - 2 - ( 5 - 1) + 3", "((((((2 * 2) / 2) * 22) - 2) - (5 - 1)) + 3)")]
-    fn binary_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    fn binary_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -266,7 +266,7 @@ mod tests {
     #[case("!!1", "!!1")]
     #[case("!call(10)", "!call(10)")]
     #[case("!call(10) - 20", "(!call(10) - 20)")]
-    fn not_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    fn not_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -291,7 +291,7 @@ mod tests {
     #[case("20 % 10 != 10 || 30 < 20", "(((20 % 10) != 10) || (30 < 20))")]
     #[case("20 % 10 != 10 || 30 <= 20", "(((20 % 10) != 10) || (30 <= 20))")]
     #[case("20 ^ 10 | 30", "(20 ^ (10 | 30))")]
-    fn general_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    fn general_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {

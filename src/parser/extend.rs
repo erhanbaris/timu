@@ -101,7 +101,7 @@ mod tests {
         "extend Myclass: a { a: ?string.base; func init(): MyType {} func init(): MyType {} }",
         "extend Myclass: a {a: ?string.base;func init(): MyType {}func init(): MyType {}}"
     )]
-    fn extend_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    fn extend_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -115,7 +115,7 @@ mod tests {
     #[rstest]
     #[case("extend Myclass: a { pub a: string; }", "All extended fields already public")]
     #[case("extend Myclass: a { pub func init(): MyType {} }", "All extended functions already public")]
-    fn alread_public<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    fn alread_public<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
