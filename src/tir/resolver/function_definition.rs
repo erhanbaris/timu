@@ -88,7 +88,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{process_code, tir::TirError};
+    use crate::{process_ast, process_code, tir::TirError};
 
     #[test]
     fn missing_type() -> Result<(), ()> {
@@ -112,6 +112,19 @@ mod tests {
         } else {
             panic!("Expected TirError::AlreadyDefined but got {:?}", error);
         }
+        Ok(())
+    }
+
+    #[test]
+    fn valid_types() -> Result<(), ()> {
+        
+        let source_1 = process_code(vec!["lib".into()], " class testclass1 {} ")?;
+        let source_2 = process_code(vec!["main".into()],
+            r#"use lib.testclass1 as test;
+    func main(a: test): test {}"#,
+        )?;
+
+        process_ast(vec![source_2.into(), source_1.into()])?;
         Ok(())
     }
 }

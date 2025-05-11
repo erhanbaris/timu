@@ -30,7 +30,7 @@ erhan
 \"
 erhan
 ""#, PrimitiveType::String("\n\"\nerhan\n".into()))]
-fn parse_primitive_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
+fn parse_primitive_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveType) {
     let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
     let state = State {
@@ -46,7 +46,7 @@ fn parse_primitive_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveTy
 #[rstest]
 #[case("340282366920938463463374607431768211450", "Invalid number length")]
 #[case("340282366920938463463374607431768211455", "Invalid number length")]
-fn invalid_primitive_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+fn invalid_primitive_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
     let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
     let state = State {

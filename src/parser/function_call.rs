@@ -105,7 +105,7 @@ mod tests {
     #[case("a(b())", "a(b())")]
     #[case("  a ( b ( ) ) ", "a(b())")]
     #[case("a(b(1,2,3,4,true,false,1.2,2.2, c()))", "a(b(1, 2, 3, 4, true, false, 1.2, 2.2, c()))")]
-    fn function_call_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    fn function_call_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {

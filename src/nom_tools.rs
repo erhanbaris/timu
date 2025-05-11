@@ -11,11 +11,11 @@ use crate::file::SourceFile;
 use crate::parser::TimuParserError;
 
 #[derive(Clone, Debug)]
-pub struct State<'a> {
-    pub file: Rc<SourceFile<'a>>,
+pub struct State<'base> {
+    pub file: Rc<SourceFile<'base>>,
 }
 
-pub type Span<'a, T = &'a str> = LocatedSpan<T, State<'a>>;
+pub type Span<'base, T = &'base str> = LocatedSpan<T, State<'base>>;
 
 pub trait ToRange {
     fn to_range(&self) -> std::ops::Range<usize>;
@@ -42,9 +42,9 @@ impl<T: PartialOrd> Between<T> for std::ops::Range<T> {
     }
 }
 
-pub fn cleanup<'a, O, F: Parser<Span<'a>, Output = O, Error = TimuParserError<'a>>>(f: F) -> impl Parser<Span<'a>, Output = O, Error = TimuParserError<'a>> {
-    let _left = preceded(char::<Span<'a>, TimuParserError<'a>>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
-    let _right = preceded(char::<Span<'a>, TimuParserError<'a>>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
+pub fn cleanup<'base, O, F: Parser<Span<'base>, Output = O, Error = TimuParserError<'base>>>(f: F) -> impl Parser<Span<'base>, Output = O, Error = TimuParserError<'base>> {
+    let _left = preceded(char::<Span<'base>, TimuParserError<'base>>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
+    let _right = preceded(char::<Span<'base>, TimuParserError<'base>>('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),)));
 
     delimited(multispace0, f, multispace0)
 }

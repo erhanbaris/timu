@@ -26,7 +26,7 @@ use crate::{file::SourceFile, nom_tools::State};
     "interface Myinterface { a: ?string.base; func init(): MyType; func init(): MyType; }",
     "interface Myinterface {a: ?string.base;func init(): MyType;func init(): MyType;}"
 )]
-fn custom_interface_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+fn custom_interface_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
     let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
     let state = State {

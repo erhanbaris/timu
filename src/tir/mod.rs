@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use ast_signature::{AstSignatureValue, build_module};
-use context::TirContext;
+pub use context::TirContext;
 pub use error::TirError;
 use module::Module;
 use object_signature::ObjectSignatureValue;
@@ -24,8 +24,8 @@ pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'b
 pub type ObjectSignature<'base> = Signature<'base, ObjectSignatureValue<'base>>;
 pub type ObjectSignatureHolder<'base> = SignatureHolder<'base, ObjectSignatureValue<'base>>;
 
-pub fn build(files: Vec<Rc<FileAst>>) -> Result<(), TirError> {
-    let mut context: TirContext = TirContext::default();
+pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError<'_>> {
+    let mut context = TirContext::default();
     let mut modules = HashMap::new();
 
     for ast in files.into_iter() {
@@ -37,7 +37,7 @@ pub fn build(files: Vec<Rc<FileAst>>) -> Result<(), TirError> {
     }
 
     context.modules = modules;
-    Ok(())
+    Ok(context)
 }
 
 #[cfg(test)]

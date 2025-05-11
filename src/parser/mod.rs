@@ -29,7 +29,7 @@ mod type_info;
 mod variable;
 pub mod splited_path;
 
-pub type TimuParserError<'a> = VerboseError<Span<'a>>;
+pub type TimuParserError<'base> = VerboseError<Span<'base>>;
 
 pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, TimuParserError> {
     let file = state.file.clone();
@@ -62,7 +62,7 @@ pub fn parse(state: State<'_>) -> IResult<Span<'_>, FileAst<'_>, TimuParserError
 }
 
 #[allow(warnings)]
-pub fn comment<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>, TimuParserError<'a>> {
+pub fn comment<'base>(input: Span<'base>) -> IResult<Span<'base>, Span<'base>, TimuParserError<'base>> {
     preceded(char('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),))).parse(input)
 }
 
@@ -74,11 +74,11 @@ pub fn is_nullable(input: Span<'_>) -> IResult<Span<'_>, bool, TimuParserError<'
     cleanup(map(opt(char('?')), |item| item.is_some())).parse(input)
 }
 
-pub fn expected_ident<'a>(message: &'static str, input: Span<'a>) -> IResult<Span<'a>, Span<'a>, TimuParserError<'a>> {
+pub fn expected_ident<'base>(message: &'static str, input: Span<'base>) -> IResult<Span<'base>, Span<'base>, TimuParserError<'base>> {
     context(message, cut(ident())).parse(input)
 }
 
-pub fn ident<'a>() -> impl Parser<Span<'a>, Output = Span<'a>, Error = TimuParserError<'a>> {
+pub fn ident<'base>() -> impl Parser<Span<'base>, Output = Span<'base>, Error = TimuParserError<'base>> {
     cleanup(recognize(pair(alt((alpha1, tag("_"))), many0_count(alt((alphanumeric1, tag("_")))))))
 }
 
@@ -103,7 +103,7 @@ mod tests {
     #[case(r#""hello\\world""#, PrimitiveType::String("hello\\world".into()))]
     #[case(r#""hello\"world""#, PrimitiveType::String("hello\"world".into()))]
     #[case(r#""hello/world""#, PrimitiveType::String("hello/world".into()))]
-    fn string_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
+    fn string_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveType) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -119,7 +119,7 @@ mod tests {
     #[rstest]
     #[case("true", PrimitiveType::Bool(true))]
     #[case("false", PrimitiveType::Bool(false))]
-    fn boolean_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
+    fn boolean_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveType) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -142,7 +142,7 @@ mod tests {
     #[case("4294967295", PrimitiveType::U32(4294967295))]
     #[case("9223372036854775807", PrimitiveType::I64(9223372036854775807))]
     #[case("18446744073709551615", PrimitiveType::U64(18446744073709551615))]
-    fn integer_test<'a>(#[case] code: &'a str, #[case] expected: PrimitiveType) {
+    fn integer_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveType) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -163,7 +163,7 @@ mod tests {
     #[case(" string   .        base        . test", false, vec!["string", "base", "test"])]
     #[case(" ? string   .        base        . test", true, vec!["string", "base", "test"])]
     #[case("?string", true, vec!["string"])]
-    fn parse_type_name_test<'a>(#[case] code: &'a str, #[case] nullable: bool, #[case] expected: Vec<&str>) {
+    fn parse_type_name_test<'base>(#[case] code: &'base str, #[case] nullable: bool, #[case] expected: Vec<&str>) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -190,7 +190,7 @@ mod tests {
     #[case("-1024.0", -1024.0, 1)]
     #[case("1.0e-7", 1.0e-7, 1)]
     #[case("123456789.0e+7", 1234567890000000.0, 1)]
-    fn float_test<'a>(#[case] code: &'a str, #[case] expected: f64, #[case] dot_place: u8) {
+    fn float_test<'base>(#[case] code: &'base str, #[case] expected: f64, #[case] dot_place: u8) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -205,7 +205,7 @@ mod tests {
 
     #[rstest]
     #[case("1.7976931348623157E+300", 1797693134862315647938267463293564874600617718166104931943772918675666340832537361829116717802808644459281636809871223917508254623303542508952824391223228755068260245991425339269180741930617451225745000201898803634683406373476746438518757597828943183163861984879702567874510145974570799930947550576640.0000000000000000, 16)]
-    fn double_test<'a>(#[case] code: &'a str, #[case] expected: f64, #[case] dot_place: u8) {
+    fn double_test<'base>(#[case] code: &'base str, #[case] expected: f64, #[case] dot_place: u8) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {

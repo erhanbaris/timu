@@ -18,8 +18,9 @@ use file::SourceFile;
 use nom::Finish;
 use nom_tools::State;
 use simplelog::*;
+use tir::TirContext;
 
-fn process_code<'a>(path: Vec<Cow<'a, str>>, code: &'a str) -> Result<FileAst<'a>, ()> {
+fn process_code<'base>(path: Vec<Cow<'base, str>>, code: &'base str) -> Result<FileAst<'base>, ()> {
     let file = Rc::new(SourceFile::new(path, code));
     let state = State {
         file,
@@ -29,7 +30,7 @@ fn process_code<'a>(path: Vec<Cow<'a, str>>, code: &'a str) -> Result<FileAst<'a
     handle_parser(response)
 }
 
-fn process_ast(files: Vec<Rc<FileAst>>) -> Result<(), ()> {
+fn process_ast(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, ()> {
     let response = crate::tir::build(files);
     handle_builder(response)
 }

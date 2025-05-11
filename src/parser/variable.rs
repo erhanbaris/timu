@@ -145,7 +145,7 @@ mod tests {
     #[case("const a = -1.2;", "const a = -1.2;")]
     #[case("const a: f64 = -1.2;", "const a: f64 = -1.2;")]
     #[case("const a: ?f64 = -1.2;", "const a: ?f64 = -1.2;")]
-    fn custom_variable_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    fn custom_variable_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -164,7 +164,7 @@ mod tests {
     #[case("var a;", "Missing '='")]
     #[case("var a: ;", "Missing variable type")]
     #[case("const a: ?i32;", "Const variable must have an assignment")]
-    fn invalid_variable_test<'a>(#[case] code: &'a str, #[case] expected: &'a str) {
+    fn invalid_variable_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {

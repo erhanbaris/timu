@@ -3,8 +3,8 @@ use std::{fmt::{Display, Formatter}, rc::Rc};
 
 use crate::ast::{ClassDefinitionAst, FileAst, FileStatementAst, FunctionDefinitionAst, InterfaceDefinitionAst, UseAst};
 
-impl<'a> FileAst<'a> {
-    pub fn get_uses(&self) -> impl Iterator<Item = Rc<UseAst<'a>>> {
+impl<'base> FileAst<'base> {
+    pub fn get_uses(&self) -> impl Iterator<Item = Rc<UseAst<'base>>> {
         self.statements
             .iter()
             .filter_map(|statement| {
@@ -16,7 +16,7 @@ impl<'a> FileAst<'a> {
             })
     }
 
-    pub fn get_classes(&self) -> impl Iterator<Item = Rc<ClassDefinitionAst<'a>>> {
+    pub fn get_classes(&self) -> impl Iterator<Item = Rc<ClassDefinitionAst<'base>>> {
         self.statements
             .iter()
             .filter_map(|statement| {
@@ -28,7 +28,7 @@ impl<'a> FileAst<'a> {
             })
     }
 
-    pub fn get_functions(&self) -> impl Iterator<Item = Rc<FunctionDefinitionAst<'a>>> {
+    pub fn get_functions(&self) -> impl Iterator<Item = Rc<FunctionDefinitionAst<'base>>> {
         self.statements
             .iter()
             .filter_map(|statement| {
@@ -40,7 +40,7 @@ impl<'a> FileAst<'a> {
             })
     }
 
-    pub fn get_interfaces(&self) -> impl Iterator<Item = Rc<InterfaceDefinitionAst<'a>>> {
+    pub fn get_interfaces(&self) -> impl Iterator<Item = Rc<InterfaceDefinitionAst<'base>>> {
         self.statements
             .iter()
             .filter_map(|statement| {
