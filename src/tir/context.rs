@@ -1,10 +1,10 @@
-use std::{borrow::Cow, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{borrow::Cow, collections::HashMap, rc::Rc};
 
 use super::{AstSignature, AstSignatureHolder, Module, ObjectSignatureHolder};
 
 #[derive(Debug, Default)]
 pub struct TirContext<'base> {
-    pub modules: HashMap<Cow<'base, str>, Rc<RefCell<Module<'base>>>>,
+    pub modules: HashMap<Cow<'base, str>, Module<'base>>,
     ast_signatures: AstSignatureHolder<'base>,
     #[allow(dead_code)]
     pub object_signatures: ObjectSignatureHolder<'base>,

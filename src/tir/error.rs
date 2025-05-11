@@ -2,12 +2,12 @@ use std::{borrow::Cow, error::Error, fmt::Display, ops::Range, rc::Rc};
 
 use crate::file::SourceFile;
 
-use super::{ast_signature::AstSignatureValue, signature::Signature};
+use super::{ast_signature::AstSignatureValue, module::ModuleRef, signature::Signature};
 
 #[derive(Debug)]
 pub enum TirError<'base> {
-    ModuleNotFound { module: Cow<'base, str>, source: Rc<SourceFile<'base>> },
-    AstSignatureNotFound { signature: Rc<Signature<'base, AstSignatureValue<'base>, Cow<'base, str>>>, source: Rc<SourceFile<'base>> },
+    ModuleNotFound { module: ModuleRef<'base>, source: Rc<SourceFile<'base>> },
+    AstSignatureNotFound { signature: Rc<Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>>, source: Rc<SourceFile<'base>> },
     ImportNotFound { module: Cow<'base, str>, position: Range<usize>, source: Rc<SourceFile<'base>> },
     ModuleAlreadyDefined { source: Rc<SourceFile<'base>> },
     AstModuleAlreadyDefined { position: Range<usize>, source: Rc<SourceFile<'base>> },
@@ -25,7 +25,7 @@ impl Display for TirError<'_> {
             TirError::ModuleNotFound {
                 module,
                 source: _,
-            } => write!(f, "Module not found: {}", module),
+            } => write!(f, "Module not found: {}", module.as_ref()),
             TirError::ImportNotFound {
                 module,
                 position: _,

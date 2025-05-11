@@ -1,12 +1,9 @@
 use std::{
-    borrow::Cow,
-    cell::{RefCell, RefMut},
     collections::HashMap,
-    panic,
     rc::Rc,
 };
 
-use simplelog::{debug, error, info};
+use simplelog::{debug, info};
 
 use crate::{
     ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst},
@@ -14,17 +11,12 @@ use crate::{
 };
 
 use super::{
-    ObjectSignature, TirError,
-    context::TirContext,
-    module::Module,
-    object_signature::ObjectSignatureValue,
-    resolver::ResolveSignature,
-    signature::{Signature, SignatureHolder},
+    context::TirContext, module::{Module, ModuleRef}, object_signature::ObjectSignatureValue, resolver::ResolveSignature, signature::{Signature, SignatureHolder}, ObjectSignature, TirError
 };
 
 #[derive(Debug)]
 pub enum AstSignatureValue<'base> {
-    Module(#[allow(dead_code)] Cow<'base, str>),
+    Module(#[allow(dead_code)] ModuleRef<'base>),
     Class(#[allow(dead_code)] Rc<ClassDefinitionAst<'base>>),
     Function(#[allow(dead_code)] Rc<FunctionDefinitionAst<'base>>),
     Interface(#[allow(dead_code)] Rc<InterfaceDefinitionAst<'base>>),
@@ -33,19 +25,9 @@ pub enum AstSignatureValue<'base> {
 impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
     type Item = Rc<ObjectSignature<'base>>;
 
-    fn resolve(&self, context: &TirContext<'base>, module: &mut RefMut<'_, Module<'base>>) -> Result<Self::Item, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
         match self {
-            AstSignatureValue::Module(target_module) => {
-                let target_module = context.modules.get(target_module).ok_or_else(|| {
-                    TirError::ModuleNotFound {
-                        module: target_module.clone(),
-                        source: module.file.clone(),
-
-                    }
-                })?;
-                let target_module = target_module.borrow_mut();
-                target_module.resolve(context, module)
-            }
+            AstSignatureValue::Module(target_module) => target_module.resolve(context, target_module),
             AstSignatureValue::Class(class) => class.resolve(context, module),
             AstSignatureValue::Function(function) => function.resolve(context, module),
             AstSignatureValue::Interface(interface) => interface.resolve(context, module),
@@ -75,12 +57,14 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
 
                 //debug!("Adding module {} to context", &full_module_path);
 
-                let sub_module = build_module_signature(context, sub_module)?;
+                let sub_module_ref = sub_module.get_ref();
+                build_module_signature(context, sub_module)?;
+                
                 if !base_module_path.is_empty() {
                     debug!("Adding submodule {} to base module {}", full_module_path, base_module_path);
 
                     if let Some(base_module) = context.modules.get_mut(base_module_path.as_str()) {
-                        base_module.borrow_mut().modules.insert(name.to_string().into(), sub_module.clone());
+                        base_module.modules.insert(name.to_string().into(), sub_module_ref);
                     } else {
                         panic!("Base module {} not found in context", base_module_path);
                     }
@@ -95,7 +79,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             path: ast.file.path().join(".").into(),
             imported_modules: HashMap::new(),
             object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
-            ast_signatures: SignatureHolder::<AstSignatureValue, Cow<'base, str>>::new(),
+            ast_signatures: SignatureHolder::<AstSignatureValue, ModuleRef<'base>>::new(),
             ast: Some(ast.clone()),
             modules: Default::default(),
         };
@@ -106,14 +90,14 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
     Ok(())
 }
 
-pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<Rc<RefCell<Module<'base>>>, TirError<'base>> {
+pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<(), TirError<'base>> {
     let mut module = module;
     let module_name = module.path.to_string();
 
     if let Some(ast) = &module.ast {
         // Class signatures
         for class in ast.get_classes() {
-            let signature = Rc::new(Signature::from((class.clone(), module.path.clone())));
+            let signature = Rc::new(Signature::from((class.clone(), module.get_ref())));
 
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), class.name.fragment()).into(), signature.clone())
@@ -126,7 +110,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
 
         // Function signatures
         for func in ast.get_functions() {
-            let signature = Rc::new(Signature::from((func.clone(), module.path.clone())));
+            let signature = Rc::new(Signature::from((func.clone(), module.get_ref())));
 
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), func.name.fragment()).into(), signature.clone())
@@ -139,7 +123,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
 
         // Interface signatures
         for interface in ast.get_interfaces() {
-            let signature = Rc::new(Signature::from((interface.clone(), module.path.clone())));
+            let signature = Rc::new(Signature::from((interface.clone(), module.get_ref())));
 
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.fragment()).into(), signature.clone())
@@ -152,7 +136,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
     }
 
 
-    let signature = Signature::new(
+    /*let signature = Signature::new(
         AstSignatureValue::Module(module.path.clone()),
         module.file.clone(),
         std::ops::Range {
@@ -166,15 +150,14 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
         Err(TirError::ModuleAlreadyDefined {
             source: module.file.clone(),
         })
-    })?;
+    })?;*/
 
-    let module = Rc::new(RefCell::new(module));
-    context.modules.insert(module_name.into(), module.clone());
-    Ok(module)
+    context.modules.insert(module_name.into(), module);
+    Ok(())
 }
 
-impl<'base> From<(Rc<FunctionDefinitionAst<'base>>, Cow<'base, str>)> for Signature<'base, AstSignatureValue<'base>, Cow<'base, str>> {
-    fn from(value: (Rc<FunctionDefinitionAst<'base>>, Cow<'base, str>)) -> Self {
+impl<'base> From<(Rc<FunctionDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>> {
+    fn from(value: (Rc<FunctionDefinitionAst<'base>>, ModuleRef<'base>)) -> Self {
         let (function, module) = value;
 
         let position = function.name.to_range();
@@ -183,8 +166,8 @@ impl<'base> From<(Rc<FunctionDefinitionAst<'base>>, Cow<'base, str>)> for Signat
     }
 }
 
-impl<'base> From<(Rc<ClassDefinitionAst<'base>>, Cow<'base, str>)> for Signature<'base, AstSignatureValue<'base>, Cow<'base, str>> {
-    fn from(value: (Rc<ClassDefinitionAst<'base>>, Cow<'base, str>)) -> Self {
+impl<'base> From<(Rc<ClassDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>> {
+    fn from(value: (Rc<ClassDefinitionAst<'base>>, ModuleRef<'base>)) -> Self {
         let (class, module) = value;
 
         let position = class.name.to_range();
@@ -193,8 +176,8 @@ impl<'base> From<(Rc<ClassDefinitionAst<'base>>, Cow<'base, str>)> for Signature
     }
 }
 
-impl<'base> From<(Rc<InterfaceDefinitionAst<'base>>, Cow<'base, str>)> for Signature<'base, AstSignatureValue<'base>, Cow<'base, str>> {
-    fn from(value: (Rc<InterfaceDefinitionAst<'base>>, Cow<'base, str>)) -> Self {
+impl<'base> From<(Rc<InterfaceDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>> {
+    fn from(value: (Rc<InterfaceDefinitionAst<'base>>, ModuleRef<'base>)) -> Self {
         let (interface, module) = value;
 
         let position = interface.name.to_range();
