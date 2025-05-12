@@ -13,4 +13,8 @@ impl<'base> ResolveSignature<'base> for ModuleRef<'base> {
         module.object_signatures.add_signature(self.as_cow(), signature.clone());
         Ok(signature)
     }
+    
+    fn name(&self) -> &str {
+        self.0.as_ref()
+    }
 }

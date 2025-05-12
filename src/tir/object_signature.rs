@@ -1,12 +1,13 @@
 use std::{fmt::Debug, rc::Rc};
 
-use super::resolver::function_definition::FunctionDefinition;
+use super::resolver::{class_definition::ClassDefinition, function_definition::FunctionDefinition};
 
 #[derive(Debug)]
 pub enum ObjectSignatureValue<'base> {
     #[allow(dead_code)]
     Function(Rc<FunctionDefinition<'base>>),
-    Class,
+    #[allow(dead_code)]
+    Class(ClassDefinition<'base>),
     Module,
     Interface,
 }

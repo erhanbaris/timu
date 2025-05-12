@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 use crate::{
     ast::FunctionDefinitionAst,
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, ObjectSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError},
 };
 
 use super::{ResolveSignature, build_type_name, try_resolve_signature};
@@ -31,17 +31,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
         simplelog::info!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let mut arguments = vec![];
-
-        let return_type_name = build_type_name(&self.return_type);
-        let return_type = match try_resolve_signature(context, module, return_type_name.as_str())? {
-            Some(return_type) => return_type.clone(),
-            None => {
-                return Err(TirError::TypeNotFound {
-                    source: self.return_type.names.last().unwrap().extra.file.clone(),
-                    position: self.return_type.to_range(),
-                });
-            }
-        };
+        let return_type = build_object_type(context, &self.return_type, module)?;
 
         for argument in self.arguments.iter() {
             let type_name = build_type_name(&argument.field_type);
@@ -83,8 +73,13 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         ));
         
         let module = context.modules.get_mut(module.as_ref()).unwrap();
-        module.object_signatures.add_signature(Cow::Borrowed(self.name.fragment()), signature.clone());
+        module.object_signatures.add_signature(Cow::Borrowed(self.name.fragment()), signature.clone())
+            .map_or(Ok(()), |_| Err(TirError::already_defined(self.name.to_range(), signature.file.clone())))?;
         Ok(signature)
+    }
+    
+    fn name(&self) -> &str {
+        self.name.fragment()
     }
 }
 
