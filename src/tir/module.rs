@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::HashMap, rc::Rc};
 
 use crate::{ast::FileAst, file::SourceFile};
 
-use super::{AstSignature, AstSignatureHolder, ObjectSignatureHolder, TirContext};
+use super::{AstSignature, AstSignatureHolder, ObjectSignatureHolder};
 
 #[derive(Debug)]
 pub struct Module<'base> {
@@ -57,24 +57,16 @@ impl<'base> ModuleRef<'base> {
         ModuleRef(path, file)
     }
 
-    pub fn upgrade<'ctx>(&self, context: &'ctx TirContext<'base>) -> Option<&'ctx Module<'base>> {
-        context.modules.get(self.0.as_ref())
-    }
-
-    pub fn upgrade_mut<'ctx>(&self, context: &'ctx mut TirContext<'base>) -> Option<&'ctx mut Module<'base>> {
-        context.modules.get_mut(self.0.as_ref())
-    }
-
-    pub fn file<'ctx>(&self) -> Rc<SourceFile<'base>> {
+    pub fn file(&self) -> Rc<SourceFile<'base>> {
         self.1.clone()
     }
 
-    pub fn as_cow<'ctx>(&self) -> Cow<'base, str> {
+    pub fn as_cow(&self) -> Cow<'base, str> {
         self.0.clone()
     }
 }
 
-impl<'base> core::convert::AsRef<str> for ModuleRef<'base> {
+impl core::convert::AsRef<str> for ModuleRef<'_> {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
     }
