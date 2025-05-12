@@ -44,9 +44,14 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
     if let Some(ast) = context.modules.get(module.as_ref()).and_then(|module| module.ast.clone()) {
         let uses = ast.get_uses().collect::<Vec<_>>();
         let functions = ast.get_functions().collect::<Vec<_>>();
+        let classes = ast.get_classes().collect::<Vec<_>>();
 
         for use_item in uses {
             use_item.resolve(context, &module)?;
+        }
+
+        for class in classes {
+            class.resolve(context, &module)?;
         }
 
         for function in functions {
