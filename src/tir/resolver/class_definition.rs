@@ -60,3 +60,33 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
         self.name.fragment()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{process_code, tir::TirError};
+
+    #[test]
+    fn missing_type() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], "class test { func test(a: a): a {} }")?;
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+        Ok(())
+    }
+
+    #[test]
+    fn dublicated_function_argument() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], "class test { func test(a: test, a: test): test {} }")?;
+        let error = crate::tir::build(vec![ast.into()]).unwrap_err();
+
+        if let TirError::AlreadyDefined {
+            position,
+            source,
+        } = error
+        {
+            assert_eq!(position, 27..28);
+            assert_eq!(source.path().join("/"), "source");
+        } else {
+            panic!("Expected TirError::AlreadyDefined but got {:?}", error);
+        }
+        Ok(())
+    }
+}
