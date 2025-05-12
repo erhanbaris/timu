@@ -2,9 +2,9 @@ use std::
     rc::Rc
 ;
 
-use crate::ast::TypeNameAst;
+use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
-use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, ObjectSignature};
+use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, object_signature::ObjectSignatureValue, signature::Signature, ObjectSignature};
 
 pub mod class_definition;
 pub mod function_definition;
@@ -16,10 +16,26 @@ pub trait ResolveSignature<'base> {
     type Item;
 
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>>;
+    fn name(&self) -> &str;
 }
 
-fn build_type_name(ast: &TypeNameAst) -> String {
-    ast.names.iter().map(|path| *path.fragment()).collect::<Vec<&str>>().join(".")
+fn build_type_name(type_name: &TypeNameAst) -> String {
+    type_name.names.iter().map(|path| *path.fragment()).collect::<Vec<&str>>().join(".")
+}
+
+fn build_object_type<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<Rc<Signature<'base, ObjectSignatureValue<'base>>>, TirError<'base>> {
+    let type_name_str = build_type_name(type_name);
+    let field_type = match try_resolve_signature(context, module, type_name_str.as_str())? {
+        Some(field_type) => field_type.clone(),
+        None => {
+            return Err(TirError::TypeNotFound {
+                source: type_name.names.last().unwrap().extra.file.clone(),
+                position: type_name.to_range(),
+            });
+        }
+    };
+
+    Ok(field_type)
 }
 
 pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'base>) -> Result<(), TirError<'base>> {
@@ -95,6 +111,10 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         Some(signature_module) => signature_module,
         None => return Err(TirError::AstSignatureNotFound { signature, source: module.file.clone() })
     };
+
+    if let Some(signature) = signature_module.upgrade(context).unwrap().object_signatures.get(signature.value.name()) {
+        return Ok(Some(signature));
+    }
 
     Ok(Some(signature.value.resolve(context, signature_module)?))
 }

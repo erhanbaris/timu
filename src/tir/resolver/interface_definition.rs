@@ -17,4 +17,8 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
         module.object_signatures.add_signature(Cow::Borrowed(self.name.fragment()), signature.clone());
         Ok(signature)
     }
+    
+    fn name(&self) -> &str {
+        self.name.fragment()
+    }
 }

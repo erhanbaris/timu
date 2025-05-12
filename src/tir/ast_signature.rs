@@ -34,6 +34,15 @@ impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
             AstSignatureValue::Interface(interface) => interface.resolve(context, module),
         }
     }
+    
+    fn name(&self) -> &str {
+        match self {
+            AstSignatureValue::Module(module) => module.name(),
+            AstSignatureValue::Class(class) => class.name(),
+            AstSignatureValue::Function(function) => function.name(),
+            AstSignatureValue::Interface(interface) => interface.name(),
+        }
+    }
 }
 
 pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'base>>) -> Result<(), TirError<'base>> {

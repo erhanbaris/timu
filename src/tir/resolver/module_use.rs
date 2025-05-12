@@ -32,4 +32,12 @@ impl<'base> ResolveSignature<'base> for UseAst<'base> {
 
         Ok(())
     }
+    
+    fn name(&self) -> &str {
+        if let Some(alias) = &self.alias {
+            alias.fragment()
+        } else {
+            self.name().fragment()
+        }
+    }
 }
