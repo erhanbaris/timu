@@ -1,5 +1,6 @@
-use std::{borrow::Cow, collections::HashMap, fmt::Debug, ops::Range, rc::Rc};
+use std::{borrow::Cow, fmt::Debug, ops::Range, rc::Rc};
 
+use indexmap::IndexMap;
 use log::debug;
 
 use crate::file::SourceFile;
@@ -40,7 +41,7 @@ where
 
 #[derive(Debug)]
 pub struct SignatureHolder<'base, T: Debug, E: Debug = ()> {
-    signatures: HashMap<Cow<'base, str>, Rc<Signature<'base, T, E>>>,
+    signatures: IndexMap<Cow<'base, str>, Rc<Signature<'base, T, E>>>,
 }
 
 impl<T, E> Default for SignatureHolder<'_, T, E>
@@ -50,7 +51,7 @@ where
 {
     fn default() -> Self {
         Self {
-            signatures: HashMap::new(),
+            signatures: IndexMap::new(),
         }
     }
 }
@@ -62,7 +63,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            signatures: HashMap::new(),
+            signatures: IndexMap::new(),
         }
     }
 

@@ -46,10 +46,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             };
 
             if arguments.iter().any(|item: &FunctionArgument| item.name.fragment() == argument.name.fragment()) {
-                return Err(TirError::AlreadyDefined {
-                    position: argument.name.to_range(),
-                    source: argument.name.extra.file.clone(),
-                });
+                return Err(TirError::already_defined(argument.name.to_range(), argument.name.extra.file.clone()));
             }
 
             arguments.push(FunctionArgument {

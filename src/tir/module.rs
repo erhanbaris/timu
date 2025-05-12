@@ -1,8 +1,10 @@
-use std::{borrow::Cow, collections::HashMap, rc::Rc};
+use std::{borrow::Cow, rc::Rc};
+
+use indexmap::IndexMap;
 
 use crate::{ast::FileAst, file::SourceFile};
 
-use super::{AstSignature, AstSignatureHolder, ObjectSignatureHolder, TirContext};
+use super::{AstSignature, ObjectSignatureHolder, TirContext};
 
 #[derive(Debug)]
 pub struct Module<'base> {
@@ -10,11 +12,10 @@ pub struct Module<'base> {
     pub name: Cow<'base, str>,
     pub path: Cow<'base, str>,
     pub file: Rc<SourceFile<'base>>,
-    pub imported_modules: HashMap<Cow<'base, str>, Rc<AstSignature<'base>>>,
-    pub ast_signatures: AstSignatureHolder<'base>,
+    pub imported_modules: IndexMap<Cow<'base, str>, Rc<AstSignature<'base>>>,
     pub object_signatures: ObjectSignatureHolder<'base>,
     pub ast: Option<Rc<FileAst<'base>>>,
-    pub modules: HashMap<Cow<'base, str>, ModuleRef<'base>>,
+    pub modules: IndexMap<Cow<'base, str>, ModuleRef<'base>>,
 }
 
 impl<'base> Module<'base> {
@@ -23,11 +24,10 @@ impl<'base> Module<'base> {
             name,
             path,
             file,
-            imported_modules: HashMap::new(),
-            ast_signatures: AstSignatureHolder::default(),
+            imported_modules: IndexMap::new(),
             object_signatures: ObjectSignatureHolder::default(),
             ast: Some(ast),
-            modules: HashMap::new(),
+            modules: IndexMap::new(),
         }
     }
 
@@ -36,11 +36,10 @@ impl<'base> Module<'base> {
             name,
             path,
             file,
-            imported_modules: HashMap::new(),
-            ast_signatures: AstSignatureHolder::default(),
+            imported_modules: IndexMap::new(),
             object_signatures: ObjectSignatureHolder::default(),
             ast: None,
-            modules: HashMap::new(),
+            modules: IndexMap::new(),
         }
     }
 

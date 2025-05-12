@@ -1,5 +1,4 @@
-use std::
-    rc::Rc
+use std::{cell::{Cell, RefCell}, fmt::Debug, rc::Rc, sync::atomic::AtomicBool}
 ;
 
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
@@ -12,11 +11,34 @@ pub mod interface_definition;
 pub mod module_definition;
 pub mod module_use;
 
+pub struct Resolvable<T: Debug> {
+    pub value: T,
+    pub resolved: Cell<bool>,
+}
+
 pub trait ResolveSignature<'base> {
     type Item;
 
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>>;
     fn name(&self) -> &str;
+}
+
+impl<'base, T> ResolveSignature<'base> for Resolvable<T> where T: ResolveSignature<'base, Item = Rc<Signature<'base, ObjectSignatureValue<'base>>>> + Debug {
+    type Item = T::Item;
+
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
+        if self.resolved.get() {
+            return Ok(context.object_signatures.get(self.name()).unwrap());
+        }
+
+        let signature = self.value.resolve(context, module)?;
+        self.resolved.set(true);
+        Ok(signature)
+    }
+    
+    fn name(&self) -> &str {
+        self.value.name()
+    }
 }
 
 fn build_type_name(type_name: &TypeNameAst) -> String {
@@ -106,10 +128,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
 
     let signature = match module.imported_modules.get(key.as_ref()) {
         Some(signature) => signature.clone(),
-        None => match module.ast_signatures.get(key.as_ref()) {
-            Some(signature) => signature.clone(),
-            None => return Ok(None),
-        },
+        None => return Ok(None),
     };
 
     let signature_module = match &signature.extra {
