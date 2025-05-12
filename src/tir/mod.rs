@@ -31,6 +31,7 @@ pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError<'_>
         build_module(&mut context, ast)?;
     }
 
+    #[allow(clippy::iter_kv_map)]
     let modules = context.modules.iter().map(|(_, module)| module.get_ref()).collect::<Vec<_>>(); 
     for module in modules.into_iter() {
         build_file(&mut context, module)?;
@@ -167,7 +168,7 @@ mod tests {
         {
             assert_eq!(module, "missing");
         } else {
-            panic!("Expected TirError::ModuleNotFound");
+            panic!("Expected TirError::ImportNotFound");
         }
 
         Ok(())

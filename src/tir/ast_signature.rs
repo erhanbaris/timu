@@ -3,6 +3,7 @@ use std::{
     rc::Rc,
 };
 
+use log::error;
 use simplelog::{debug, info};
 
 use crate::{
@@ -135,9 +136,8 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
         }
     }
 
-
-    /*let signature = Signature::new(
-        AstSignatureValue::Module(module.path.clone()),
+    let signature = Signature::new(
+        AstSignatureValue::Module(module.get_ref()),
         module.file.clone(),
         std::ops::Range {
             start: 0,
@@ -150,7 +150,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
         Err(TirError::ModuleAlreadyDefined {
             source: module.file.clone(),
         })
-    })?;*/
+    })?;
 
     context.modules.insert(module_name.into(), module);
     Ok(())

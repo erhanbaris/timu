@@ -6,7 +6,6 @@ use super::{ast_signature::AstSignatureValue, module::ModuleRef, signature::Sign
 
 #[derive(Debug)]
 pub enum TirError<'base> {
-    ModuleNotFound { module: ModuleRef<'base>, source: Rc<SourceFile<'base>> },
     AstSignatureNotFound { signature: Rc<Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>>, source: Rc<SourceFile<'base>> },
     ImportNotFound { module: Cow<'base, str>, position: Range<usize>, source: Rc<SourceFile<'base>> },
     ModuleAlreadyDefined { source: Rc<SourceFile<'base>> },
@@ -19,13 +18,9 @@ impl Display for TirError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TirError::AstSignatureNotFound {
-                signature: _,
+                signature,
                 source: _,
-            } => write!(f, "AST signature not found"),
-            TirError::ModuleNotFound {
-                module,
-                source: _,
-            } => write!(f, "Module not found: {}", module.as_ref()),
+            } => write!(f, "AST signature not found, signature: {:?}", signature.value),
             TirError::ImportNotFound {
                 module,
                 position: _,
@@ -62,10 +57,6 @@ impl<'base> TirError<'base> {
 
     pub fn get_error(&self) -> (Range<usize>, String, Rc<SourceFile<'_>>) {
         match self {
-            TirError::ModuleNotFound {
-                module: _,
-                source,
-            } => (0..0, format!("{}", self), source.clone()),
             TirError::AstSignatureNotFound {
                 signature: _,
                 source,

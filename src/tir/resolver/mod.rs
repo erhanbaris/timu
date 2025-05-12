@@ -41,7 +41,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
     Ok(())
 }
 
-fn find_module<'base, 'ctx, K: AsRef<str>>(context: &'ctx mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Option<ModuleRef<'base>> {
+fn find_module<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Option<ModuleRef<'base>> {
     let mut parts = key.as_ref().split('.').peekable();
     let module_name = parts.next()?;
     let module = context.modules.get_mut(module.as_ref()).unwrap();
@@ -59,7 +59,7 @@ fn find_module<'base, 'ctx, K: AsRef<str>>(context: &'ctx mut TirContext<'base>,
 }
 
 
-fn try_resolve_moduled_signature<'base, 'ctx, K: AsRef<str>>(context: &'ctx mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
+fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
     // Check if the key is a module name
     let mut parts = key.as_ref().split('.').peekable();
     let module_name = match parts.next() {
@@ -73,10 +73,10 @@ fn try_resolve_moduled_signature<'base, 'ctx, K: AsRef<str>>(context: &'ctx mut 
     };
 
     let signature_name = parts.collect::<Vec<_>>().join(".");
-    return try_resolve_signature(context, &found_module, signature_name);
+    try_resolve_signature(context, &found_module, signature_name)
 }
 
-pub fn try_resolve_direct_signature<'base, 'ctx, K: AsRef<str>>(context: &'ctx mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
+pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
     let module = context.modules.get_mut(module.as_ref()).unwrap();
     
     if let Some(signature) = module.object_signatures.get(key.as_ref()) {
@@ -99,8 +99,8 @@ pub fn try_resolve_direct_signature<'base, 'ctx, K: AsRef<str>>(context: &'ctx m
     Ok(Some(signature.value.resolve(context, signature_module)?))
 }
 
-pub fn try_resolve_signature<'base, 'ctx, K: AsRef<str>>(
-    context: &'ctx mut TirContext<'base>, module: &ModuleRef<'base>, key: K,
+pub fn try_resolve_signature<'base, K: AsRef<str>>(
+    context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K,
 ) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
     // Check if the key has a module name
     match key.as_ref().contains('.') {
