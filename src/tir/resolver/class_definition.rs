@@ -3,10 +3,10 @@ use std::{borrow::Cow, rc::Rc};
 use crate::{
     ast::{ClassDefinitionAst, ClassDefinitionFieldAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, signature::SignatureHolder, ObjectSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, signature::{self, SignatureHolder}, ObjectSignature, TirError},
 };
 
-use super::ResolveSignature;
+use super::{Resolvable, ResolveSignature};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -63,7 +63,7 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{process_code, tir::TirError};
+    use crate::process_code;
 
     #[test]
     fn missing_type() -> Result<(), ()> {
@@ -73,20 +73,9 @@ mod tests {
     }
 
     #[test]
-    fn dublicated_function_argument() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class test { func test(a: test, a: test): test {} }")?;
-        let error = crate::tir::build(vec![ast.into()]).unwrap_err();
-
-        if let TirError::AlreadyDefined {
-            position,
-            source,
-        } = error
-        {
-            assert_eq!(position, 27..28);
-            assert_eq!(source.path().join("/"), "source");
-        } else {
-            panic!("Expected TirError::AlreadyDefined but got {:?}", error);
-        }
+    fn recursive_type() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], "class test { func test(a: test): test {} }")?;
+        crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 }

@@ -37,15 +37,13 @@ fn process_ast(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, ()> {
 
 fn main() -> Result<(), ()> {
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, Config::default(), TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
-
-    let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
-    let ast_9 = process_code(
-        vec!["sub".into(), "source9".into()],
-        r#"use base1.test1.source1.testclass1 as test;
-func testfunction1(a: test): test {}"#,
+    let source_1 = process_code(vec!["lib".into()], " class testclass1 {} ")?;
+    let source_2 = process_code(vec!["main".into()],
+        r#"use lib.testclass1 as test;
+func main(a: test): test {}"#,
     )?;
 
-    process_ast(vec![ast_1.into(), ast_9.into()])?;
+    let context = process_ast(vec![source_2.into(), source_1.into()])?;
 
     Ok(())
 }

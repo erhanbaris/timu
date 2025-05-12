@@ -1,8 +1,6 @@
-use std::{
-    collections::HashMap,
-    rc::Rc,
-};
+use std::rc::Rc;
 
+use indexmap::IndexMap;
 use log::error;
 use simplelog::{debug, info};
 
@@ -87,9 +85,8 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             name: ast.file.path()[ast.file.path().len() - 1].clone().clone(),
             file: ast.file.clone(),
             path: ast.file.path().join(".").into(),
-            imported_modules: HashMap::new(),
+            imported_modules: IndexMap::new(),
             object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
-            ast_signatures: SignatureHolder::<AstSignatureValue, ModuleRef<'base>>::new(),
             ast: Some(ast.clone()),
             modules: Default::default(),
         };
@@ -101,7 +98,6 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
 }
 
 pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Module<'base>) -> Result<(), TirError<'base>> {
-    let mut module = module;
     let module_name = module.path.to_string();
 
     if let Some(ast) = &module.ast {
@@ -112,10 +108,6 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), class.name.fragment()).into(), signature.clone())
                 .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), signature.file.clone())))?;
-            module
-                .ast_signatures
-                .add_signature((*class.name.fragment()).into(), signature.clone())
-                .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), signature.file.clone())))?;
         }
 
         // Function signatures
@@ -125,10 +117,6 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), func.name.fragment()).into(), signature.clone())
                 .map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), signature.file.clone())))?;
-            module
-                .ast_signatures
-                .add_signature((*func.name.fragment()).into(), signature.clone())
-                .map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), signature.file.clone())))?;
         }
 
         // Interface signatures
@@ -137,10 +125,6 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
 
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.fragment()).into(), signature.clone())
-                .map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), signature.file.clone())))?;
-            module
-                .ast_signatures
-                .add_signature((*interface.name.fragment()).into(), signature.clone())
                 .map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), signature.file.clone())))?;
         }
     }

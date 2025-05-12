@@ -1,10 +1,12 @@
-use std::{borrow::Cow, collections::HashMap, rc::Rc};
+use std::{borrow::Cow, rc::Rc};
+
+use indexmap::IndexMap;
 
 use super::{AstSignature, AstSignatureHolder, Module, ObjectSignatureHolder};
 
 #[derive(Debug, Default)]
 pub struct TirContext<'base> {
-    pub modules: HashMap<Cow<'base, str>, Module<'base>>,
+    pub modules: IndexMap<Cow<'base, str>, Module<'base>>,
     ast_signatures: AstSignatureHolder<'base>,
     #[allow(dead_code)]
     pub object_signatures: ObjectSignatureHolder<'base>,
