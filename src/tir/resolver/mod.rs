@@ -1,9 +1,6 @@
-use std::{cell::{Cell, RefCell}, fmt::Debug, rc::Rc, sync::atomic::AtomicBool}
-;
-
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
-use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, object_signature::ObjectSignatureValue, signature::Signature, ObjectSignature};
+use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef};
 
 pub mod class_definition;
 pub mod function_definition;
@@ -11,44 +8,38 @@ pub mod interface_definition;
 pub mod module_definition;
 pub mod module_use;
 
-pub struct Resolvable<T: Debug> {
-    pub value: T,
-    pub resolved: Cell<bool>,
+#[derive(Debug)]
+pub struct SignatureLocation(#[allow(dead_code)]pub usize);
+impl From<usize> for SignatureLocation {
+    fn from(signature_location: usize) -> Self {
+        SignatureLocation(signature_location)
+    }
 }
 
 pub trait ResolveSignature<'base> {
-    type Item;
-
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>>;
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>>;
     fn name(&self) -> &str;
-}
-
-impl<'base, T> ResolveSignature<'base> for Resolvable<T> where T: ResolveSignature<'base, Item = Rc<Signature<'base, ObjectSignatureValue<'base>>>> + Debug {
-    type Item = T::Item;
-
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
-        if self.resolved.get() {
-            return Ok(context.object_signatures.get(self.name()).unwrap());
-        }
-
-        let signature = self.value.resolve(context, module)?;
-        self.resolved.set(true);
+    fn full_path(&self, module: &ModuleRef<'base>) -> String;
+    /*fn try_resolve(&'base self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
+        let tmp_module = context.modules.get_mut(module.as_ref()).unwrap();
+        let tmp_signature = Rc::new(Signature::new(ObjectSignatureValue::Placeholder, Rc::new(SourceFile::new(Vec::new(), "")), 0..0));
+        tmp_module.object_signatures.add_signature(Cow::Borrowed(self.name()), tmp_signature.clone()) .map_err(|_| Err(TirError::already_defined(0..0, tmp_signature.file.clone())))?;
+        
+        let signature = Self::resolve(&self, context, module)?;
+        let module = context.modules.get_mut(module.as_ref()).unwrap();
+        module.object_signatures.replace_signature(Cow::Borrowed(self.name()), signature.clone());
         Ok(signature)
-    }
-    
-    fn name(&self) -> &str {
-        self.value.name()
-    }
+    }*/
 }
 
 fn build_type_name(type_name: &TypeNameAst) -> String {
     type_name.names.iter().map(|path| *path.fragment()).collect::<Vec<&str>>().join(".")
 }
 
-fn build_object_type<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<Rc<Signature<'base, ObjectSignatureValue<'base>>>, TirError<'base>> {
+fn build_object_type<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
     let type_name_str = build_type_name(type_name);
     let field_type = match try_resolve_signature(context, module, type_name_str.as_str())? {
-        Some(field_type) => field_type.clone(),
+        Some(field_type) => field_type,
         None => {
             return Err(TirError::TypeNotFound {
                 source: type_name.names.last().unwrap().extra.file.clone(),
@@ -61,23 +52,30 @@ fn build_object_type<'base>(context: &mut TirContext<'base>, type_name: &TypeNam
 }
 
 pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'base>) -> Result<(), TirError<'base>> {
-    log::debug!("Building file: {:?}", module.as_ref());
+    simplelog::debug!("<on-red>Building file: {:?}</>", module.as_ref());
     
     if let Some(ast) = context.modules.get(module.as_ref()).and_then(|module| module.ast.clone()) {
         let uses = ast.get_uses().collect::<Vec<_>>();
         let functions = ast.get_functions().collect::<Vec<_>>();
         let classes = ast.get_classes().collect::<Vec<_>>();
 
+        simplelog::debug!(" - Resolving all uses");
         for use_item in uses {
             use_item.resolve(context, &module)?;
         }
 
+        simplelog::debug!(" - Resolving all classes");
         for class in classes {
-            class.resolve(context, &module)?;
+            if module.upgrade(context).unwrap().object_signatures.location(class.name()).is_none() {
+                class.resolve(context, &module)?;
+            }
         }
 
+        simplelog::debug!(" - Resolving all functions");
         for function in functions {
-            function.resolve(context, &module)?;
+            if module.upgrade(context).unwrap().object_signatures.location(function.name()).is_none() {
+                function.resolve(context, &module)?;
+            }
         }
     }
 
@@ -102,7 +100,7 @@ fn find_module<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &M
 }
 
 
-fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
+fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<SignatureLocation>, TirError<'base>> {
     // Check if the key is a module name
     let mut parts = key.as_ref().split('.').peekable();
     let module_name = match parts.next() {
@@ -119,10 +117,10 @@ fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<
     try_resolve_signature(context, &found_module, signature_name)
 }
 
-pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
+pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<SignatureLocation>, TirError<'base>> {
     let module = context.modules.get_mut(module.as_ref()).unwrap();
     
-    if let Some(signature) = module.object_signatures.get(key.as_ref()) {
+    if let Some(signature) = module.object_signatures.location(key.as_ref()) {
         return Ok(Some(signature));
     }
 
@@ -136,7 +134,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         None => return Err(TirError::AstSignatureNotFound { signature, source: module.file.clone() })
     };
 
-    if let Some(signature) = signature_module.upgrade(context).unwrap().object_signatures.get(signature.value.name()) {
+    if let Some(signature) = signature_module.upgrade(context).unwrap().object_signatures.location(signature.value.name()) {
         return Ok(Some(signature));
     }
 
@@ -145,7 +143,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
 
 pub fn try_resolve_signature<'base, K: AsRef<str>>(
     context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K,
-) -> Result<Option<Rc<ObjectSignature<'base>>>, TirError<'base>> {
+) -> Result<Option<SignatureLocation>, TirError<'base>> {
     // Check if the key has a module name
     match key.as_ref().contains('.') {
         true => try_resolve_moduled_signature(context, module, key),

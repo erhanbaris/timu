@@ -1,12 +1,12 @@
 use std::{borrow::Cow, rc::Rc};
 
+use indexmap::IndexMap;
+
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst},
-    nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, signature::{self, SignatureHolder}, ObjectSignature, TirError},
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError}
 };
 
-use super::{Resolvable, ResolveSignature};
+use super::{ResolveSignature, SignatureLocation};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -19,27 +19,29 @@ pub struct ClassArgument<'base> {
 #[allow(dead_code)]
 pub struct ClassDefinition<'base> {
     pub name: Span<'base>,
-    pub fields: SignatureHolder<'base, ObjectSignatureValue<'base>>,
+    pub fields: IndexMap<Cow<'base, str>, SignatureLocation>,
 }
 
 impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
-    type Item = Rc<ObjectSignature<'base>>;
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
+        simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
+        let tmp_module = context.modules.get_mut(module.as_ref()).unwrap();
+        tmp_module.object_signatures.reserve(Cow::Borrowed(self.name.fragment()))
+            .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
 
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
-        simplelog::info!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
-        let mut fields = SignatureHolder::new();
+        let mut fields = IndexMap::<Cow<'_, str>, SignatureLocation>::default();
 
         for field in self.fields.iter() {
             match field {
                 ClassDefinitionFieldAst::ClassField(field) => {
                     let field_type = build_object_type(context, &field.field_type, module)?;
-                    fields.add_signature((*field.name.fragment()).into(), field_type.clone())
-                    .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field_type.file.clone())))?;
+                    fields.insert((*field.name.fragment()).into(), field_type)
+                        .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
                 }
-                ClassDefinitionFieldAst::ClassFunction(function) => {
-                    let signature = function.resolve(context, module)?;
-                    fields.add_signature((*function.name.fragment()).into(), signature.clone())
-                    .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), signature.file.clone())))?;
+                ClassDefinitionFieldAst::ClassFunction(class) => {
+                    let signature = class.resolve(context, module)?;
+                    fields.insert((*class.name.fragment()).into(), signature)
+                        .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), class.name.extra.file.clone())))?;
                 }
             };
         }
@@ -50,14 +52,16 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
         }), self.name.extra.file.clone(), self.name.to_range()));
 
         let module = context.modules.get_mut(module.as_ref()).unwrap();
-        module.object_signatures.add_signature(Cow::Borrowed(self.name.fragment()), signature.clone())
-            .map_or(Ok(()), |_| Err(TirError::already_defined(self.name.to_range(), signature.file.clone())))?;
+        Ok(module.object_signatures.update(Cow::Borrowed(self.name.fragment()), signature.clone()))
 
-        Ok(signature)
     }
     
     fn name(&self) -> &str {
         self.name.fragment()
+    }
+
+    fn full_path(&self, module: &ModuleRef<'base>) -> String {
+        format!("{}.{}", module.as_ref(), self.name())
     }
 }
 

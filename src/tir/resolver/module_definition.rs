@@ -2,19 +2,21 @@ use std::rc::Rc;
 
 use crate::tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, ObjectSignature, TirError};
 
-use super::ResolveSignature;
+use super::{ResolveSignature, SignatureLocation};
 
 impl<'base> ResolveSignature<'base> for ModuleRef<'base> {
-    type Item = Rc<ObjectSignature<'base>>;
-
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         let signature = Rc::new(ObjectSignature::new(ObjectSignatureValue::Module, self.file(), 0..0));
         let module = context.modules.get_mut(module.as_ref()).unwrap();
-        module.object_signatures.add_signature(self.as_cow(), signature.clone());
-        Ok(signature)
+        module.object_signatures.add_signature(self.as_cow(), signature.clone())
+            .map_err(|_| TirError::already_defined(0..0, signature.file.clone()))
     }
     
     fn name(&self) -> &str {
         self.0.as_ref()
+    }
+
+    fn full_path(&self, module: &ModuleRef<'base>) -> String {
+        format!("{}.{}", module.as_ref(), self.name())
     }
 }

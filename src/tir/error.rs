@@ -6,12 +6,12 @@ use super::{ast_signature::AstSignatureValue, module::ModuleRef, signature::Sign
 
 #[derive(Debug)]
 pub enum TirError<'base> {
-    AstSignatureNotFound { signature: Rc<Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>>, source: Rc<SourceFile<'base>> },
-    ImportNotFound { module: Cow<'base, str>, position: Range<usize>, source: Rc<SourceFile<'base>> },
+    AstSignatureNotFound { signature: Rc<Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    ImportNotFound { module: Cow<'base, str>, #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     ModuleAlreadyDefined { source: Rc<SourceFile<'base>> },
     AstModuleAlreadyDefined { position: Range<usize>, source: Rc<SourceFile<'base>> },
-    TypeNotFound { source: Rc<SourceFile<'base>>, position: Range<usize> },
-    AlreadyDefined { position: Range<usize>, source: Rc<SourceFile<'base>> },
+    TypeNotFound { #[allow(dead_code)] source: Rc<SourceFile<'base>>, #[allow(dead_code)] position: Range<usize> },
+    AlreadyDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
 }
 
 impl Display for TirError<'_> {
@@ -55,6 +55,7 @@ impl<'base> TirError<'base> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_error(&self) -> (Range<usize>, String, Rc<SourceFile<'_>>) {
         match self {
             TirError::AstSignatureNotFound {

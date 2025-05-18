@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
 use indexmap::IndexMap;
-use log::error;
-use simplelog::{debug, info};
+use simplelog::{debug, error};
 
 use crate::{
     ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst},
@@ -10,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    context::TirContext, module::{Module, ModuleRef}, object_signature::ObjectSignatureValue, resolver::ResolveSignature, signature::{Signature, SignatureHolder}, ObjectSignature, TirError
+    context::TirContext, module::{Module, ModuleRef}, object_signature::ObjectSignatureValue, resolver::{ResolveSignature, SignatureLocation}, signature::{Signature, SignatureHolder}, TirError
 };
 
 #[derive(Debug)]
@@ -22,9 +21,7 @@ pub enum AstSignatureValue<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
-    type Item = Rc<ObjectSignature<'base>>;
-
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         match self {
             AstSignatureValue::Module(target_module) => target_module.resolve(context, target_module),
             AstSignatureValue::Class(class) => class.resolve(context, module),
@@ -41,12 +38,21 @@ impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
             AstSignatureValue::Interface(interface) => interface.name(),
         }
     }
+
+    fn full_path(&self, module: &ModuleRef<'base>) -> String {
+        match self {
+            AstSignatureValue::Module(module) => module.full_path(module),
+            AstSignatureValue::Class(class) => class.full_path(module),
+            AstSignatureValue::Function(function) => function.full_path(module),
+            AstSignatureValue::Interface(interface) => interface.full_path(module),
+        }
+    }
 }
 
 pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'base>>) -> Result<(), TirError<'base>> {
     let module_path = ast.file.path().clone();
     let file = ast.file.clone();
-    info!("Building module: <u><b>{:?}</b></u>", module_path);
+    debug!("Building module: <u><b>{:?}</b></u>", module_path);
 
     if module_path.len() > 1 {
         let mut base_module_path = String::new();
@@ -107,7 +113,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
 
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), class.name.fragment()).into(), signature.clone())
-                .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), signature.file.clone())))?;
+                .map_err(|_| TirError::already_defined(class.name.to_range(), signature.file.clone()))?;
         }
 
         // Function signatures
@@ -116,7 +122,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
 
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), func.name.fragment()).into(), signature.clone())
-                .map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), signature.file.clone())))?;
+                .map_err(|_| TirError::already_defined(func.name.to_range(), signature.file.clone()))?;
         }
 
         // Interface signatures
@@ -125,7 +131,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
 
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.fragment()).into(), signature.clone())
-                .map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), signature.file.clone())))?;
+                .map_err(|_| TirError::already_defined(interface.name.to_range(), signature.file.clone()))?;
         }
     }
 
@@ -138,11 +144,11 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, module: Mo
         },
     );
 
-    context.add_ast_signature(module_name.clone().into(), signature.into()).map_or(Ok(()), |item| {
+    context.add_ast_signature(module_name.clone().into(), signature.into()).map_err(|item| {
         error!("Module already defined: {:?}", item);
-        Err(TirError::ModuleAlreadyDefined {
+        TirError::ModuleAlreadyDefined {
             source: module.file.clone(),
-        })
+        }
     })?;
 
     context.modules.insert(module_name.into(), module);

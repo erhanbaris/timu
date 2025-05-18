@@ -165,7 +165,7 @@ mod tests {
         {
             assert_eq!(module, "missing");
         } else {
-            panic!("Expected TirError::ImportNotFound");
+            panic!("Expected TirError::ImportNotFound {}", error);
         }
 
         Ok(())

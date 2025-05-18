@@ -25,7 +25,7 @@ impl<'base> Module<'base> {
             path,
             file,
             imported_modules: IndexMap::new(),
-            object_signatures: ObjectSignatureHolder::default(),
+            object_signatures: ObjectSignatureHolder::new(),
             ast: Some(ast),
             modules: IndexMap::new(),
         }
@@ -37,7 +37,7 @@ impl<'base> Module<'base> {
             path,
             file,
             imported_modules: IndexMap::new(),
-            object_signatures: ObjectSignatureHolder::default(),
+            object_signatures: ObjectSignatureHolder::new(),
             ast: None,
             modules: IndexMap::new(),
         }

@@ -10,25 +10,26 @@ use nom::{IResult, Parser, sequence::delimited};
 use nom_language::error::{VerboseError, VerboseErrorKind};
 
 use crate::ast::{
-    BodyAst, ClassDefinitionFieldAst, ExtendDefinitionFieldAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, TypeNameAst
+    BodyAst, ClassDefinitionFieldAst, ExtendDefinitionFieldAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst, TypeNameAst
 };
 use crate::nom_tools::{Span, cleanup};
 use crate::parser::{expected_ident, ident, is_public};
 
 use super::TimuParserError;
 
-impl FunctionDefinitionAst<'_> {
-    pub fn parse_for_file(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
+impl<'a> FunctionDefinitionAst<'a> {
+    pub fn parse_for_file(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, TimuParserError<'a>> {
         let (input, function) = Self::parse(input)?;
         Ok((input, FileStatementAst::Function(function.into())))
     }
 
-    pub fn parse_class_function(input: Span<'_>) -> IResult<Span<'_>, ClassDefinitionFieldAst<'_>, TimuParserError<'_>> {
-        let (input, function) = Self::parse(input)?;
+    pub fn parse_class_function(input: Span<'a>, class_name: Span<'a>) -> IResult<Span<'a>, ClassDefinitionFieldAst<'a>, TimuParserError<'a>> {
+        let (input, mut function) = Self::parse(input)?;
+        function.location = FunctionDefinitionLocationAst::Class(class_name);
         Ok((input, ClassDefinitionFieldAst::ClassFunction(function)))
     }
 
-    pub fn parse_extend_function(input: Span<'_>) -> IResult<Span<'_>, ExtendDefinitionFieldAst<'_>, TimuParserError<'_>> {
+    pub fn parse_extend_function(input: Span<'a>) -> IResult<Span<'a>, ExtendDefinitionFieldAst<'a>, TimuParserError<'a>> {
         let (input, function) = Self::parse(input)?;
         if let Some(is_public) = function.is_public {
             let error = VerboseError {
@@ -40,8 +41,8 @@ impl FunctionDefinitionAst<'_> {
     }
 
     pub fn parse(
-        input: Span<'_>,
-    ) -> IResult<Span<'_>, FunctionDefinitionAst<'_>, TimuParserError<'_>> {
+        input: Span<'a>,
+    ) -> IResult<Span<'a>, FunctionDefinitionAst<'a>, TimuParserError<'a>> {
         let (input, is_public) = is_public(input)?;
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
@@ -65,6 +66,7 @@ impl FunctionDefinitionAst<'_> {
                 arguments,
                 body,
                 return_type,
+                location: FunctionDefinitionLocationAst::Module
             },
         ))
     }

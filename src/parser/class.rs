@@ -21,7 +21,9 @@ impl ClassDefinitionAst<'_> {
         let (input, fields) = delimited(
             char('{'),
             cleanup(many0(alt((
-                FunctionDefinitionAst::parse_class_function,
+                |input| {
+                    FunctionDefinitionAst::parse_class_function(input, name.clone())
+                },
                 FieldAst::parse_class_field,
             )))),
             context("Class's closing '}' missing", cut(char('}'))),

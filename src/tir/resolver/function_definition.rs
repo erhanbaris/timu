@@ -1,18 +1,18 @@
 use std::{borrow::Cow, rc::Rc};
 
 use crate::{
-    ast::FunctionDefinitionAst,
+    ast::{FunctionDefinitionAst, FunctionDefinitionLocationAst},
     nom_tools::{Span, ToRange},
     tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError},
 };
 
-use super::{ResolveSignature, build_type_name, try_resolve_signature};
+use super::{build_type_name, try_resolve_signature, ResolveSignature, SignatureLocation};
 
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct FunctionArgument<'base> {
     pub name: Span<'base>,
-    pub field_type: Rc<ObjectSignature<'base>>,
+    pub field_type: SignatureLocation,
 }
 
 #[derive(Debug)]
@@ -21,22 +21,20 @@ pub struct FunctionDefinition<'base> {
     pub is_public: bool,
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgument<'base>>,
-    pub return_type: Rc<ObjectSignature<'base>>,
+    pub return_type: SignatureLocation,
     // pub body: BodyAst<'base>,
 }
 
 impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
-    type Item = Rc<ObjectSignature<'base>>;
-
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
-        simplelog::info!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
+        simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let mut arguments = vec![];
         let return_type = build_object_type(context, &self.return_type, module)?;
 
         for argument in self.arguments.iter() {
             let type_name = build_type_name(&argument.field_type);
             let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
-                Some(field_type) => field_type.clone(),
+                Some(field_type) => field_type,
                 None => {
                     return Err(TirError::TypeNotFound {
                         source: argument.field_type.names.last().unwrap().extra.file.clone(),
@@ -62,21 +60,30 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
                     name: self.name.clone(),
                     arguments,
                     return_type,
-                }
-                .into(),
+                },
             ),
             self.name.extra.file.clone(),
             self.name.to_range(),
         ));
         
         let module = context.modules.get_mut(module.as_ref()).unwrap();
-        module.object_signatures.add_signature(Cow::Borrowed(self.name.fragment()), signature.clone())
-            .map_or(Ok(()), |_| Err(TirError::already_defined(self.name.to_range(), signature.file.clone())))?;
-        Ok(signature)
+
+        let full_name = match &self.location {
+            FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
+            FunctionDefinitionLocationAst::Class(class) => Cow::Owned(format!("{}.{}", class.fragment(), self.name.fragment())),
+            FunctionDefinitionLocationAst::Interface(interface) => Cow::Owned(format!("{}.{}", interface.fragment(), self.name.fragment()))
+        };
+        
+        module.object_signatures.add_signature(full_name, signature.clone())
+            .map_err(|_| TirError::already_defined(self.name.to_range(), signature.file.clone()))
     }
     
     fn name(&self) -> &str {
         self.name.fragment()
+    }
+
+    fn full_path(&self, module: &ModuleRef<'base>) -> String {
+        format!("{}.{}", module.as_ref(), self.name())
     }
 }
 

@@ -3,12 +3,10 @@ use crate::{
     tir::{context::TirContext, module::ModuleRef, TirError},
 };
 
-use super::ResolveSignature;
+use super::{ResolveSignature, SignatureLocation};
 
 impl<'base> ResolveSignature<'base> for UseAst<'base> {
-    type Item = ();
-
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         if let Some(signature) = context.get_ast_signature(&self.import.text) {
             let name = match &self.alias {
                 Some(alias) => std::borrow::Cow::Borrowed(*alias.fragment()),
@@ -30,14 +28,18 @@ impl<'base> ResolveSignature<'base> for UseAst<'base> {
             });
         }
 
-        Ok(())
+        Ok(SignatureLocation(usize::MAX))
     }
-    
+
     fn name(&self) -> &str {
         if let Some(alias) = &self.alias {
             alias.fragment()
         } else {
             self.name().fragment()
         }
+    }
+
+    fn full_path(&self, module: &ModuleRef<'base>) -> String {
+        format!("{}.{}", module.as_ref(), self.name())
     }
 }

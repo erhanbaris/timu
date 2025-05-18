@@ -149,12 +149,21 @@ pub struct BodyAst<'base> {
 }
 
 #[derive(Debug)]
+pub enum FunctionDefinitionLocationAst<'a> {
+    Class(Span<'a>),
+    #[allow(dead_code)]
+    Interface(Span<'a>),
+    Module,
+}
+
+#[derive(Debug)]
 pub struct FunctionDefinitionAst<'base> {
     pub is_public: Option<Span<'base>>,
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgumentAst<'base>>,
     pub return_type: TypeNameAst<'base>,
     pub body: BodyAst<'base>,
+    pub location: FunctionDefinitionLocationAst<'base>,
 }
 
 #[derive(Debug)]

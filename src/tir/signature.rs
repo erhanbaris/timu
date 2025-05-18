@@ -1,9 +1,11 @@
 use std::{borrow::Cow, fmt::Debug, ops::Range, rc::Rc};
 
 use indexmap::IndexMap;
-use log::debug;
+use simplelog::debug;
 
 use crate::file::SourceFile;
+
+use super::resolver::SignatureLocation;
 
 #[derive(Debug)]
 pub struct Signature<'base, T: Debug, E: Debug = ()> {
@@ -41,18 +43,15 @@ where
 
 #[derive(Debug)]
 pub struct SignatureHolder<'base, T: Debug, E: Debug = ()> {
-    signatures: IndexMap<Cow<'base, str>, Rc<Signature<'base, T, E>>>,
+    locations: IndexMap<Cow<'base, str>, usize>,
+    signatures: Vec<Option<Rc<Signature<'base, T, E>>>>,
 }
 
-impl<T, E> Default for SignatureHolder<'_, T, E>
-where
-    T: Debug,
-    E: Debug,
-{
+impl<T, E> Default for SignatureHolder<'_, T, E> where
+T: Debug,
+E: Debug{
     fn default() -> Self {
-        Self {
-            signatures: IndexMap::new(),
-        }
+        Self::new()
     }
 }
 
@@ -63,17 +62,45 @@ where
 {
     pub fn new() -> Self {
         Self {
-            signatures: IndexMap::new(),
+            signatures: Default::default(),
+            locations: IndexMap::new(),
         }
     }
 
-    pub fn add_signature(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T, E>>) -> Option<Rc<Signature<'base, T, E>>> {
+    fn inner_add(&mut self, name: Cow<'base, str>, signature: Option<Rc<Signature<'base, T, E>>>) -> Result<SignatureLocation, SignatureLocation> {
+        self.signatures.push(signature);
+        let index = self.signatures.len() - 1;
+        match self.locations.insert(name, index) {
+            Some(_) => Err(SignatureLocation(index)),
+            None => Ok(SignatureLocation(index))
+        }
+    }
+
+    pub fn reserve(&mut self, name: Cow<'base, str>) -> Result<SignatureLocation, SignatureLocation> {
+        debug!("Reserve signature: {}", name);
+        self.inner_add(name, None)
+    }
+
+    pub fn update(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T, E>>) -> SignatureLocation {
+        debug!("Update signature: {}", name);
+        let index = self.locations.get(name.as_ref()).unwrap();
+        self.signatures[*index] = Some(signature);
+        SignatureLocation(*index)
+
+    }
+
+    pub fn add_signature(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T, E>>) -> Result<SignatureLocation, SignatureLocation> {
         debug!("Adding signature: {}", name);
-        self.signatures.insert(name, signature)
+        self.inner_add(name, Some(signature))
+
     }
 
     pub fn get(&self, name: &str) -> Option<Rc<Signature<'base, T, E>>> {
-        self.signatures.get(name).cloned()
+        self.locations.get(name).and_then(|index| self.signatures[*index].clone())
+    }
+
+    pub fn location(&self, name: &str) -> Option<SignatureLocation> {
+        self.locations.get(name).map(|index| SignatureLocation(*index))
     }
 }
 
