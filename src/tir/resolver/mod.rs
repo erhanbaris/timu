@@ -19,17 +19,6 @@ impl From<usize> for SignatureLocation {
 pub trait ResolveSignature<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>>;
     fn name(&self) -> &str;
-    fn full_path(&self, module: &ModuleRef<'base>) -> String;
-    /*fn try_resolve(&'base self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<Self::Item, TirError<'base>> {
-        let tmp_module = context.modules.get_mut(module.as_ref()).unwrap();
-        let tmp_signature = Rc::new(Signature::new(ObjectSignatureValue::Placeholder, Rc::new(SourceFile::new(Vec::new(), "")), 0..0));
-        tmp_module.object_signatures.add_signature(Cow::Borrowed(self.name()), tmp_signature.clone()) .map_err(|_| Err(TirError::already_defined(0..0, tmp_signature.file.clone())))?;
-        
-        let signature = Self::resolve(&self, context, module)?;
-        let module = context.modules.get_mut(module.as_ref()).unwrap();
-        module.object_signatures.replace_signature(Cow::Borrowed(self.name()), signature.clone());
-        Ok(signature)
-    }*/
 }
 
 fn build_type_name(type_name: &TypeNameAst) -> String {
@@ -85,7 +74,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
 fn find_module<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Option<ModuleRef<'base>> {
     let mut parts = key.as_ref().split('.').peekable();
     let module_name = parts.next()?;
-    let module = context.modules.get_mut(module.as_ref()).unwrap();
+    let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
 
     match module.imported_modules.get(module_name) {
         Some(found_module) => {
@@ -118,7 +107,7 @@ fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<
 }
 
 pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<SignatureLocation>, TirError<'base>> {
-    let module = context.modules.get_mut(module.as_ref()).unwrap();
+    let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
     
     if let Some(signature) = module.object_signatures.location(key.as_ref()) {
         return Ok(Some(signature));

@@ -83,7 +83,7 @@ where
 
     pub fn update(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T, E>>) -> SignatureLocation {
         debug!("Update signature: {}", name);
-        let index = self.locations.get(name.as_ref()).unwrap();
+        let index = self.locations.get(name.as_ref()).unwrap_or_else(|| panic!("Signature not found, but this is a bug"));
         self.signatures[*index] = Some(signature);
         SignatureLocation(*index)
 

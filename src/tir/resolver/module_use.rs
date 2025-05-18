@@ -13,7 +13,7 @@ impl<'base> ResolveSignature<'base> for UseAst<'base> {
                 None => std::borrow::Cow::Borrowed(*self.name().fragment()),
             };
 
-            let module = context.modules.get_mut(module.as_ref()).unwrap();
+            let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
             if module.imported_modules.insert(name, signature.clone()).is_some() {
                 return Err(TirError::AstModuleAlreadyDefined {
                     position: self.import.to_range(),
@@ -37,9 +37,5 @@ impl<'base> ResolveSignature<'base> for UseAst<'base> {
         } else {
             self.name().fragment()
         }
-    }
-
-    fn full_path(&self, module: &ModuleRef<'base>) -> String {
-        format!("{}.{}", module.as_ref(), self.name())
     }
 }

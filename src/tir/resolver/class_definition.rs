@@ -25,7 +25,7 @@ pub struct ClassDefinition<'base> {
 impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
-        let tmp_module = context.modules.get_mut(module.as_ref()).unwrap();
+        let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
         tmp_module.object_signatures.reserve(Cow::Borrowed(self.name.fragment()))
             .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
 
@@ -51,17 +51,12 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
             fields,
         }), self.name.extra.file.clone(), self.name.to_range()));
 
-        let module = context.modules.get_mut(module.as_ref()).unwrap();
+        let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
         Ok(module.object_signatures.update(Cow::Borrowed(self.name.fragment()), signature.clone()))
-
     }
     
     fn name(&self) -> &str {
         self.name.fragment()
-    }
-
-    fn full_path(&self, module: &ModuleRef<'base>) -> String {
-        format!("{}.{}", module.as_ref(), self.name())
     }
 }
 

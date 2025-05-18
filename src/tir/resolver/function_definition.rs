@@ -28,6 +28,16 @@ pub struct FunctionDefinition<'base> {
 impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
+        let full_name = match &self.location {
+            FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
+            FunctionDefinitionLocationAst::Class(class) => Cow::Owned(format!("{}.{}", class.fragment(), self.name.fragment())),
+            FunctionDefinitionLocationAst::Interface(interface) => Cow::Owned(format!("{}.{}", interface.fragment(), self.name.fragment()))
+        };
+        
+        let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
+        tmp_module.object_signatures.reserve(full_name.clone())
+            .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
+
         let mut arguments = vec![];
         let return_type = build_object_type(context, &self.return_type, module)?;
 
@@ -66,24 +76,12 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             self.name.to_range(),
         ));
         
-        let module = context.modules.get_mut(module.as_ref()).unwrap();
-
-        let full_name = match &self.location {
-            FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
-            FunctionDefinitionLocationAst::Class(class) => Cow::Owned(format!("{}.{}", class.fragment(), self.name.fragment())),
-            FunctionDefinitionLocationAst::Interface(interface) => Cow::Owned(format!("{}.{}", interface.fragment(), self.name.fragment()))
-        };
-        
-        module.object_signatures.add_signature(full_name, signature.clone())
-            .map_err(|_| TirError::already_defined(self.name.to_range(), signature.file.clone()))
+        let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
+        Ok(module.object_signatures.update(full_name, signature.clone()))
     }
     
     fn name(&self) -> &str {
         self.name.fragment()
-    }
-
-    fn full_path(&self, module: &ModuleRef<'base>) -> String {
-        format!("{}.{}", module.as_ref(), self.name())
     }
 }
 

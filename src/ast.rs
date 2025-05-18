@@ -149,10 +149,10 @@ pub struct BodyAst<'base> {
 }
 
 #[derive(Debug)]
-pub enum FunctionDefinitionLocationAst<'a> {
-    Class(Span<'a>),
+pub enum FunctionDefinitionLocationAst<'base> {
+    Class(Span<'base>),
     #[allow(dead_code)]
-    Interface(Span<'a>),
+    Interface(Span<'base>),
     Module,
 }
 

@@ -17,19 +17,19 @@ use crate::parser::{expected_ident, ident, is_public};
 
 use super::TimuParserError;
 
-impl<'a> FunctionDefinitionAst<'a> {
-    pub fn parse_for_file(input: Span<'a>) -> IResult<Span<'a>, FileStatementAst<'a>, TimuParserError<'a>> {
+impl<'base> FunctionDefinitionAst<'base> {
+    pub fn parse_for_file(input: Span<'base>) -> IResult<Span<'base>, FileStatementAst<'base>, TimuParserError<'base>> {
         let (input, function) = Self::parse(input)?;
         Ok((input, FileStatementAst::Function(function.into())))
     }
 
-    pub fn parse_class_function(input: Span<'a>, class_name: Span<'a>) -> IResult<Span<'a>, ClassDefinitionFieldAst<'a>, TimuParserError<'a>> {
+    pub fn parse_class_function(input: Span<'base>, class_name: Span<'base>) -> IResult<Span<'base>, ClassDefinitionFieldAst<'base>, TimuParserError<'base>> {
         let (input, mut function) = Self::parse(input)?;
         function.location = FunctionDefinitionLocationAst::Class(class_name);
         Ok((input, ClassDefinitionFieldAst::ClassFunction(function)))
     }
 
-    pub fn parse_extend_function(input: Span<'a>) -> IResult<Span<'a>, ExtendDefinitionFieldAst<'a>, TimuParserError<'a>> {
+    pub fn parse_extend_function(input: Span<'base>) -> IResult<Span<'base>, ExtendDefinitionFieldAst<'base>, TimuParserError<'base>> {
         let (input, function) = Self::parse(input)?;
         if let Some(is_public) = function.is_public {
             let error = VerboseError {
@@ -41,8 +41,8 @@ impl<'a> FunctionDefinitionAst<'a> {
     }
 
     pub fn parse(
-        input: Span<'a>,
-    ) -> IResult<Span<'a>, FunctionDefinitionAst<'a>, TimuParserError<'a>> {
+        input: Span<'base>,
+    ) -> IResult<Span<'base>, FunctionDefinitionAst<'base>, TimuParserError<'base>> {
         let (input, is_public) = is_public(input)?;
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
