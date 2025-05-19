@@ -144,10 +144,41 @@ mod tests {
     }
 
     #[test]
-    fn extra_pub_identifier() -> Result<(), ()> {
+    fn missing_type_1() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], r#"
+    interface Myinterface {
+        a: nope;
+    }"#)?;
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+        Ok(())
+    }
+
+    #[test]
+    fn missing_type_2() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], r#"
+    interface Myinterface {
+        func test(a: nope): nope;
+    }"#)?;
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+        Ok(())
+    }
+
+    #[test]
+    fn dublicate_field_1() -> Result<(), ()> {
         let ast = process_code(vec!["source".into()], r#"
     interface Myinterface {
         pub a: ?Myinterface;
+        pub a: ?Myinterface;
+    }"#)?;
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+        Ok(())
+    }
+
+    #[test]
+    fn dublicate_field_2() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], r#"
+    interface Myinterface {
+        func test(a: Myinterface): Myinterface;
         func test(a: Myinterface): Myinterface;
     }"#)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();

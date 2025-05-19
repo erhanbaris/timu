@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn recursive_type() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class test { func test(a: test): test {} }")?;
+        let ast = process_code(vec!["source".into()], "class test { a: test; func test(a: test): test {} }")?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }

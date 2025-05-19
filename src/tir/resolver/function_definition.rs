@@ -89,8 +89,8 @@ mod tests {
     use crate::{process_ast, process_code, tir::TirError};
 
     #[test]
-    fn missing_type() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "func test(a: a): a {} ")?;
+    fn missing_type_1() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], "func test(): a {} ")?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
@@ -136,6 +136,13 @@ mod tests {
 
         lib_module.1.object_signatures.get("testclass1").unwrap();
 
+        Ok(())
+    }
+
+    #[test]
+    fn missing_type_2() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], "func test(a: a): test {}")?;
+        crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 }
