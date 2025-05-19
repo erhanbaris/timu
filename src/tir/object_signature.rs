@@ -14,3 +14,9 @@ pub enum ObjectSignatureValue<'base> {
     #[allow(dead_code)]
     InterfaceFunction(InterfaceFunctionDefinition<'base>),
 }
+
+impl<'base> AsRef<ObjectSignatureValue<'base>> for ObjectSignatureValue<'base> {
+    fn as_ref(&self) -> &ObjectSignatureValue<'base> {
+        self
+    }
+}

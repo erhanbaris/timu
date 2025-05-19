@@ -53,8 +53,8 @@ impl Display for ClassDefinitionAst<'_> {
 impl Display for ClassDefinitionFieldAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ClassDefinitionFieldAst::ClassField(field) => write!(f, "{}", field),
-            ClassDefinitionFieldAst::ClassFunction(function) => write!(f, "{}", function),
+            ClassDefinitionFieldAst::Field(field) => write!(f, "{}", field),
+            ClassDefinitionFieldAst::Function(function) => write!(f, "{}", function),
         }
     }
 }

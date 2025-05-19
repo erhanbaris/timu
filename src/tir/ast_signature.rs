@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use simplelog::{debug, error};
 
 use crate::{
-    ast::{ClassDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst},
+    ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst},
     nom_tools::ToRange, tir::AstSignatureHolder,
 };
 
@@ -18,6 +18,13 @@ pub enum AstSignatureValue<'base> {
     Class(#[allow(dead_code)] Rc<ClassDefinitionAst<'base>>),
     Function(#[allow(dead_code)] Rc<FunctionDefinitionAst<'base>>),
     Interface(#[allow(dead_code)] Rc<InterfaceDefinitionAst<'base>>),
+    Extend(#[allow(dead_code)] Rc<ExtendDefinitionAst<'base>>),
+}
+
+impl<'base> AsRef<AstSignatureValue<'base>> for AstSignatureValue<'base> {
+    fn as_ref(&self) -> &Self {
+        self
+    }
 }
 
 impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
@@ -27,15 +34,17 @@ impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
             AstSignatureValue::Class(class) => class.resolve(context, module),
             AstSignatureValue::Function(function) => function.resolve(context, module),
             AstSignatureValue::Interface(interface) => interface.resolve(context, module),
+            AstSignatureValue::Extend(extend) => extend.resolve(context, module),
         }
     }
     
-    fn name(&self) -> &str {
+    fn name(&self) -> Cow<'base, str> {
         match self {
             AstSignatureValue::Module(module) => module.name(),
             AstSignatureValue::Class(class) => class.name(),
             AstSignatureValue::Function(function) => function.name(),
             AstSignatureValue::Interface(interface) => interface.name(),
+            AstSignatureValue::Extend(extend) => extend.name(),
         }
     }
 }
@@ -52,7 +61,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
         for (index, name) in module_path[0..module_path.len()].iter().enumerate() {
             let full_module_path = module_path[..index + 1].join(".");
             let is_module_missing = context.get_ast_signature(full_module_path.as_str()).is_none();
-            debug!("Searching module {}. Is missing: {}", full_module_path, is_module_missing);
+            debug!("Searching module <u><b>{}</b></u>. Is missing: {}", full_module_path, is_module_missing);
 
             if is_module_missing {
                 let sub_module = match total_item == index + 1 {
@@ -60,18 +69,17 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
                     false => Module::phantom(name.clone(), full_module_path.clone().into(),file.clone()),
                 };
 
-                //debug!("Adding module {} to context", &full_module_path);
 
                 let sub_module_ref = sub_module.get_ref();
                 build_module_signature(context, sub_module)?;
                 
                 if !base_module_path.is_empty() {
-                    debug!("Adding submodule {} to base module {}", full_module_path, base_module_path);
+                    debug!("Adding submodule <u><b>{}</b></u> to base module {}", full_module_path, base_module_path);
 
                     if let Some(base_module) = context.modules.get_mut(base_module_path.as_str()) {
                         base_module.modules.insert(name.to_string().into(), sub_module_ref);
                     } else {
-                        panic!("Base module {} not found in context", base_module_path);
+                        panic!("Base module <u><b>{}</b></u> not found in context", base_module_path);
                     }
                 }
                 base_module_path = full_module_path.clone();
@@ -88,7 +96,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             ast: Some(ast.clone()),
             modules: Default::default(),
         };
-        debug!("Adding module {} to context", module.path);
+        debug!("Adding module to context: <u><b>{}</b></u>", module.path);
         build_module_signature(context, module)?;
     }
 
@@ -109,6 +117,17 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.fragment()).into(), signature.clone())
                 .map_err(|_| TirError::already_defined(interface.name.to_range(), signature.file.clone()))?;
+        }
+
+        // Extend signatures
+        for extend in ast.get_extends() {
+            let signature = Rc::new(Signature::from((extend.clone(), module.get_ref())));
+
+            ast_signature.add_signature(extend.name(), signature.clone())
+                .map_err(|_| TirError::already_defined(extend.name.to_range(), signature.file.clone()))?;
+            context
+                .add_ast_signature(format!("{}.{}", module.path.clone(), extend.name()).into(), signature.clone())
+                .map_err(|_| TirError::already_defined(extend.name.to_range(), signature.file.clone()))?;
         }
 
         // Class signatures
@@ -135,7 +154,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
     }
 
     module.ast_signatures = ast_signature;
-    
+
     let signature = Signature::new(
         AstSignatureValue::Module(module.get_ref()),
         module.file.clone(),
@@ -183,5 +202,16 @@ impl<'base> From<(Rc<InterfaceDefinitionAst<'base>>, ModuleRef<'base>)> for Sign
         let position = interface.name.to_range();
         let file = interface.name.extra.file.clone();
         Signature::new_with_extra(AstSignatureValue::Interface(interface), file, position, module)
+    }
+}
+
+
+impl<'base> From<(Rc<ExtendDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>> {
+    fn from(value: (Rc<ExtendDefinitionAst<'base>>, ModuleRef<'base>)) -> Self {
+        let (extend, module) = value;
+
+        let position = extend.name.to_range();
+        let file = extend.name.names.first().unwrap().extra.file.clone();
+        Signature::new_with_extra(AstSignatureValue::Extend(extend), file, position, module)
     }
 }

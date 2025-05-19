@@ -26,7 +26,7 @@ impl<'base> FunctionDefinitionAst<'base> {
     pub fn parse_class_function(input: Span<'base>, class_name: Span<'base>) -> IResult<Span<'base>, ClassDefinitionFieldAst<'base>, TimuParserError<'base>> {
         let (input, mut function) = Self::parse(input)?;
         function.location = FunctionDefinitionLocationAst::Class(class_name);
-        Ok((input, ClassDefinitionFieldAst::ClassFunction(function)))
+        Ok((input, ClassDefinitionFieldAst::Function(function)))
     }
 
     pub fn parse_extend_function(input: Span<'base>) -> IResult<Span<'base>, ExtendDefinitionFieldAst<'base>, TimuParserError<'base>> {

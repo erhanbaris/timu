@@ -43,7 +43,7 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
                 }
                 InterfaceDefinitionFieldAst::Field(field) => {
                     if field.is_public.is_some() {
-                        return Err(TirError::extra_public_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.extra.file.clone()));
+                        return Err(TirError::extra_accessibility_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.extra.file.clone()));
                     }
 
                     let field_type = build_object_type(context, &field.field_type, module)?;
@@ -62,8 +62,8 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
         Ok(module.object_signatures.update(Cow::Borrowed(self.name.fragment()), signature.clone()))
     }
     
-    fn name(&self) -> &str {
-        self.name.fragment()
+    fn name(&self) -> Cow<'base, str> {
+        Cow::Borrowed(*self.name.fragment())
     }
 }
 
@@ -78,7 +78,6 @@ impl<'base> InterfaceDefinitionAst<'base> {
             .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
 
         let mut arguments = vec![];
-        let return_type = build_object_type(context, &interface_function.return_type, module)?;
 
         for argument in interface_function.arguments.iter() {
             let type_name = build_type_name(&argument.field_type);
@@ -101,6 +100,8 @@ impl<'base> InterfaceDefinitionAst<'base> {
                 field_type,
             });
         }
+
+        let return_type = build_object_type(context, &interface_function.return_type, module)?;
 
         let signature = Rc::new(ObjectSignature::new(
             ObjectSignatureValue::InterfaceFunction(

@@ -79,8 +79,8 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         Ok(module.object_signatures.update(full_name, signature.clone()))
     }
     
-    fn name(&self) -> &str {
-        self.name.fragment()
+    fn name(&self) -> Cow<'base, str> {
+        Cow::Borrowed(*self.name.fragment())
     }
 }
 

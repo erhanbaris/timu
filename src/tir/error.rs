@@ -13,6 +13,7 @@ pub enum TirError<'base> {
     TypeNotFound { #[allow(dead_code)] source: Rc<SourceFile<'base>>, #[allow(dead_code)] position: Range<usize> },
     AlreadyDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     ExtraAccessibilityIdentifier { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    InvalidType { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
 }
 
 impl Display for TirError<'_> {
@@ -46,6 +47,10 @@ impl Display for TirError<'_> {
                 source: _,
                 position: _,
             } => write!(f, "Extra accessibility identifier"),
+            TirError::InvalidType {
+                source: _,
+                position: _,
+            } => write!(f, "Invalid type"),
         }
     }
 }
@@ -60,8 +65,22 @@ impl<'base> TirError<'base> {
         }
     }
 
-    pub fn extra_public_identifier(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
+    pub fn extra_accessibility_identifier(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
         TirError::ExtraAccessibilityIdentifier {
+            position,
+            source,
+        }
+    }
+
+    pub fn type_not_found(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
+        TirError::TypeNotFound {
+            position,
+            source,
+        }
+    }
+
+    pub fn invalid_type(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
+        TirError::InvalidType {
             position,
             source,
         }
@@ -95,6 +114,10 @@ impl<'base> TirError<'base> {
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),
             TirError::ExtraAccessibilityIdentifier {
+                source,
+                position,
+            } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::InvalidType {
                 source,
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),

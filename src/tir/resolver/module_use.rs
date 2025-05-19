@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::{
     ast::UseAst,
     tir::{context::TirContext, module::ModuleRef, TirError},
@@ -31,11 +33,11 @@ impl<'base> ResolveSignature<'base> for UseAst<'base> {
         Ok(SignatureLocation(usize::MAX))
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> Cow<'base, str> {
         if let Some(alias) = &self.alias {
-            alias.fragment()
+            Cow::Borrowed(*alias.fragment())
         } else {
-            self.name().fragment()
+            Cow::Borrowed(*self.name().fragment())
         }
     }
 }

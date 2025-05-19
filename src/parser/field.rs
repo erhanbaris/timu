@@ -27,7 +27,7 @@ impl FieldAst<'_> {
 
     pub fn parse_class_field(input: Span<'_>) -> IResult<Span<'_>, ClassDefinitionFieldAst<'_>, TimuParserError<'_>> {
         let (input, field) = Self::parse_field(input)?;
-        Ok((input, ClassDefinitionFieldAst::ClassField(field)))
+        Ok((input, ClassDefinitionFieldAst::Field(field)))
     }
 
     pub fn parse_interface_field(input: Span<'_>) -> IResult<Span<'_>, InterfaceDefinitionFieldAst<'_>, TimuParserError<'_>> {

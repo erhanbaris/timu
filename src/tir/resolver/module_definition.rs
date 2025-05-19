@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{borrow::Cow, rc::Rc};
 
 use crate::tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, ObjectSignature, TirError};
 
@@ -12,7 +12,7 @@ impl<'base> ResolveSignature<'base> for ModuleRef<'base> {
             .map_err(|_| TirError::already_defined(0..0, signature.file.clone()))
     }
     
-    fn name(&self) -> &str {
-        self.0.as_ref()
+    fn name(&self) -> Cow<'base, str> {
+        self.0.clone()
     }
 }

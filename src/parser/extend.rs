@@ -30,6 +30,11 @@ impl ExtendDefinitionAst<'_> {
             context("Extend's closing '}' missing", cut(char('}'))),
         )
         .parse(input)?;
+    
+        let name = TypeNameAst {
+            nullable: false,
+            names: vec![name],
+        };
 
         Ok((
             input,
@@ -37,14 +42,14 @@ impl ExtendDefinitionAst<'_> {
                 name,
                 fields,
                 base_interfaces,
-            }),
+            }.into()),
         ))
     }
 }
 
 impl Display for ExtendDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "extend {}", self.name.fragment())?;
+        write!(f, "extend {}", self.name.names.first().unwrap().fragment())?;
 
         if !self.base_interfaces.is_empty() {
             write!(f, ": ")?;

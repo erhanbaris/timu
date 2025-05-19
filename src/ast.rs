@@ -62,7 +62,7 @@ pub enum FileStatementAst<'base> {
     Class(Rc<ClassDefinitionAst<'base>>),
     Function(Rc<FunctionDefinitionAst<'base>>),
     Interface(Rc<InterfaceDefinitionAst<'base>>),
-    Extend(ExtendDefinitionAst<'base>),
+    Extend(Rc<ExtendDefinitionAst<'base>>),
     Use(Rc<UseAst<'base>>),
 }
 
@@ -99,7 +99,7 @@ pub enum InterfaceDefinitionFieldAst<'base> {
 
 #[derive(Debug)]
 pub struct ExtendDefinitionAst<'base> {
-    pub name: Span<'base>,
+    pub name: TypeNameAst<'base>,
     pub fields: Vec<ExtendDefinitionFieldAst<'base>>,
     pub base_interfaces: Vec<TypeNameAst<'base>>,
 }
@@ -186,8 +186,8 @@ pub struct InterfaceFunctionDefinitionAst<'base> {
 
 #[derive(Debug)]
 pub enum ClassDefinitionFieldAst<'base> {
-    ClassField(FieldAst<'base>),
-    ClassFunction(FunctionDefinitionAst<'base>),
+    Field(FieldAst<'base>),
+    Function(FunctionDefinitionAst<'base>),
 }
 
 #[derive(Debug)]

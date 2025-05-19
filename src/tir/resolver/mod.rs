@@ -1,8 +1,11 @@
+use std::borrow::Cow;
+
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
 use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef};
 
 pub mod class_definition;
+pub mod extend_definition;
 pub mod function_definition;
 pub mod interface_definition;
 pub mod module_definition;
@@ -18,7 +21,7 @@ impl From<usize> for SignatureLocation {
 
 pub trait ResolveSignature<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>>;
-    fn name(&self) -> &str;
+    fn name(&self) -> Cow<'base, str>;
 }
 
 fn build_type_name(type_name: &TypeNameAst) -> String {
@@ -48,6 +51,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
         let interaces = ast.get_interfaces().collect::<Vec<_>>();
         let functions = ast.get_functions().collect::<Vec<_>>();
         let classes = ast.get_classes().collect::<Vec<_>>();
+        let extends = ast.get_extends().collect::<Vec<_>>();
 
         simplelog::debug!(" - Resolving all uses");
         for use_item in uses {
@@ -56,21 +60,28 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
 
         simplelog::debug!(" - Resolving all interfaces");
         for interace in interaces {
-            if module.upgrade(context).unwrap().object_signatures.location(interace.name()).is_none() {
+            if module.upgrade(context).unwrap().object_signatures.location(&interace.name()).is_none() {
                 interace.resolve(context, &module)?;
             }
         }
 
         simplelog::debug!(" - Resolving all classes");
         for class in classes {
-            if module.upgrade(context).unwrap().object_signatures.location(class.name()).is_none() {
+            if module.upgrade(context).unwrap().object_signatures.location(&class.name()).is_none() {
                 class.resolve(context, &module)?;
+            }
+        }
+
+        simplelog::debug!(" - Resolving all extends");
+        for extend in extends {
+            if module.upgrade(context).unwrap().object_signatures.location(&extend.name()).is_none() {
+                extend.resolve(context, &module)?;
             }
         }
 
         simplelog::debug!(" - Resolving all functions");
         for function in functions {
-            if module.upgrade(context).unwrap().object_signatures.location(function.name()).is_none() {
+            if module.upgrade(context).unwrap().object_signatures.location(&function.name()).is_none() {
                 function.resolve(context, &module)?;
             }
         }
@@ -136,7 +147,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         None => return Err(TirError::AstSignatureNotFound { signature, source: module.file.clone() })
     };
 
-    if let Some(signature) = signature_module.upgrade(context).unwrap().object_signatures.location(signature.value.name()) {
+    if let Some(signature) = signature_module.upgrade(context).unwrap().object_signatures.location(&signature.value.name()) {
         return Ok(Some(signature));
     }
 

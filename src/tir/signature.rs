@@ -8,7 +8,7 @@ use crate::file::SourceFile;
 use super::resolver::SignatureLocation;
 
 #[derive(Debug)]
-pub struct Signature<'base, T: Debug, E: Debug = ()> {
+pub struct Signature<'base, T: Debug + AsRef<T>, E: Debug = ()> {
     #[allow(dead_code)]
     pub value: T,
     pub file: Rc<SourceFile<'base>>,
@@ -19,7 +19,7 @@ pub struct Signature<'base, T: Debug, E: Debug = ()> {
 
 impl<'base, T, E> Signature<'base, T, E>
 where
-    T: Debug,
+    T: Debug + AsRef<T>,
     E: Debug,
 {
     pub fn new(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>) -> Self {
@@ -42,13 +42,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct SignatureHolder<'base, T: Debug, E: Debug = ()> {
+pub struct SignatureHolder<'base, T: Debug + AsRef<T>, E: Debug = ()> {
     locations: IndexMap<Cow<'base, str>, usize>,
     signatures: Vec<Option<Rc<Signature<'base, T, E>>>>,
 }
 
 impl<T, E> Default for SignatureHolder<'_, T, E> where
-T: Debug,
+T: Debug + AsRef<T>,
 E: Debug{
     fn default() -> Self {
         Self::new()
@@ -57,7 +57,7 @@ E: Debug{
 
 impl<'base, T, E> SignatureHolder<'base, T, E>
 where
-    T: Debug,
+    T: Debug + AsRef<T>,
     E: Debug,
 {
     pub fn new() -> Self {
@@ -90,13 +90,17 @@ where
     }
 
     pub fn add_signature(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T, E>>) -> Result<SignatureLocation, SignatureLocation> {
-        debug!("Adding signature: {}", name);
+        debug!("Adding signature: <u><b>{}</b></u>", name);
         self.inner_add(name, Some(signature))
 
     }
 
     pub fn get(&self, name: &str) -> Option<Rc<Signature<'base, T, E>>> {
         self.locations.get(name).and_then(|index| self.signatures[*index].clone())
+    }
+
+    pub fn get_from_location(&self, location: SignatureLocation) -> Option<Rc<Signature<'base, T, E>>> {
+        self.signatures.get(location.0).and_then(|signature| signature.clone())
     }
 
     pub fn location(&self, name: &str) -> Option<SignatureLocation> {

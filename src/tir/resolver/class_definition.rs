@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 use indexmap::IndexMap;
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError}
 };
 
 use super::{ResolveSignature, SignatureLocation};
@@ -20,6 +20,7 @@ pub struct ClassArgument<'base> {
 pub struct ClassDefinition<'base> {
     pub name: Span<'base>,
     pub fields: IndexMap<Cow<'base, str>, SignatureLocation>,
+    pub extends:Vec<TypeNameAst<'base>>,
 }
 
 impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
@@ -33,15 +34,15 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
 
         for field in self.fields.iter() {
             match field {
-                ClassDefinitionFieldAst::ClassField(field) => {
+                ClassDefinitionFieldAst::Field(field) => {
                     let field_type = build_object_type(context, &field.field_type, module)?;
                     fields.insert((*field.name.fragment()).into(), field_type)
                         .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
                 }
-                ClassDefinitionFieldAst::ClassFunction(class) => {
-                    let signature = class.resolve(context, module)?;
-                    fields.insert((*class.name.fragment()).into(), signature)
-                        .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), class.name.extra.file.clone())))?;
+                ClassDefinitionFieldAst::Function(function) => {
+                    let signature = function.resolve(context, module)?;
+                    fields.insert((*function.name.fragment()).into(), signature)
+                        .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
                 }
             };
         }
@@ -49,14 +50,15 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
         let signature = Rc::new(ObjectSignature::new(ObjectSignatureValue::Class(ClassDefinition {
             name: self.name.clone(),
             fields,
+            extends: Default::default()
         }), self.name.extra.file.clone(), self.name.to_range()));
 
         let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
         Ok(module.object_signatures.update(Cow::Borrowed(self.name.fragment()), signature.clone()))
     }
     
-    fn name(&self) -> &str {
-        self.name.fragment()
+    fn name(&self) -> Cow<'base, str> {
+        Cow::Borrowed(*self.name.fragment())
     }
 }
 

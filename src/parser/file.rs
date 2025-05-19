@@ -1,7 +1,7 @@
 use std::{fmt::{Display, Formatter}, rc::Rc};
 
 
-use crate::ast::{ClassDefinitionAst, FileAst, FileStatementAst, FunctionDefinitionAst, InterfaceDefinitionAst, UseAst};
+use crate::ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FileStatementAst, FunctionDefinitionAst, InterfaceDefinitionAst, UseAst};
 
 impl<'base> FileAst<'base> {
     pub fn get_uses(&self) -> impl Iterator<Item = Rc<UseAst<'base>>> {
@@ -46,6 +46,18 @@ impl<'base> FileAst<'base> {
             .filter_map(|statement| {
                 if let FileStatementAst::Interface(interface) = statement {
                     Some(interface.clone())
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub fn get_extends(&self) -> impl Iterator<Item = Rc<ExtendDefinitionAst<'base>>> {
+        self.statements
+            .iter()
+            .filter_map(|statement| {
+                if let FileStatementAst::Extend(extend) = statement {
+                    Some(extend.clone())
                 } else {
                     None
                 }
