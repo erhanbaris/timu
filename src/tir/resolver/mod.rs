@@ -45,12 +45,20 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
     
     if let Some(ast) = context.modules.get(module.as_ref()).and_then(|module| module.ast.clone()) {
         let uses = ast.get_uses().collect::<Vec<_>>();
+        let interaces = ast.get_interfaces().collect::<Vec<_>>();
         let functions = ast.get_functions().collect::<Vec<_>>();
         let classes = ast.get_classes().collect::<Vec<_>>();
 
         simplelog::debug!(" - Resolving all uses");
         for use_item in uses {
             use_item.resolve(context, &module)?;
+        }
+
+        simplelog::debug!(" - Resolving all interfaces");
+        for interace in interaces {
+            if module.upgrade(context).unwrap().object_signatures.location(interace.name()).is_none() {
+                interace.resolve(context, &module)?;
+            }
         }
 
         simplelog::debug!(" - Resolving all classes");
@@ -115,7 +123,12 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
 
     let signature = match module.imported_modules.get(key.as_ref()) {
         Some(signature) => signature.clone(),
-        None => return Ok(None),
+        None => {
+            match module.get_ast_signature(key.as_ref()) {
+                Some(signature) => signature,
+                None => return Ok(None),
+            }
+        },
     };
 
     let signature_module = match &signature.extra {

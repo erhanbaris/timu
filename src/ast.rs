@@ -152,7 +152,6 @@ pub struct BodyAst<'base> {
 pub enum FunctionDefinitionLocationAst<'base> {
     Class(Span<'base>),
     #[allow(dead_code)]
-    Interface(Span<'base>),
     Module,
 }
 

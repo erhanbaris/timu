@@ -31,7 +31,6 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         let full_name = match &self.location {
             FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
             FunctionDefinitionLocationAst::Class(class) => Cow::Owned(format!("{}.{}", class.fragment(), self.name.fragment())),
-            FunctionDefinitionLocationAst::Interface(interface) => Cow::Owned(format!("{}.{}", interface.fragment(), self.name.fragment()))
         };
         
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));

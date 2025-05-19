@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use crate::{ast::FileAst, file::SourceFile};
 
-use super::{AstSignature, ObjectSignatureHolder, TirContext};
+use super::{AstSignature, AstSignatureHolder, ObjectSignatureHolder, TirContext};
 
 #[derive(Debug)]
 pub struct Module<'base> {
@@ -12,6 +12,7 @@ pub struct Module<'base> {
     pub name: Cow<'base, str>,
     pub path: Cow<'base, str>,
     pub file: Rc<SourceFile<'base>>,
+    pub ast_signatures: AstSignatureHolder<'base>,
     pub imported_modules: IndexMap<Cow<'base, str>, Rc<AstSignature<'base>>>,
     pub object_signatures: ObjectSignatureHolder<'base>,
     pub ast: Option<Rc<FileAst<'base>>>,
@@ -24,6 +25,7 @@ impl<'base> Module<'base> {
             name,
             path,
             file,
+            ast_signatures: AstSignatureHolder::new(),
             imported_modules: IndexMap::new(),
             object_signatures: ObjectSignatureHolder::new(),
             ast: Some(ast),
@@ -37,6 +39,7 @@ impl<'base> Module<'base> {
             path,
             file,
             imported_modules: IndexMap::new(),
+            ast_signatures: AstSignatureHolder::new(),
             object_signatures: ObjectSignatureHolder::new(),
             ast: None,
             modules: IndexMap::new(),
@@ -46,7 +49,12 @@ impl<'base> Module<'base> {
     pub fn get_ref(&self) -> ModuleRef<'base> {
         ModuleRef::new(self.path.clone(), self.file.clone())
     }
+
+    pub fn get_ast_signature<T: AsRef<str>>(&self, key: T) -> Option<Rc<AstSignature<'base>>> {
+        self.ast_signatures.get(key.as_ref())
+    }
 }
+    
 
 #[derive(Debug, Clone)]
 pub struct ModuleRef<'base>(pub Cow<'base, str>, Rc<SourceFile<'base>>);

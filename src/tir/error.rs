@@ -12,6 +12,7 @@ pub enum TirError<'base> {
     AstModuleAlreadyDefined { position: Range<usize>, source: Rc<SourceFile<'base>> },
     TypeNotFound { #[allow(dead_code)] source: Rc<SourceFile<'base>>, #[allow(dead_code)] position: Range<usize> },
     AlreadyDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    ExtraAccessibilityIdentifier { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
 }
 
 impl Display for TirError<'_> {
@@ -41,6 +42,10 @@ impl Display for TirError<'_> {
                 source: _,
                 position: _,
             } => write!(f, "Type not found"),
+            TirError::ExtraAccessibilityIdentifier {
+                source: _,
+                position: _,
+            } => write!(f, "Extra accessibility identifier"),
         }
     }
 }
@@ -50,6 +55,13 @@ impl Error for TirError<'_> {}
 impl<'base> TirError<'base> {
     pub fn already_defined(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
         TirError::AlreadyDefined {
+            position,
+            source,
+        }
+    }
+
+    pub fn extra_public_identifier(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
+        TirError::ExtraAccessibilityIdentifier {
             position,
             source,
         }
@@ -79,6 +91,10 @@ impl<'base> TirError<'base> {
                 source,
             } => (position.clone(), format!("{}", self), source.clone()),
             TirError::TypeNotFound {
+                source,
+                position,
+            } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::ExtraAccessibilityIdentifier {
                 source,
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),

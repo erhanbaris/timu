@@ -43,7 +43,15 @@ fn main() -> Result<(), ()> {
         .set_thread_level(LevelFilter::Off)
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
-    let ast = process_code(vec!["source".into()], "class test { func test(a: test): test {} }")?;
+    let ast = process_code(vec!["source".into()], r#"
+    interface Myinterface {
+        a: ?Myinterface;
+        func test(a: test): test;
+    }
+    
+    class test {
+        func test(a: test): test {}
+    }"#)?;
     process_ast(vec![ast.into()])?;
     Ok(())
 }
