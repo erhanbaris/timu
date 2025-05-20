@@ -44,10 +44,11 @@ fn main() -> Result<(), ()> {
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
     let ast = process_code(vec!["source".into()], r#"
-interface ITest {}
-extend TestClass: ITest {}
-class TestClass {}
-    "#)?;
+    interface Myinterface {
+        a: ?Myinterface;
+        func test(a: Myinterface): Myinterface;
+    }"#)?;
+    
     process_ast(vec![ast.into()])?;
     Ok(())
 }

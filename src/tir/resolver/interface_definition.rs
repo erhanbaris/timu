@@ -29,8 +29,11 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.fragment());
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        tmp_module.object_signatures.reserve(SignaturePath::borrowed(self.name.fragment()))
+        let signature_path = SignaturePath::owned(format!("{}.{}", tmp_module.path, self.name.fragment()));
+        let signature_location = context.object_signatures.reserve(signature_path.clone())
             .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
+        tmp_module.object_signatures.insert(SignaturePath::borrowed(self.name.fragment()), signature_location);
+
 
         let mut fields = IndexMap::<Cow<'_, str>, SignatureLocation>::default();
 
@@ -58,8 +61,7 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
             fields,
         }), self.name.extra.file.clone(), self.name.to_range()));
 
-        let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        Ok(module.object_signatures.update(SignaturePath::borrowed(self.name.fragment()), signature.clone()))
+        Ok(context.object_signatures.update(signature_path, signature.clone()))
     }
     
     fn name(&self) -> Cow<'base, str> {
@@ -74,8 +76,10 @@ impl<'base> InterfaceDefinitionAst<'base> {
         let full_name: Cow<'base, str> = Cow::Owned(format!("{}.{}", self.name.fragment(), self.name.fragment()));
         
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        tmp_module.object_signatures.reserve(SignaturePath::cow(full_name.clone()))
+        let signature_path = SignaturePath::owned(format!("{}.{}", tmp_module.path, full_name));
+        let signature_location = context.object_signatures.reserve(signature_path.clone())
             .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
+        tmp_module.object_signatures.insert(SignaturePath::cow(full_name), signature_location);
 
         let mut arguments = vec![];
 
@@ -115,8 +119,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
             self.name.to_range(),
         ));
         
-        let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        Ok(module.object_signatures.update(SignaturePath::cow(full_name), signature.clone()))
+        Ok(context.object_signatures.update(signature_path, signature.clone()))
     }
 }
 

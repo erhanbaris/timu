@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    context::TirContext, module::{Module, ModuleRef}, object_signature::ObjectSignatureValue, resolver::{ResolveSignature, SignatureLocation}, signature::{Signature, SignatureHolder, SignaturePath}, TirError
+    context::TirContext, module::{Module, ModuleRef}, resolver::{ResolveSignature, SignatureLocation}, signature::{Signature, SignaturePath}, TirError
 };
 
 #[derive(Debug)]
@@ -92,7 +92,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             path: ast.file.path().join(".").into(),
             imported_modules: IndexMap::new(),
             ast_signatures: AstSignatureHolder::new(),
-            object_signatures: SignatureHolder::<ObjectSignatureValue>::new(),
+            object_signatures: IndexMap::new(),
             ast: Some(ast.clone()),
             modules: Default::default(),
         };

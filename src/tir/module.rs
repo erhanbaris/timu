@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use crate::{ast::FileAst, file::SourceFile};
 
-use super::{AstSignature, AstSignatureHolder, ObjectSignatureHolder, TirContext};
+use super::{resolver::SignatureLocation, signature::SignaturePath, AstSignature, AstSignatureHolder, TirContext};
 
 #[derive(Debug)]
 pub struct Module<'base> {
@@ -14,7 +14,7 @@ pub struct Module<'base> {
     pub file: Rc<SourceFile<'base>>,
     pub ast_signatures: AstSignatureHolder<'base>,
     pub imported_modules: IndexMap<Cow<'base, str>, Rc<AstSignature<'base>>>,
-    pub object_signatures: ObjectSignatureHolder<'base>,
+    pub object_signatures: IndexMap<SignaturePath<'base>, SignatureLocation>,
     pub ast: Option<Rc<FileAst<'base>>>,
     pub modules: IndexMap<Cow<'base, str>, ModuleRef<'base>>,
 }
@@ -27,7 +27,7 @@ impl<'base> Module<'base> {
             file,
             ast_signatures: AstSignatureHolder::new(),
             imported_modules: IndexMap::new(),
-            object_signatures: ObjectSignatureHolder::new(),
+            object_signatures: IndexMap::new(),
             ast: Some(ast),
             modules: IndexMap::new(),
         }
@@ -40,7 +40,7 @@ impl<'base> Module<'base> {
             file,
             imported_modules: IndexMap::new(),
             ast_signatures: AstSignatureHolder::new(),
-            object_signatures: ObjectSignatureHolder::new(),
+            object_signatures: IndexMap::new(),
             ast: None,
             modules: IndexMap::new(),
         }

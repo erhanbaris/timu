@@ -11,7 +11,7 @@ pub mod interface_definition;
 pub mod module_definition;
 pub mod module_use;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SignatureLocation(#[allow(dead_code)]pub usize);
 impl From<usize> for SignatureLocation {
     fn from(signature_location: usize) -> Self {
@@ -60,28 +60,28 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
 
         simplelog::debug!(" - Resolving all interfaces");
         for interace in interaces {
-            if module.upgrade(context).unwrap().object_signatures.location(&interace.name()).is_none() {
+            if module.upgrade(context).unwrap().object_signatures.get(interace.name().as_ref()).is_none() {
                 interace.resolve(context, &module)?;
             }
         }
 
         simplelog::debug!(" - Resolving all classes");
         for class in classes {
-            if module.upgrade(context).unwrap().object_signatures.location(&class.name()).is_none() {
+            if module.upgrade(context).unwrap().object_signatures.get(class.name().as_ref()).is_none() {
                 class.resolve(context, &module)?;
             }
         }
 
         simplelog::debug!(" - Resolving all extends");
         for extend in extends {
-            if module.upgrade(context).unwrap().object_signatures.location(&extend.name()).is_none() {
+            if module.upgrade(context).unwrap().object_signatures.get(extend.name().as_ref()).is_none() {
                 extend.resolve(context, &module)?;
             }
         }
 
         simplelog::debug!(" - Resolving all functions");
         for function in functions {
-            if module.upgrade(context).unwrap().object_signatures.location(&function.name()).is_none() {
+            if module.upgrade(context).unwrap().object_signatures.get(function.name().as_ref()).is_none() {
                 function.resolve(context, &module)?;
             }
         }
@@ -128,8 +128,8 @@ fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<
 pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<SignatureLocation>, TirError<'base>> {
     let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
     
-    if let Some(signature) = module.object_signatures.location(key.as_ref()) {
-        return Ok(Some(signature));
+    if let Some(location) = module.object_signatures.get(key.as_ref()) {
+        return Ok(Some(location.clone()));
     }
 
     let signature = match module.imported_modules.get(key.as_ref()) {
@@ -147,8 +147,8 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         None => return Err(TirError::AstSignatureNotFound { signature, source: module.file.clone() })
     };
 
-    if let Some(signature) = signature_module.upgrade(context).unwrap().object_signatures.location(&signature.value.name()) {
-        return Ok(Some(signature));
+    if let Some(location) = signature_module.upgrade(context).unwrap().object_signatures.get(signature.value.name().as_ref()) {
+        return Ok(Some(location.clone()));
     }
 
     Ok(Some(signature.value.resolve(context, signature_module)?))

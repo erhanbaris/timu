@@ -103,6 +103,7 @@ where
         self.signatures.get(location.0).and_then(|signature| signature.clone())
     }
 
+    #[allow(dead_code)]
     pub fn location(&self, name: &str) -> Option<SignatureLocation> {
         self.locations.get(name).map(|index| SignatureLocation(*index))
     }
@@ -114,7 +115,7 @@ pub enum SignaturePathType {
     Moduled,
 }
 
-#[derive(Debug, Hash)]
+#[derive(Debug, Hash, Clone)]
 struct InnerSignaturePath<'base> {
     full_path: Cow<'base, str>, 
     signature_type: SignaturePathType,
@@ -136,7 +137,7 @@ impl Hash for SignaturePath<'_> {
 
 impl Eq for SignaturePath<'_> {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SignaturePath<'base>(InnerSignaturePath<'base>);
 
 impl<'base> SignaturePath<'base> {
@@ -196,18 +197,22 @@ impl<'base> SignaturePath<'base> {
 
     }
 
+    #[allow(dead_code)]
     pub fn get_raw_path(&self) -> &Cow<'base, str> {
         &self.0.full_path
     }
 
+    #[allow(dead_code)]
     pub fn get_type(&self) -> SignaturePathType {
         self.0.signature_type
     }
 
+    #[allow(dead_code)]
     pub fn get_modules(&self) -> &Vec<Range<usize>> {
         &self.0.modules
     }
 
+    #[allow(dead_code)]
     pub fn build_string(&self, range: Range<usize>) -> &str {
         &self.0.full_path[range]
     }

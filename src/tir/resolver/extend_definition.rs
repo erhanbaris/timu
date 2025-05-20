@@ -28,10 +28,8 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
-        let class_signature = build_object_type(context, &self.name, module)?;
-        let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        
-        let class_binding = tmp_module.object_signatures.get_from_location(class_signature);
+        let class_location = build_object_type(context, &self.name, module)?;        
+        let class_binding = context.object_signatures.get_from_location(class_location);
         let class = match &class_binding {
             Some(signature) => match signature.value.as_ref() {
                 ObjectSignatureValue::Class(class) => class,
