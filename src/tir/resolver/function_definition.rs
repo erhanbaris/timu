@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 use crate::{
     ast::{FunctionDefinitionAst, FunctionDefinitionLocationAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, signature::SignaturePath, ObjectSignature, TirError},
 };
 
 use super::{build_type_name, try_resolve_signature, ResolveSignature, SignatureLocation};
@@ -34,7 +34,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         };
         
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        tmp_module.object_signatures.reserve(full_name.clone())
+        tmp_module.object_signatures.reserve(SignaturePath::cow(full_name.clone()))
             .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
 
         let mut arguments = vec![];
@@ -76,7 +76,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         ));
         
         let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        Ok(module.object_signatures.update(full_name, signature.clone()))
+        Ok(module.object_signatures.update(SignaturePath::cow(full_name), signature.clone()))
     }
     
     fn name(&self) -> Cow<'base, str> {

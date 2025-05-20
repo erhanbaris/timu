@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Debug, hash::Hash, ops::Range, rc::Rc};
+use std::{borrow::{Borrow, Cow}, fmt::Debug, hash::Hash, ops::Range, rc::Rc};
 
 use indexmap::IndexMap;
 use simplelog::debug;
@@ -43,7 +43,7 @@ where
 
 #[derive(Debug)]
 pub struct SignatureHolder<'base, T: Debug + AsRef<T>, E: Debug = ()> {
-    locations: IndexMap<Cow<'base, str>, usize>,
+    locations: IndexMap<SignaturePath<'base>, usize>,
     signatures: Vec<Option<Rc<Signature<'base, T, E>>>>,
 }
 
@@ -67,7 +67,7 @@ where
         }
     }
 
-    fn inner_add(&mut self, name: Cow<'base, str>, signature: Option<Rc<Signature<'base, T, E>>>) -> Result<SignatureLocation, SignatureLocation> {
+    fn inner_add(&mut self, name: SignaturePath<'base>, signature: Option<Rc<Signature<'base, T, E>>>) -> Result<SignatureLocation, SignatureLocation> {
         self.signatures.push(signature);
         let index = self.signatures.len() - 1;
         match self.locations.insert(name, index) {
@@ -76,21 +76,21 @@ where
         }
     }
 
-    pub fn reserve(&mut self, name: Cow<'base, str>) -> Result<SignatureLocation, SignatureLocation> {
-        debug!("Reserve signature: {}", name);
+    pub fn reserve(&mut self, name: SignaturePath<'base>) -> Result<SignatureLocation, SignatureLocation> {
+        debug!("Reserve signature: {}", name.get_name());
         self.inner_add(name, None)
     }
 
-    pub fn update(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T, E>>) -> SignatureLocation {
-        debug!("Update signature: {}", name);
-        let index = self.locations.get(name.as_ref()).unwrap_or_else(|| panic!("Signature not found, but this is a bug"));
+    pub fn update(&mut self, name: SignaturePath<'base>, signature: Rc<Signature<'base, T, E>>) -> SignatureLocation {
+        debug!("Update signature: {}", name.get_name());
+        let index = self.locations.get(&name).unwrap_or_else(|| panic!("Signature not found, but this is a bug"));
         self.signatures[*index] = Some(signature);
         SignatureLocation(*index)
 
     }
 
-    pub fn add_signature(&mut self, name: Cow<'base, str>, signature: Rc<Signature<'base, T, E>>) -> Result<SignatureLocation, SignatureLocation> {
-        debug!("Adding signature: <u><b>{}</b></u>", name);
+    pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Rc<Signature<'base, T, E>>) -> Result<SignatureLocation, SignatureLocation> {
+        debug!("Adding signature: <u><b>{}</b></u>", name.get_name());
         self.inner_add(name, Some(signature))
 
     }
@@ -122,17 +122,19 @@ struct InnerSignaturePath<'base> {
     name: Range<usize>
 }
 
-impl<'base> PartialEq for SignaturePath<'base> {
+impl PartialEq for SignaturePath<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.0.full_path == other.0.full_path
     }
 }
 
-impl<'base> Hash for SignaturePath<'base> {
+impl Hash for SignaturePath<'_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.full_path.hash(state);
     }
 }
+
+impl Eq for SignaturePath<'_> {}
 
 #[derive(Debug)]
 pub struct SignaturePath<'base>(InnerSignaturePath<'base>);
@@ -146,7 +148,8 @@ impl<'base> SignaturePath<'base> {
                 let mut start_index = 0;
                 let mut end_index = index;
 
-                let mut modules = vec![start_index..end_index];
+                let mut modules = Vec::new();
+                modules.push(start_index..end_index);
                 end_index += 1; // Skip the dot
 
                 while let Some(new_index) = full_path[end_index..].find('.') {
@@ -180,6 +183,10 @@ impl<'base> SignaturePath<'base> {
         }
     }
 
+    pub fn cow(path: Cow<'base, str>) -> SignaturePath<'base> {
+        SignaturePath(Self::build_path(path))
+    }
+
     pub fn borrowed(path: &'base str) -> SignaturePath<'base> {
         SignaturePath(Self::build_path(Cow::Borrowed(path)))
     }
@@ -207,6 +214,12 @@ impl<'base> SignaturePath<'base> {
 
     pub fn get_name(&self) -> &str {
         &self.0.full_path[self.0.name.clone()]
+    }
+}
+
+impl Borrow<str> for SignaturePath<'_> {
+    fn borrow(&self) -> &str {
+        self.0.full_path.as_ref()
     }
 }
 

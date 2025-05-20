@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    context::TirContext, module::{Module, ModuleRef}, object_signature::ObjectSignatureValue, resolver::{ResolveSignature, SignatureLocation}, signature::{Signature, SignatureHolder}, TirError
+    context::TirContext, module::{Module, ModuleRef}, object_signature::ObjectSignatureValue, resolver::{ResolveSignature, SignatureLocation}, signature::{Signature, SignatureHolder, SignaturePath}, TirError
 };
 
 #[derive(Debug)]
@@ -112,7 +112,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
         for interface in ast.get_interfaces() {
             let signature = Rc::new(Signature::from((interface.clone(), module.get_ref())));
 
-            ast_signature.add_signature(Cow::Borrowed(*interface.name.fragment()), signature.clone())
+            ast_signature.add_signature(SignaturePath::borrowed(interface.name.fragment()), signature.clone())
                 .map_err(|_| TirError::already_defined(interface.name.to_range(), signature.file.clone()))?;
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.fragment()).into(), signature.clone())
@@ -123,7 +123,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
         for extend in ast.get_extends() {
             let signature = Rc::new(Signature::from((extend.clone(), module.get_ref())));
 
-            ast_signature.add_signature(extend.name(), signature.clone())
+            ast_signature.add_signature(SignaturePath::cow(extend.name()), signature.clone())
                 .map_err(|_| TirError::already_defined(extend.name.to_range(), signature.file.clone()))?;
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), extend.name()).into(), signature.clone())
@@ -134,7 +134,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
         for class in ast.get_classes() {
             let signature = Rc::new(Signature::from((class.clone(), module.get_ref())));
 
-            ast_signature.add_signature(Cow::Borrowed(*class.name.fragment()), signature.clone())
+            ast_signature.add_signature(SignaturePath::borrowed(class.name.fragment()), signature.clone())
                 .map_err(|_| TirError::already_defined(class.name.to_range(), signature.file.clone()))?;
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), class.name.fragment()).into(), signature.clone())
@@ -145,7 +145,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
         for func in ast.get_functions() {
             let signature = Rc::new(Signature::from((func.clone(), module.get_ref())));
 
-            ast_signature.add_signature(Cow::Borrowed(*func.name.fragment()), signature.clone())
+            ast_signature.add_signature(SignaturePath::borrowed(func.name.fragment()), signature.clone())
                 .map_err(|_| TirError::already_defined(func.name.to_range(), signature.file.clone()))?;
             context
                 .add_ast_signature(format!("{}.{}", module.path.clone(), func.name.fragment()).into(), signature.clone())

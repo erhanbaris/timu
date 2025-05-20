@@ -2,7 +2,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use indexmap::IndexMap;
 
-use super::{resolver::SignatureLocation, AstSignature, AstSignatureHolder, Module, ObjectSignatureHolder};
+use super::{resolver::SignatureLocation, signature::SignaturePath, AstSignature, AstSignatureHolder, Module, ObjectSignatureHolder};
 
 #[derive(Debug, Default)]
 pub struct TirContext<'base> {
@@ -18,6 +18,6 @@ impl<'base> TirContext<'base> {
     }
 
     pub fn add_ast_signature(&mut self, key: Cow<'base, str>, signature: Rc<AstSignature<'base>>) -> Result<SignatureLocation, SignatureLocation> {
-        self.ast_signatures.add_signature(key, signature)
+        self.ast_signatures.add_signature(SignaturePath::cow(key), signature)
     }
 }

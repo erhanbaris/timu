@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 use indexmap::IndexMap;
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, signature::SignaturePath, ObjectSignature, TirError}
 };
 
 use super::{ResolveSignature, SignatureLocation};
@@ -27,7 +27,7 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        tmp_module.object_signatures.reserve(Cow::Borrowed(self.name.fragment()))
+        tmp_module.object_signatures.reserve(SignaturePath::borrowed(self.name.fragment()))
             .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
 
         let mut fields = IndexMap::<Cow<'_, str>, SignatureLocation>::default();
@@ -54,7 +54,7 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
         }), self.name.extra.file.clone(), self.name.to_range()));
 
         let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        Ok(module.object_signatures.update(Cow::Borrowed(self.name.fragment()), signature.clone()))
+        Ok(module.object_signatures.update(SignaturePath::borrowed(self.name.fragment()), signature.clone()))
     }
     
     fn name(&self) -> Cow<'base, str> {
