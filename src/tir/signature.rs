@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Debug, ops::Range, rc::Rc};
+use std::{borrow::Cow, fmt::Debug, hash::Hash, ops::Range, rc::Rc};
 
 use indexmap::IndexMap;
 use simplelog::debug;
@@ -108,9 +108,113 @@ where
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum SignaturePathType {
+    Direct,
+    Moduled,
+}
+
+#[derive(Debug, Hash)]
+struct InnerSignaturePath<'base> {
+    full_path: Cow<'base, str>, 
+    signature_type: SignaturePathType,
+    modules: Vec<Range<usize>>,
+    name: Range<usize>
+}
+
+impl<'base> PartialEq for SignaturePath<'base> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.full_path == other.0.full_path
+    }
+}
+
+impl<'base> Hash for SignaturePath<'base> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.full_path.hash(state);
+    }
+}
+
+#[derive(Debug)]
+pub struct SignaturePath<'base>(InnerSignaturePath<'base>);
+
+impl<'base> SignaturePath<'base> {
+    fn build_path(full_path: Cow<'base, str>) -> InnerSignaturePath<'base> {
+        match full_path.find('.') {
+            Some(index) => {
+
+                let mut position = 0;
+                let mut start_index = 0;
+                let mut end_index = index;
+
+                let mut modules = vec![start_index..end_index];
+                end_index += 1; // Skip the dot
+
+                while let Some(new_index) = full_path[end_index..].find('.') {
+                    start_index = end_index;
+                    
+                    position += new_index + 1;
+                    end_index = position + new_index;
+
+                    modules.push(start_index..end_index);
+                    end_index += 1; // Skip the dot
+                }
+                
+                let name = end_index..full_path.len();
+                
+                InnerSignaturePath {
+                    full_path,
+                    signature_type: SignaturePathType::Moduled,
+                    modules,
+                    name
+                }
+            },
+            None => {
+                let name = 0..full_path.len();
+                InnerSignaturePath {
+                    full_path,
+                    signature_type: SignaturePathType::Direct,
+                    modules: Vec::new(),
+                    name
+                }
+            }
+        }
+    }
+
+    pub fn borrowed(path: &'base str) -> SignaturePath<'base> {
+        SignaturePath(Self::build_path(Cow::Borrowed(path)))
+    }
+
+    pub fn owned(path: String) -> SignaturePath<'base> {
+        SignaturePath(Self::build_path(Cow::Owned(path)))
+
+    }
+
+    pub fn get_raw_path(&self) -> &Cow<'base, str> {
+        &self.0.full_path
+    }
+
+    pub fn get_type(&self) -> SignaturePathType {
+        self.0.signature_type
+    }
+
+    pub fn get_modules(&self) -> &Vec<Range<usize>> {
+        &self.0.modules
+    }
+
+    pub fn build_string(&self, range: Range<usize>) -> &str {
+        &self.0.full_path[range]
+    }
+
+    pub fn get_name(&self) -> &str {
+        &self.0.full_path[self.0.name.clone()]
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::process_code;
+    use crate::{process_code, tir::signature::SignaturePathType};
+
+    use super::SignaturePath;
 
     #[test]
     fn signature_generation() -> Result<(), ()> {
@@ -124,6 +228,54 @@ mod tests {
     fn dublicate_signatures() -> Result<(), ()> {
         let ast = process_code(vec!["source".into()], " class test {} func test(): void {} interface test {}")?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
+        Ok(())
+    }
+
+    #[test]
+    fn direct_signature_path() -> Result<(), ()> {
+
+        let path = SignaturePath::borrowed("test");
+        assert_eq!(path.get_type(), SignaturePathType::Direct);
+        assert_eq!(path.get_raw_path(), "test");
+        assert_eq!(path.get_name(), "test");
+        assert_eq!(path.get_modules(), &Vec::new());
+        
+        Ok(())
+    }
+
+    #[test]
+    fn moduled_signature_path_1() -> Result<(), ()> {
+
+        let path = SignaturePath::borrowed("module.test");
+        assert_eq!(path.get_type(), SignaturePathType::Moduled);
+        assert_eq!(path.get_raw_path(), "module.test");
+        assert_eq!(path.get_name(), "test");
+        assert_eq!(path.build_string(path.get_modules()[0].clone()), "module");
+        
+        let path = SignaturePath::borrowed("module1.module2.test");
+        assert_eq!(path.get_type(), SignaturePathType::Moduled);
+        assert_eq!(path.get_raw_path(), "module1.module2.test");
+        assert_eq!(path.get_name(), "test");
+        assert_eq!(path.build_string(path.get_modules()[0].clone()), "module1");
+        assert_eq!(path.build_string(path.get_modules()[1].clone()), "module2");
+        
+        let path = SignaturePath::borrowed("module1.module2.module3.test");
+        assert_eq!(path.get_type(), SignaturePathType::Moduled);
+        assert_eq!(path.get_raw_path(), "module1.module2.module3.test");
+        assert_eq!(path.get_name(), "test");
+        assert_eq!(path.build_string(path.get_modules()[0].clone()), "module1");
+        assert_eq!(path.build_string(path.get_modules()[1].clone()), "module2");
+        assert_eq!(path.build_string(path.get_modules()[2].clone()), "module3");
+        
+        let path = SignaturePath::borrowed("module1.module2.module3.module4.test");
+        assert_eq!(path.get_type(), SignaturePathType::Moduled);
+        assert_eq!(path.get_raw_path(), "module1.module2.module3.module4.test");
+        assert_eq!(path.get_name(), "test");
+        assert_eq!(path.build_string(path.get_modules()[0].clone()), "module1");
+        assert_eq!(path.build_string(path.get_modules()[1].clone()), "module2");
+        assert_eq!(path.build_string(path.get_modules()[2].clone()), "module3");
+        assert_eq!(path.build_string(path.get_modules()[3].clone()), "module4");
+        
         Ok(())
     }
 }
