@@ -28,15 +28,7 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
-        let class_location = build_object_type(context, &self.name, module)?;        
-        let class_binding = context.object_signatures.get_from_location(class_location);
-        let class = match &class_binding {
-            Some(signature) => match signature.value.as_ref() {
-                ObjectSignatureValue::Class(class) => class,
-                _ => return Err(TirError::invalid_type(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
-            },
-            None => return Err(TirError::type_not_found(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
-        };
+
         
         let mut fields = IndexMap::<Cow<'_, str>, SignatureLocation>::default();
 
@@ -59,12 +51,23 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
             };
         }
 
-        for (key, _value) in fields.into_iter() {
+        let class_signature = build_object_type(context, &self.name, module)?;
+        
+        let class_bunding = context.object_signatures.get_mut_from_location(class_signature);
+        let class = match class_bunding {
+            Some(signature) => match signature.value.as_mut() {
+                ObjectSignatureValue::Class(class) => class,
+                _ => return Err(TirError::invalid_type(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
+            },
+            None => return Err(TirError::type_not_found(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
+        };
+
+        for (key, value) in fields.into_iter() {
             if class.fields.contains_key(&key) {
                 return Err(TirError::already_defined(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone()));
             }
 
-            // class.fields.insert(key, value);
+            class.fields.insert(key, value);
         }
         
         Ok(SignatureLocation(usize::MAX))
@@ -84,7 +87,7 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::process_code;
+    use crate::{process_code, tir::object_signature::ObjectSignatureValue};
 
     #[test]
     fn empty_interface() -> Result<(), ()> {
@@ -114,6 +117,50 @@ class TestClass { a: TestClass; }
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(): TestClass { } }
 class TestClass { func test(): TestClass { } }
+    "#)?;
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+        Ok(())
+    }
+
+    #[test]
+    fn extended_fields() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], r#"
+interface ITest { func test(): TestClass; a: TestClass; }
+extend TestClass: ITest { func test(): TestClass { } a: TestClass; }
+class TestClass { }
+    "#)?;
+        let context = crate::tir::build(vec![ast.into()]).unwrap();
+
+        let testclass = context.object_signatures.get("source.TestClass").unwrap();
+        if let ObjectSignatureValue::Class(class) = testclass.value.as_ref() {
+            assert_eq!(class.fields.len(), 2);
+            let field1 = context.object_signatures.get_from_location(class.fields["test"].clone()).unwrap();
+            let field2 = context.object_signatures.get_from_location(class.fields["a"].clone()).unwrap();
+
+            if let ObjectSignatureValue::Function(function) = field1.value.as_ref() {
+                assert_eq!(*function.name.fragment(), "test");
+                assert_eq!(function.arguments.len(), 0);
+            } else {
+                panic!("Expected ObjectSignatureValue::Function but got {:?}", field1.value);
+            }
+
+            if let ObjectSignatureValue::Class(field) = field2.value.as_ref() {
+                assert_eq!(*field.name.fragment(), "TestClass");
+            } else {
+                panic!("Expected ObjectSignatureValue::Class but got {:?}", field2.value);
+            }
+        } else {
+            panic!("Expected ObjectSignatureValue::Class but got {:?}", testclass.value);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn missing_deinition() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], r#"
+interface ITest { func test(): TestClass; a: TestClass; }
+extend TestClass: ITest { func test(): TestClass { } }
+class TestClass { }
     "#)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())

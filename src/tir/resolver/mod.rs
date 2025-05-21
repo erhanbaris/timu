@@ -133,32 +133,26 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         return Ok(Some(location.clone()));
     }
 
-    let signature = match module.imported_modules.get(key.as_ref()) {
-        Some(signature) => match context.ast_signatures.get_from_location(signature.clone()) {
-            Some(signature) => signature,
-            None => return Ok(None),
-        },
+    let signature_location = match module.imported_modules.get(key.as_ref()) {
+        Some(location) => location.clone(),
         None => {
             match module.get_ast_signature(key.as_ref()) {
-                Some(signature) => match context.ast_signatures.get_from_location(signature) {
-                    Some(signature) => signature,
-                    None => return Ok(None),
-                },
+                Some(location) => location,
                 None => return Ok(None),
             }
         },
     };
 
-    let signature_module = match &signature.extra {
-        Some(signature_module) => signature_module,
-        None => return Err(TirError::AstSignatureNotFound { source: module.file.clone() })
+    let signature = match context.ast_signatures.get_from_location(signature_location.clone()) {
+        Some(signature) => signature,
+        None => return Ok(None),
     };
 
-    if let Some(location) = signature_module.upgrade(context).unwrap().object_signatures.get(signature.value.name().as_ref()) {
+    if let Some(location) = signature.extra.as_ref().unwrap().upgrade(context).unwrap().object_signatures.get(signature.value.name().as_ref()) {
         return Ok(Some(location.clone()));
     }
 
-    Ok(Some(signature.value.resolve(context, signature_module)?))
+    Ok(Some(context.resolve_from_location(signature_location)?))
 }
 
 pub fn try_resolve_signature<'base, K: AsRef<str>>(

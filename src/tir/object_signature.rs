@@ -20,3 +20,9 @@ impl<'base> AsRef<ObjectSignatureValue<'base>> for ObjectSignatureValue<'base> {
         self
     }
 }
+
+impl<'base> AsMut<ObjectSignatureValue<'base>> for ObjectSignatureValue<'base> {
+    fn as_mut(&mut self) -> &mut ObjectSignatureValue<'base> {
+        self
+    }
+}
