@@ -1,4 +1,4 @@
-use std::{borrow::Cow, rc::Rc};
+use std::borrow::Cow;
 
 use crate::{
     ast::{FunctionDefinitionAst, FunctionDefinitionLocationAst},
@@ -60,7 +60,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             });
         }
 
-        let signature = Rc::new(ObjectSignature::new(
+        let signature = ObjectSignature::new(
             ObjectSignatureValue::Function(
                 FunctionDefinition {
                     is_public: self.is_public.is_some(),
@@ -71,9 +71,9 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             ),
             self.name.extra.file.clone(),
             self.name.to_range(),
-        ));
+        );
         
-        context.update_object_location(signature_path.clone(), signature.clone());
+        context.update_object_location(signature_path.clone(), signature);
         Ok(signature_location)
     }
     

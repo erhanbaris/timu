@@ -97,7 +97,8 @@ fn find_module<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &M
 
     match module.imported_modules.get(module_name) {
         Some(found_module) => {
-            if let AstSignatureValue::Module(found_module) = &found_module.value {
+            let signature = context.ast_signatures.get_from_location(found_module.clone()).map(|module| module.value.as_ref());
+            if let Some(AstSignatureValue::Module(found_module)) = signature {
                 Some(found_module.clone())
             } else {
                 None
@@ -133,10 +134,16 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
     }
 
     let signature = match module.imported_modules.get(key.as_ref()) {
-        Some(signature) => signature.clone(),
+        Some(signature) => match context.ast_signatures.get_from_location(signature.clone()) {
+            Some(signature) => signature,
+            None => return Ok(None),
+        },
         None => {
             match module.get_ast_signature(key.as_ref()) {
-                Some(signature) => signature,
+                Some(signature) => match context.ast_signatures.get_from_location(signature) {
+                    Some(signature) => signature,
+                    None => return Ok(None),
+                },
                 None => return Ok(None),
             }
         },
@@ -144,7 +151,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
 
     let signature_module = match &signature.extra {
         Some(signature_module) => signature_module,
-        None => return Err(TirError::AstSignatureNotFound { signature, source: module.file.clone() })
+        None => return Err(TirError::AstSignatureNotFound { source: module.file.clone() })
     };
 
     if let Some(location) = signature_module.upgrade(context).unwrap().object_signatures.get(signature.value.name().as_ref()) {

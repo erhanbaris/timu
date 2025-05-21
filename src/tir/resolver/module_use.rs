@@ -9,14 +9,14 @@ use super::{ResolveSignature, SignatureLocation};
 
 impl<'base> ResolveSignature<'base> for UseAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
-        if let Some(signature) = context.get_ast_signature(&self.import.text) {
+        if let Some(signature_location) = context.get_ast_location(&self.import.text) {
             let name = match &self.alias {
                 Some(alias) => std::borrow::Cow::Borrowed(*alias.fragment()),
                 None => std::borrow::Cow::Borrowed(*self.name().fragment()),
             };
 
             let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-            if module.imported_modules.insert(name, signature.clone()).is_some() {
+            if module.imported_modules.insert(name, signature_location).is_some() {
                 return Err(TirError::AstModuleAlreadyDefined {
                     position: self.import.to_range(),
                     source: self.name().extra.file.clone(),
