@@ -5,7 +5,7 @@ use simplelog::{debug, error};
 
 use crate::{
     ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst},
-    nom_tools::ToRange, tir::AstSignatureHolder,
+    nom_tools::ToRange,
 };
 
 use super::{
@@ -91,7 +91,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             file: ast.file.clone(),
             path: ast.file.path().join(".").into(),
             imported_modules: IndexMap::new(),
-            ast_signatures: AstSignatureHolder::new(),
+            ast_signatures: IndexMap::new(),
             object_signatures: IndexMap::new(),
             ast: Some(ast.clone()),
             modules: Default::default(),
@@ -105,51 +105,59 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
 
 pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module: Module<'base>) -> Result<(), TirError<'base>> {
     let module_name = module.path.to_string();
-    let mut ast_signature = AstSignatureHolder::new();
+    let mut ast_signature = IndexMap::new();
 
     if let Some(ast) = &module.ast {
         // Interface signatures
         for interface in ast.get_interfaces() {
-            let signature = Rc::new(Signature::from((interface.clone(), module.get_ref())));
+            let signature = Signature::from((interface.clone(), module.get_ref()));
+            let source = signature.file.clone();
+            
+            let location = context
+                .add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.fragment()).into(), signature)
+                .map_err(|_| TirError::already_defined(interface.name.to_range(), source.clone()))?;
 
-            ast_signature.add_signature(SignaturePath::borrowed(interface.name.fragment()), signature.clone())
-                .map_err(|_| TirError::already_defined(interface.name.to_range(), signature.file.clone()))?;
-            context
-                .add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.fragment()).into(), signature.clone())
-                .map_err(|_| TirError::already_defined(interface.name.to_range(), signature.file.clone()))?;
+            ast_signature.insert(SignaturePath::borrowed(interface.name.fragment()), location)
+                .map_or(Ok(()), |_| Err(TirError::already_defined(interface.name.to_range(), source)))?;
         }
 
         // Extend signatures
         for extend in ast.get_extends() {
-            let signature = Rc::new(Signature::from((extend.clone(), module.get_ref())));
+            let signature = Signature::from((extend.clone(), module.get_ref()));
+            let source = signature.file.clone();
 
-            ast_signature.add_signature(SignaturePath::cow(extend.name()), signature.clone())
-                .map_err(|_| TirError::already_defined(extend.name.to_range(), signature.file.clone()))?;
-            context
-                .add_ast_signature(format!("{}.{}", module.path.clone(), extend.name()).into(), signature.clone())
-                .map_err(|_| TirError::already_defined(extend.name.to_range(), signature.file.clone()))?;
+            let location = context
+                .add_ast_signature(format!("{}.{}", module.path.clone(), extend.name()).into(), signature)
+                .map_err(|_| TirError::already_defined(extend.name.to_range(), source.clone()))?;
+
+            ast_signature.insert(SignaturePath::cow(extend.name()), location)
+                .map_or(Ok(()), |_| Err(TirError::already_defined(extend.name.to_range(), source)))?;
         }
 
         // Class signatures
         for class in ast.get_classes() {
-            let signature = Rc::new(Signature::from((class.clone(), module.get_ref())));
+            let signature = Signature::from((class.clone(), module.get_ref()));
+            let source = signature.file.clone();
 
-            ast_signature.add_signature(SignaturePath::borrowed(class.name.fragment()), signature.clone())
-                .map_err(|_| TirError::already_defined(class.name.to_range(), signature.file.clone()))?;
-            context
-                .add_ast_signature(format!("{}.{}", module.path.clone(), class.name.fragment()).into(), signature.clone())
-                .map_err(|_| TirError::already_defined(class.name.to_range(), signature.file.clone()))?;
+            let location = context
+                .add_ast_signature(format!("{}.{}", module.path.clone(), class.name.fragment()).into(), signature)
+                .map_err(|_| TirError::already_defined(class.name.to_range(), source.clone()))?;
+
+            ast_signature.insert(SignaturePath::borrowed(class.name.fragment()), location)
+                .map_or(Ok(()), |_| Err(TirError::already_defined(class.name.to_range(), source)))?;
         }
 
         // Function signatures
         for func in ast.get_functions() {
-            let signature = Rc::new(Signature::from((func.clone(), module.get_ref())));
+            let signature = Signature::from((func.clone(), module.get_ref()));
+            let source = signature.file.clone();
 
-            ast_signature.add_signature(SignaturePath::borrowed(func.name.fragment()), signature.clone())
-                .map_err(|_| TirError::already_defined(func.name.to_range(), signature.file.clone()))?;
-            context
-                .add_ast_signature(format!("{}.{}", module.path.clone(), func.name.fragment()).into(), signature.clone())
-                .map_err(|_| TirError::already_defined(func.name.to_range(), signature.file.clone()))?;
+            let location = context
+                .add_ast_signature(format!("{}.{}", module.path.clone(), func.name.fragment()).into(), signature)
+                .map_err(|_| TirError::already_defined(func.name.to_range(), source.clone()))?;
+
+            ast_signature.insert(SignaturePath::borrowed(func.name.fragment()), location)
+                .map_or(Ok(()), |_| Err(TirError::already_defined(func.name.to_range(), source)))?;
         }
     }
 

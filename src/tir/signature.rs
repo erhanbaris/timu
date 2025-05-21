@@ -44,7 +44,7 @@ where
 #[derive(Debug)]
 pub struct SignatureHolder<'base, T: Debug + AsRef<T>, E: Debug = ()> {
     locations: IndexMap<SignaturePath<'base>, usize>,
-    signatures: Vec<Option<Rc<Signature<'base, T, E>>>>,
+    signatures: Vec<Option<Signature<'base, T, E>>>,
 }
 
 impl<T, E> Default for SignatureHolder<'_, T, E> where
@@ -67,7 +67,7 @@ where
         }
     }
 
-    fn inner_add(&mut self, name: SignaturePath<'base>, signature: Option<Rc<Signature<'base, T, E>>>) -> Result<SignatureLocation, SignatureLocation> {
+    fn inner_add(&mut self, name: SignaturePath<'base>, signature: Option<Signature<'base, T, E>>) -> Result<SignatureLocation, SignatureLocation> {
         self.signatures.push(signature);
         let index = self.signatures.len() - 1;
         match self.locations.insert(name, index) {
@@ -81,7 +81,7 @@ where
         self.inner_add(name, None)
     }
 
-    pub fn update(&mut self, name: SignaturePath<'base>, signature: Rc<Signature<'base, T, E>>) -> SignatureLocation {
+    pub fn update(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> SignatureLocation {
         debug!("Update signature: {}", name.get_name());
         let index = self.locations.get(&name).unwrap_or_else(|| panic!("Signature not found, but this is a bug"));
         self.signatures[*index] = Some(signature);
@@ -89,18 +89,22 @@ where
 
     }
 
-    pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Rc<Signature<'base, T, E>>) -> Result<SignatureLocation, SignatureLocation> {
+    pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> Result<SignatureLocation, SignatureLocation> {
         debug!("Adding signature: <u><b>{}</b></u>", name.get_name());
         self.inner_add(name, Some(signature))
 
     }
 
-    pub fn get(&self, name: &str) -> Option<Rc<Signature<'base, T, E>>> {
-        self.locations.get(name).and_then(|index| self.signatures[*index].clone())
+    pub fn get(&self, name: &str) -> Option<&Signature<'base, T, E>> {
+        self.locations.get(name).and_then(|index| self.signatures[*index].as_ref())
     }
 
-    pub fn get_from_location(&self, location: SignatureLocation) -> Option<Rc<Signature<'base, T, E>>> {
-        self.signatures.get(location.0).and_then(|signature| signature.clone())
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut Signature<'base, T, E>> {
+        self.locations.get_mut(name).and_then(|index| self.signatures[*index].as_mut())
+    }
+
+    pub fn get_from_location(&self, location: SignatureLocation) -> Option<&Signature<'base, T, E>> {
+        self.signatures.get(location.0).and_then(|signature| signature.as_ref())
     }
 
     #[allow(dead_code)]

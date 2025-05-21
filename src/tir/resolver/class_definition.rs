@@ -45,13 +45,13 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
             };
         }
         
-        let signature = Rc::new(ObjectSignature::new(ObjectSignatureValue::Class(ClassDefinition {
+        let signature = ObjectSignature::new(ObjectSignatureValue::Class(ClassDefinition {
             name: self.name.clone(),
             fields,
             extends: Default::default()
-        }), self.name.extra.file.clone(), self.name.to_range()));
+        }), self.name.extra.file.clone(), self.name.to_range());
 
-        context.update_object_location(signature_path.clone(), signature.clone());
+        context.update_object_location(signature_path.clone(), signature);
         Ok(signature_location)
     }
     

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, rc::Rc};
+use std::borrow::Cow;
 
 use indexmap::IndexMap;
 
@@ -51,12 +51,12 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
             };
         }
         
-        let signature = Rc::new(ObjectSignature::new(ObjectSignatureValue::Interface(InterfaceDefinition {
+        let signature = ObjectSignature::new(ObjectSignatureValue::Interface(InterfaceDefinition {
             name: self.name.clone(),
             fields,
-        }), self.name.extra.file.clone(), self.name.to_range()));
+        }), self.name.extra.file.clone(), self.name.to_range());
 
-        context.update_object_location(signature_path.clone(), signature.clone());
+        context.update_object_location(signature_path.clone(), signature);
         Ok(signature_location)
     }
     
@@ -103,7 +103,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
 
         let return_type = build_object_type(context, &interface_function.return_type, module)?;
 
-        let signature = Rc::new(ObjectSignature::new(
+        let signature = ObjectSignature::new(
             ObjectSignatureValue::InterfaceFunction(
                 InterfaceFunctionDefinition {
                     name: self.name.clone(),
@@ -113,9 +113,9 @@ impl<'base> InterfaceDefinitionAst<'base> {
             ),
             self.name.extra.file.clone(),
             self.name.to_range(),
-        ));
+        );
         
-        Ok(context.object_signatures.update(signature_path, signature.clone()))
+        Ok(context.object_signatures.update(signature_path, signature))
     }
 }
 
