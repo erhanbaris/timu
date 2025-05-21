@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 use crate::{
     ast::{FunctionDefinitionAst, FunctionDefinitionLocationAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, signature::SignaturePath, ObjectSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError},
 };
 
 use super::{build_type_name, try_resolve_signature, ResolveSignature, SignatureLocation};
@@ -33,11 +33,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             FunctionDefinitionLocationAst::Class(class) => Cow::Owned(format!("{}.{}", class.fragment(), self.name.fragment())),
         };
         
-        let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        let signature_path = SignaturePath::owned(format!("{}.{}", tmp_module.path, full_name));
-        let signature_location = context.object_signatures.reserve(signature_path.clone())
-            .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
-        tmp_module.object_signatures.insert(SignaturePath::cow(full_name), signature_location);
+        let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
 
         let mut arguments = vec![];
         let return_type = build_object_type(context, &self.return_type, module)?;
@@ -77,7 +73,8 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
             self.name.to_range(),
         ));
         
-        Ok(context.object_signatures.update(signature_path, signature.clone()))
+        context.update_object_location(signature_path.clone(), signature.clone());
+        Ok(signature_location)
     }
     
     fn name(&self) -> Cow<'base, str> {
