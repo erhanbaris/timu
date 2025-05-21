@@ -28,12 +28,7 @@ pub struct InterfaceFunctionDefinition<'base> {
 impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.fragment());
-        let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-        let signature_path = SignaturePath::owned(format!("{}.{}", tmp_module.path, self.name.fragment()));
-        let signature_location = context.object_signatures.reserve(signature_path.clone())
-            .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
-        tmp_module.object_signatures.insert(SignaturePath::borrowed(self.name.fragment()), signature_location);
-
+        let (signature_path, signature_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
 
         let mut fields = IndexMap::<Cow<'_, str>, SignatureLocation>::default();
 
@@ -61,7 +56,8 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
             fields,
         }), self.name.extra.file.clone(), self.name.to_range()));
 
-        Ok(context.object_signatures.update(signature_path, signature.clone()))
+        context.update_object_location(signature_path.clone(), signature.clone());
+        Ok(signature_location)
     }
     
     fn name(&self) -> Cow<'base, str> {
