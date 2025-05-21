@@ -8,7 +8,7 @@ use crate::file::SourceFile;
 use super::resolver::SignatureLocation;
 
 #[derive(Debug)]
-pub struct Signature<'base, T: Debug + AsRef<T>, E: Debug = ()> {
+pub struct Signature<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug = ()> {
     #[allow(dead_code)]
     pub value: T,
     pub file: Rc<SourceFile<'base>>,
@@ -19,7 +19,7 @@ pub struct Signature<'base, T: Debug + AsRef<T>, E: Debug = ()> {
 
 impl<'base, T, E> Signature<'base, T, E>
 where
-    T: Debug + AsRef<T>,
+    T: Debug + AsRef<T> + AsMut<T>,
     E: Debug,
 {
     pub fn new(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>) -> Self {
@@ -42,13 +42,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct SignatureHolder<'base, T: Debug + AsRef<T>, E: Debug = ()> {
+pub struct SignatureHolder<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug = ()> {
     locations: IndexMap<SignaturePath<'base>, usize>,
     signatures: Vec<Option<Signature<'base, T, E>>>,
 }
 
 impl<T, E> Default for SignatureHolder<'_, T, E> where
-T: Debug + AsRef<T>,
+T: Debug + AsRef<T> + AsMut<T>,
 E: Debug{
     fn default() -> Self {
         Self::new()
@@ -57,7 +57,7 @@ E: Debug{
 
 impl<'base, T, E> SignatureHolder<'base, T, E>
 where
-    T: Debug + AsRef<T>,
+    T: Debug + AsRef<T> + AsMut<T>,
     E: Debug,
 {
     pub fn new() -> Self {
@@ -99,12 +99,12 @@ where
         self.locations.get(name).and_then(|index| self.signatures[*index].as_ref())
     }
 
-    pub fn get_mut(&mut self, name: &str) -> Option<&mut Signature<'base, T, E>> {
-        self.locations.get_mut(name).and_then(|index| self.signatures[*index].as_mut())
-    }
-
     pub fn get_from_location(&self, location: SignatureLocation) -> Option<&Signature<'base, T, E>> {
         self.signatures.get(location.0).and_then(|signature| signature.as_ref())
+    }
+
+    pub fn get_mut_from_location(&mut self, location: SignatureLocation) -> Option<&mut Signature<'base, T, E>> {
+        self.signatures.get_mut(location.0).and_then(|signature| signature.as_mut())
     }
 
     #[allow(dead_code)]

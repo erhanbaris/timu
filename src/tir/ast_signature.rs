@@ -12,7 +12,7 @@ use super::{
     context::TirContext, module::{Module, ModuleRef}, resolver::{ResolveSignature, SignatureLocation}, signature::{Signature, SignaturePath}, TirError
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AstSignatureValue<'base> {
     Module(#[allow(dead_code)] ModuleRef<'base>),
     Class(#[allow(dead_code)] Rc<ClassDefinitionAst<'base>>),
@@ -23,6 +23,12 @@ pub enum AstSignatureValue<'base> {
 
 impl<'base> AsRef<AstSignatureValue<'base>> for AstSignatureValue<'base> {
     fn as_ref(&self) -> &Self {
+        self
+    }
+}
+
+impl<'base> AsMut<AstSignatureValue<'base>> for AstSignatureValue<'base> {
+    fn as_mut(&mut self) -> &mut Self {
         self
     }
 }
@@ -172,7 +178,7 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
         },
     );
 
-    context.add_ast_signature(module_name.clone().into(), signature.into()).map_err(|item| {
+    context.add_ast_signature(module_name.clone().into(), signature).map_err(|item| {
         error!("Module already defined: {:?}", item);
         TirError::ModuleAlreadyDefined {
             source: module.file.clone(),
