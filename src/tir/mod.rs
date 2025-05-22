@@ -5,7 +5,7 @@ pub use context::TirContext;
 pub use error::TirError;
 use module::{Module, ModuleRef};
 use object_signature::ObjectSignatureValue;
-use resolver::build_file;
+use resolver::{build_file, AstLocation, ObjectLocation};
 use signature::{Signature, SignatureHolder};
 
 use crate::ast::FileAst;
@@ -19,10 +19,10 @@ mod resolver;
 mod signature;
 
 pub type AstSignature<'base> = Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>;
-pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, ModuleRef<'base>>;
+pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, AstLocation, ModuleRef<'base>>;
 
 pub type ObjectSignature<'base> = Signature<'base, ObjectSignatureValue<'base>>;
-pub type ObjectSignatureHolder<'base> = SignatureHolder<'base, ObjectSignatureValue<'base>>;
+pub type ObjectSignatureHolder<'base> = SignatureHolder<'base, ObjectSignatureValue<'base>, ObjectLocation>;
 
 pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError<'_>> {
     let mut context = TirContext::default();
@@ -59,7 +59,7 @@ mod tests {
         let module1 = Module {
             name: "test1".into(),
             path: "test1".into(),
-            imported_modules: Default::default(),
+            ast_imported_modules: Default::default(),
             object_signatures: Default::default(),
             ast_signatures: Default::default(),
             file: source_file.clone(),
@@ -73,7 +73,7 @@ mod tests {
         let module2 = Module {
             name: "test2".into(),
             path: "test1.test2".into(),
-            imported_modules: Default::default(),
+            ast_imported_modules: Default::default(),
             object_signatures: Default::default(),
             file: source_file.clone(),
             ast_signatures: Default::default(),
@@ -87,7 +87,7 @@ mod tests {
         let module3 = Module {
             name: "test3".into(),
             path: "test1.test2.test3".into(),
-            imported_modules: Default::default(),
+            ast_imported_modules: Default::default(),
             object_signatures: Default::default(),
             file: source_file.clone(),
             ast_signatures: Default::default(),

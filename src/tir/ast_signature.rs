@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    context::TirContext, module::{Module, ModuleRef}, resolver::{ResolveSignature, SignatureLocation}, signature::{Signature, SignaturePath}, TirError
+    context::TirContext, module::{Module, ModuleRef}, resolver::{AstLocation, ResolveSignature, ObjectLocation}, signature::{Signature, SignaturePath}, TirError
 };
 
 #[derive(Debug, Clone)]
@@ -34,7 +34,7 @@ impl<'base> AsMut<AstSignatureValue<'base>> for AstSignatureValue<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
         match self {
             AstSignatureValue::Module(target_module) => target_module.resolve(context, target_module),
             AstSignatureValue::Class(class) => class.resolve(context, module),
@@ -96,7 +96,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             name: ast.file.path()[ast.file.path().len() - 1].clone().clone(),
             file: ast.file.clone(),
             path: ast.file.path().join(".").into(),
-            imported_modules: IndexMap::new(),
+            ast_imported_modules: IndexMap::new(),
             ast_signatures: IndexMap::new(),
             object_signatures: IndexMap::new(),
             ast: Some(ast.clone()),
@@ -111,7 +111,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
 
 pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module: Module<'base>) -> Result<(), TirError<'base>> {
     let module_name = module.path.to_string();
-    let mut ast_signature = IndexMap::new();
+    let mut ast_signature: IndexMap<SignaturePath<'base>, AstLocation> = IndexMap::new();
 
     if let Some(ast) = &module.ast {
         // Interface signatures
