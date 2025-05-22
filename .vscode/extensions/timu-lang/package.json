@@ -1,0 +1,31 @@
+{
+  "name": "timu-lang",
+  "displayName": "Timu Lang",
+  "description": "Syntax highlighting for timu lang",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "timu",
+      "aliases": ["Timu", "tim"],
+      "extensions": [".tim"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "timu",
+      "scopeName": "source.tim",
+      "path": "./syntaxes/tim.tmLanguage.json",
+      "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.timu": "javascript"
+        }
+    }]
+  }
+}

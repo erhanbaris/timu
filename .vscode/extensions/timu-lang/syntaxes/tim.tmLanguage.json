@@ -1,0 +1,45 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Timu",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#comment"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [{
+				"name": "keyword.control.tim",
+				"match": "\\b(if|else|while|for|return|match)\\b"
+			}, {
+				"name": "keyword.other.tim",
+				"match": "\\b(var|pub|extend|class|interface|func)\\b"
+			}]
+		},
+		"comment": {
+			"patterns": [{
+				"name": "comment.line.tim",
+				"begin": "#",
+				"end": "$"
+			}]
+		},
+		"strings": {
+			"name": "string.quoted.double.tim",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.tim",
+					"match": "\\\\."
+				}
+			]
+		}
+	},
+	"scopeName": "source.tim"
+}

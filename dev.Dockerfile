@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y sudo curl wget git-core unzip zsh build
 RUN mkdir -p /opt/rust/cargo
 
 RUN apt install make cmake -y
+RUN apt install npm -y
+RUN npm install --global yo generator-code
+
 # Set environment variables
 ENV RUSTUP_HOME=/opt/rust/rustup \
    CARGO_HOME=/opt/rust/cargo \
