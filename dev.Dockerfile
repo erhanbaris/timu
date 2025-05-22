@@ -15,7 +15,7 @@ ENV RUSTUP_HOME=/opt/rust/rustup \
 
 # Install Rust
 RUN mkdir -p /opt/rust/rustup /opt/rust/cargo && \
-   curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.86.0 --profile default --no-modify-path -y
+   curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.87.0 --profile default --no-modify-path -y
 
 # Install rust tools
 RUN rustup component add llvm-tools-preview && cargo install grcov

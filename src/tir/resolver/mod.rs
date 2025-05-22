@@ -73,8 +73,7 @@ pub fn build_signature_path<'base>(context: &TirContext<'base>, name: &str, modu
     let module = context.modules.get(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
 
     // create a new signature path
-    let signature_path = SignaturePath::owned(format!("{}.{}", module.path, name));
-    signature_path
+    SignaturePath::owned(format!("{}.{}", module.path, name))
 }
 
 pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'base>) -> Result<(), TirError<'base>> {
