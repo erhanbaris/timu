@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use crate::file::SourceFile;
 
-use super::{module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{ResolveSignature, SignatureLocation}, signature::{Signature, SignaturePath}, AstSignature, AstSignatureHolder, Module, ObjectSignatureHolder, TirError};
+use super::{module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{AstLocation, ResolveSignature, ObjectLocation}, signature::{Signature, SignaturePath}, AstSignature, AstSignatureHolder, Module, ObjectSignatureHolder, TirError};
 
 #[derive(Debug, Default)]
 pub struct TirContext<'base> {
@@ -19,15 +19,15 @@ impl<'base> TirContext<'base> {
         self.ast_signatures.get(key.as_ref())
     }
 
-    pub fn get_ast_location<T: AsRef<str>>(&self, key: T) -> Option<SignatureLocation> {
+    pub fn get_ast_location<T: AsRef<str>>(&self, key: T) -> Option<AstLocation> {
         self.ast_signatures.location(key.as_ref())
     }
 
-    pub fn add_ast_signature(&mut self, key: Cow<'base, str>, signature: AstSignature<'base>) -> Result<SignatureLocation, SignatureLocation> {
+    pub fn add_ast_signature(&mut self, key: Cow<'base, str>, signature: AstSignature<'base>) -> Result<AstLocation, AstLocation> {
         self.ast_signatures.add_signature(SignaturePath::cow(key), signature)
     }
 
-    pub fn reserve_object_location(&mut self, object_name: Cow<'base, str>, module: &ModuleRef<'base>, position: Range<usize>, source: Rc<SourceFile<'base>>) -> Result<(SignaturePath<'base>, SignatureLocation), TirError<'base>> {
+    pub fn reserve_object_location(&mut self, object_name: Cow<'base, str>, module: &ModuleRef<'base>, position: Range<usize>, source: Rc<SourceFile<'base>>) -> Result<(SignaturePath<'base>, ObjectLocation), TirError<'base>> {
         let module = self.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
 
         // create a new signature path
@@ -46,11 +46,11 @@ impl<'base> TirContext<'base> {
         self.object_signatures.update(name, signature);
     }
 
-    pub fn resolve<T: ResolveSignature<'base>>(&mut self, signature: &T, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
+    pub fn resolve<T: ResolveSignature<'base>>(&mut self, signature: &T, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
         signature.resolve(self, module)
     }
 
-    pub fn resolve_from_location(&mut self, signature_location: SignatureLocation) -> Result<SignatureLocation, TirError<'base>> {
+    pub fn resolve_from_location(&mut self, signature_location: AstLocation) -> Result<ObjectLocation, TirError<'base>> {
         let (signature, module_ref) = self.ast_signatures.get_from_location(signature_location).map(|signature| (signature.value.clone(), signature.extra.clone())).unwrap();
         self.resolve(&signature, module_ref.as_ref().unwrap())
     }

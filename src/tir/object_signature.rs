@@ -26,3 +26,70 @@ impl<'base> AsMut<ObjectSignatureValue<'base>> for ObjectSignatureValue<'base> {
         self
     }
 }
+
+impl ObjectSignatureValue<'_> {
+    pub fn compare_skeleton(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ObjectSignatureValue::Function(left_function), ObjectSignatureValue::Function(right_function)) => Self::compare_functions(left_function, right_function),
+            (ObjectSignatureValue::Class(left_class), ObjectSignatureValue::Class(right_class)) => Self::compare_classes(left_class, right_class),
+            (ObjectSignatureValue::Module, ObjectSignatureValue::Module) => false,
+            (ObjectSignatureValue::InterfaceFunction(interface_function), ObjectSignatureValue::Function(function)) => Self::compare_interface_function_and_function(interface_function, function),
+            (ObjectSignatureValue::Function(function), ObjectSignatureValue::InterfaceFunction(interface_function)) => Self::compare_interface_function_and_function(interface_function, function),
+            (ObjectSignatureValue::InterfaceFunction(left_function), ObjectSignatureValue::InterfaceFunction(right_function)) => Self::compare_interface_functions(left_function, right_function),
+            _ => false,
+        }
+    }
+
+    fn compare_classes(left: &ClassDefinition, right: &ClassDefinition) -> bool {
+        std::ptr::eq(left, right)
+    }
+
+    fn compare_interface_functions(left: &InterfaceFunctionDefinition, right: &InterfaceFunctionDefinition) -> bool {
+        if left.name.fragment() != right.name.fragment() ||
+            left.arguments.len() != right.arguments.len() ||
+            left.return_type != right.return_type {
+            return false;
+        }
+
+        for (left_arg, right_arg) in left.arguments.iter().zip(right.arguments.iter()) {
+            if left_arg.name.fragment() != right_arg.name.fragment() || left_arg.field_type != right_arg.field_type {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn compare_interface_function_and_function(left: &InterfaceFunctionDefinition, right: &FunctionDefinition) -> bool {
+        if left.name.fragment() != right.name.fragment() ||
+            left.arguments.len() != right.arguments.len() ||
+            left.return_type != right.return_type {
+            return false;
+        }
+
+        for (left_arg, right_arg) in left.arguments.iter().zip(right.arguments.iter()) {
+            if left_arg.name.fragment() != right_arg.name.fragment() || left_arg.field_type != right_arg.field_type {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn compare_functions(left: &FunctionDefinition, right: &FunctionDefinition) -> bool {
+        if left.name.fragment() != right.name.fragment() ||
+            left.arguments.len() != right.arguments.len() ||
+            left.return_type != right.return_type ||
+            left.is_public != right.is_public {
+            return false;
+        }
+
+        for (left_arg, right_arg) in left.arguments.iter().zip(right.arguments.iter()) {
+            if left_arg.name.fragment() != right_arg.name.fragment() || left_arg.field_type != right_arg.field_type {
+                return false;
+            }
+        }
+
+        true
+    }
+} 

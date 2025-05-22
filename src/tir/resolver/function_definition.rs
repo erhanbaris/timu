@@ -3,16 +3,16 @@ use std::borrow::Cow;
 use crate::{
     ast::{FunctionDefinitionAst, FunctionDefinitionLocationAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location, ObjectSignature, TirError},
 };
 
-use super::{build_type_name, try_resolve_signature, ResolveSignature, SignatureLocation};
+use super::{build_type_name, try_resolve_signature, ResolveSignature, ObjectLocation};
 
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct FunctionArgument<'base> {
     pub name: Span<'base>,
-    pub field_type: SignatureLocation,
+    pub field_type: ObjectLocation,
 }
 
 #[derive(Debug)]
@@ -21,12 +21,12 @@ pub struct FunctionDefinition<'base> {
     pub is_public: bool,
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgument<'base>>,
-    pub return_type: SignatureLocation,
+    pub return_type: ObjectLocation,
     // pub body: BodyAst<'base>,
 }
 
 impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let full_name = match &self.location {
             FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
@@ -36,7 +36,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
 
         let mut arguments = vec![];
-        let return_type = build_object_type(context, &self.return_type, module)?;
+        let return_type = get_object_location(context, &self.return_type, module)?;
 
         for argument in self.arguments.iter() {
             let type_name = build_type_name(&argument.field_type);
@@ -128,8 +128,8 @@ mod tests {
 
         main_module.1.object_signatures.get("main").unwrap();
 
-        assert!(main_module.1.imported_modules.get("testclass1").is_none());
-        assert!(main_module.1.imported_modules.get("test").is_some());
+        assert!(main_module.1.ast_imported_modules.get("testclass1").is_none());
+        assert!(main_module.1.ast_imported_modules.get("test").is_some());
         assert!(main_module.1.object_signatures.get("testclass1").is_none());
 
         lib_module.1.object_signatures.get("testclass1").unwrap();

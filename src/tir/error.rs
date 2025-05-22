@@ -11,6 +11,9 @@ pub enum TirError<'base> {
     AlreadyDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     ExtraAccessibilityIdentifier { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     InvalidType { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    InterfaceFieldNotDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    TypesDoNotMatch { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
 }
 
 impl Display for TirError<'_> {
@@ -44,6 +47,18 @@ impl Display for TirError<'_> {
                 source: _,
                 position: _,
             } => write!(f, "Invalid type"),
+            TirError::InterfaceFieldNotDefined {
+                source: _,
+                position: _,
+            } => write!(f, "Interface field not defined"),
+            TirError::TypesDoNotMatch {
+                source: _,
+                position: _,
+            } => write!(f, "Types do not match"),
+            TirError::ExtraFieldInInterface {
+                source: _,
+                position: _,
+            } => write!(f, "Extra field in interface"),
         }
     }
 }
@@ -58,8 +73,29 @@ impl<'base> TirError<'base> {
         }
     }
 
+    pub fn interface_field_not_defined(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
+        TirError::InterfaceFieldNotDefined {
+            position,
+            source,
+        }
+    }
+
+    pub fn types_do_not_match(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
+        TirError::TypesDoNotMatch {
+            position,
+            source,
+        }
+    }
+
     pub fn extra_accessibility_identifier(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
         TirError::ExtraAccessibilityIdentifier {
+            position,
+            source,
+        }
+    }
+
+    pub fn extra_field_in_interface(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
+        TirError::ExtraFieldInInterface {
             position,
             source,
         }
@@ -107,6 +143,18 @@ impl<'base> TirError<'base> {
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),
             TirError::InvalidType {
+                source,
+                position,
+            } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::InterfaceFieldNotDefined {
+                source,
+                position,
+            } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::TypesDoNotMatch {
+                source,
+                position,
+            } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::ExtraFieldInInterface {
                 source,
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),

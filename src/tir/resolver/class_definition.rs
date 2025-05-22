@@ -3,10 +3,10 @@ use std::{borrow::Cow, rc::Rc};
 use indexmap::IndexMap;
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::build_object_type, ObjectSignature, TirError}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location, ObjectSignature, TirError}
 };
 
-use super::{ResolveSignature, SignatureLocation};
+use super::{ResolveSignature, ObjectLocation};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -19,21 +19,21 @@ pub struct ClassArgument<'base> {
 #[allow(dead_code)]
 pub struct ClassDefinition<'base> {
     pub name: Span<'base>,
-    pub fields: IndexMap<Cow<'base, str>, SignatureLocation>,
+    pub fields: IndexMap<Cow<'base, str>, ObjectLocation>,
     pub extends:Vec<TypeNameAst<'base>>,
 }
 
 impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<SignatureLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
 
         let (signature_path, signature_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
-        let mut fields = IndexMap::<Cow<'_, str>, SignatureLocation>::default();
+        let mut fields = IndexMap::<Cow<'_, str>, ObjectLocation>::default();
 
         for field in self.fields.iter() {
             match field {
                 ClassDefinitionFieldAst::Field(field) => {
-                    let field_type = build_object_type(context, &field.field_type, module)?;
+                    let field_type = get_object_location(context, &field.field_type, module)?;
                     fields.insert((*field.name.fragment()).into(), field_type)
                         .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
                 }

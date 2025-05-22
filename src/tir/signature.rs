@@ -5,7 +5,9 @@ use simplelog::debug;
 
 use crate::file::SourceFile;
 
-use super::resolver::SignatureLocation;
+pub trait LocationTrait: Debug + From<usize> + Clone {
+    fn get(&self) -> usize;
+}
 
 #[derive(Debug)]
 pub struct Signature<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug = ()> {
@@ -42,54 +44,58 @@ where
 }
 
 #[derive(Debug)]
-pub struct SignatureHolder<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug = ()> {
+pub struct SignatureHolder<'base, T: Debug + AsRef<T> + AsMut<T>, L: LocationTrait, E: Debug = ()> {
     locations: IndexMap<SignaturePath<'base>, usize>,
     signatures: Vec<Option<Signature<'base, T, E>>>,
+    _marker: std::marker::PhantomData<L>,
 }
 
-impl<T, E> Default for SignatureHolder<'_, T, E> where
-T: Debug + AsRef<T> + AsMut<T>,
-E: Debug{
+impl<T, E, L> Default for SignatureHolder<'_, T, L, E> where
+    T: Debug + AsRef<T> + AsMut<T>,
+    E: Debug, 
+    L: LocationTrait {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'base, T, E> SignatureHolder<'base, T, E>
+impl<'base, T, E, L> SignatureHolder<'base, T, L, E>
 where
     T: Debug + AsRef<T> + AsMut<T>,
     E: Debug,
+    L: LocationTrait
 {
     pub fn new() -> Self {
         Self {
             signatures: Default::default(),
             locations: IndexMap::new(),
+            _marker: std::marker::PhantomData,
         }
     }
 
-    fn inner_add(&mut self, name: SignaturePath<'base>, signature: Option<Signature<'base, T, E>>) -> Result<SignatureLocation, SignatureLocation> {
+    fn inner_add(&mut self, name: SignaturePath<'base>, signature: Option<Signature<'base, T, E>>) -> Result<L, L> {
         self.signatures.push(signature);
         let index = self.signatures.len() - 1;
         match self.locations.insert(name, index) {
-            Some(_) => Err(SignatureLocation(index)),
-            None => Ok(SignatureLocation(index))
+            Some(_) => Err(index.into()),
+            None => Ok(index.into())
         }
     }
 
-    pub fn reserve(&mut self, name: SignaturePath<'base>) -> Result<SignatureLocation, SignatureLocation> {
+    pub fn reserve(&mut self, name: SignaturePath<'base>) -> Result<L, L> {
         debug!("Reserve signature: {}", name.get_name());
         self.inner_add(name, None)
     }
 
-    pub fn update(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> SignatureLocation {
+    pub fn update(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> L {
         debug!("Update signature: {}", name.get_name());
         let index = self.locations.get(&name).unwrap_or_else(|| panic!("Signature not found, but this is a bug"));
         self.signatures[*index] = Some(signature);
-        SignatureLocation(*index)
-
+        (*index).into()
+        
     }
 
-    pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> Result<SignatureLocation, SignatureLocation> {
+    pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> Result<L, L> {
         debug!("Adding signature: <u><b>{}</b></u>", name.get_name());
         self.inner_add(name, Some(signature))
 
@@ -99,17 +105,17 @@ where
         self.locations.get(name).and_then(|index| self.signatures[*index].as_ref())
     }
 
-    pub fn get_from_location(&self, location: SignatureLocation) -> Option<&Signature<'base, T, E>> {
-        self.signatures.get(location.0).and_then(|signature| signature.as_ref())
+    pub fn get_from_location(&self, location: L) -> Option<&Signature<'base, T, E>> {
+        self.signatures.get(location.get()).and_then(|signature| signature.as_ref())
     }
 
-    pub fn get_mut_from_location(&mut self, location: SignatureLocation) -> Option<&mut Signature<'base, T, E>> {
-        self.signatures.get_mut(location.0).and_then(|signature| signature.as_mut())
+    pub fn get_mut_from_location(&mut self, location: L) -> Option<&mut Signature<'base, T, E>> {
+        self.signatures.get_mut(location.get()).and_then(|signature| signature.as_mut())
     }
 
     #[allow(dead_code)]
-    pub fn location(&self, name: &str) -> Option<SignatureLocation> {
-        self.locations.get(name).map(|index| SignatureLocation(*index))
+    pub fn location(&self, name: &str) -> Option<L> {
+        self.locations.get(name).map(|index| (*index).into())
     }
 }
 
