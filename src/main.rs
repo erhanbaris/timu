@@ -46,7 +46,6 @@ fn main() -> Result<(), ()> {
         let ast = process_code(vec!["source".into()], r#"
 class TestClass {
     func test(this): TestClass {
-
     }
 }
         "#)?;
