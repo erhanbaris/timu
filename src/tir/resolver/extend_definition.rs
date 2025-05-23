@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use crate::{
     ast::{ExtendDefinitionAst, ExtendDefinitionFieldAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{get_object_location, try_resolve_signature}, ObjectSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{get_object_location_or_resolve, try_resolve_signature}, ObjectSignature, TirError},
 };
 
 use super::{build_type_name, ResolveSignature, ObjectLocation};
@@ -25,16 +25,18 @@ pub struct ExtendDefinition<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
         let mut extend_fields = IndexMap::<Cow<'_, str>, ObjectLocation>::default();
         let mut extend_fields_for_track = IndexMap::<Cow<'_, str>, ObjectLocation>::default();
 
+        let class_location = get_object_location_or_resolve(context, &self.name, module)?;
+
         for field in self.fields.iter() {
             match field {
                 ExtendDefinitionFieldAst::Function(function) => {
-                    let signature = function.resolve(context, module)?;
+                    let signature = function.resolve(context, module, Some(class_location.clone()))?;
                     extend_fields.insert((*function.name.fragment()).into(), signature.clone())
                         .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
                     extend_fields_for_track.insert((*function.name.fragment()).into(), signature);
@@ -44,7 +46,7 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
                         return Err(TirError::extra_accessibility_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.extra.file.clone()));
                     }
 
-                    let field_type = get_object_location(context, &field.field_type, module)?;
+                    let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
                     extend_fields.insert((*field.name.fragment()).into(), field_type.clone())
                         .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
                     extend_fields_for_track.insert((*field.name.fragment()).into(), field_type);
@@ -97,15 +99,8 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
             }
         }
 
-        if !extend_fields_for_track.is_empty() {
-            let first_item = extend_fields_for_track.first().unwrap();
-            let signature = context.object_signatures.get_from_location(first_item.1.clone()).unwrap();
-            return Err(TirError::extra_field_in_interface(signature.position.clone(), signature.file.clone()));
-        }
-
-        let class_signature = get_object_location(context, &self.name, module)?;
-        
-        let class_bunding = context.object_signatures.get_mut_from_location(class_signature);
+          
+        let class_bunding = context.object_signatures.get_mut_from_location(class_location.clone());
         let class = match class_bunding {
             Some(signature) => match signature.value.as_mut() {
                 ObjectSignatureValue::Class(class) => class,
@@ -113,6 +108,13 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
             },
             None => return Err(TirError::type_not_found(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
         };
+
+
+        if !extend_fields_for_track.is_empty() {
+            let first_item = extend_fields_for_track.first().unwrap();
+            let signature = context.object_signatures.get_from_location(first_item.1.clone()).unwrap();
+            return Err(TirError::extra_field_in_interface(signature.position.clone(), signature.file.clone()));
+        }
 
         for (key, value) in extend_fields.into_iter() {
             if class.fields.contains_key(&key) {

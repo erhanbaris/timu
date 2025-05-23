@@ -40,6 +40,16 @@ impl ObjectSignatureValue<'_> {
         }
     }
 
+    pub fn get_name(&self) -> &str {
+        match self {
+            ObjectSignatureValue::Function(function) => function.name.fragment(),
+            ObjectSignatureValue::Class(class) => class.name.fragment(),
+            ObjectSignatureValue::Module => "Module",
+            ObjectSignatureValue::Interface(interface) => interface.name.fragment(),
+            ObjectSignatureValue::InterfaceFunction(interface_function) => interface_function.name.fragment(),
+        }
+    }
+
     fn compare_classes(left: &ClassDefinition, right: &ClassDefinition) -> bool {
         std::ptr::eq(left, right)
     }

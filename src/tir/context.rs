@@ -47,7 +47,7 @@ impl<'base> TirContext<'base> {
     }
 
     pub fn resolve<T: ResolveSignature<'base>>(&mut self, signature: &T, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
-        signature.resolve(self, module)
+        signature.resolve(self, module, None)
     }
 
     pub fn resolve_from_location(&mut self, signature_location: AstLocation) -> Result<ObjectLocation, TirError<'base>> {

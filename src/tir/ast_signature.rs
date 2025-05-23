@@ -34,13 +34,13 @@ impl<'base> AsMut<AstSignatureValue<'base>> for AstSignatureValue<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         match self {
-            AstSignatureValue::Module(target_module) => target_module.resolve(context, target_module),
-            AstSignatureValue::Class(class) => class.resolve(context, module),
-            AstSignatureValue::Function(function) => function.resolve(context, module),
-            AstSignatureValue::Interface(interface) => interface.resolve(context, module),
-            AstSignatureValue::Extend(extend) => extend.resolve(context, module),
+            AstSignatureValue::Module(target_module) => target_module.resolve(context, target_module, parent),
+            AstSignatureValue::Class(class) => class.resolve(context, module, parent),
+            AstSignatureValue::Function(function) => function.resolve(context, module, parent),
+            AstSignatureValue::Interface(interface) => interface.resolve(context, module, parent),
+            AstSignatureValue::Extend(extend) => extend.resolve(context, module, parent),
         }
     }
     

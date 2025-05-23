@@ -8,7 +8,7 @@ use crate::{
 use super::{ResolveSignature, ObjectLocation};
 
 impl<'base> ResolveSignature<'base> for UseAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         if let Some(signature_location) = context.get_ast_location(&self.import.text) {
             let name = match &self.alias {
                 Some(alias) => std::borrow::Cow::Borrowed(*alias.fragment()),

@@ -3,9 +3,9 @@ use std::borrow::Cow;
 use indexmap::IndexMap;
 
 use crate::{
-    ast::{InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst},
+    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst},
     nom_tools::{Span, ToRange},
-    tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{get_object_location, build_type_name, function_definition::FunctionArgument, try_resolve_signature}, signature::SignaturePath, ObjectSignature, TirError},
+    tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{build_type_name, function_definition::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature}, signature::SignaturePath, ObjectSignature, TirError},
 };
 
 use super::{build_signature_path, find_ast_signature, ObjectLocation, ResolveSignature};
@@ -26,14 +26,14 @@ pub struct InterfaceFunctionDefinition<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.fragment());
 
         let (signature_path, signature_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
 
         let mut fields = IndexMap::<Cow<'_, str>, ObjectLocation>::default();
         
-        Self::resolve_interface(context, self, &mut fields, module)?;
+        Self::resolve_interface(context, self, &mut fields, module, parent)?;
 
         let signature = ObjectSignature::new(ObjectSignatureValue::Interface(InterfaceDefinition {
             name: self.name.clone(),
@@ -50,7 +50,7 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
 }
 
 impl<'base> InterfaceDefinitionAst<'base> {
-    fn resolve_interface(context: &mut TirContext<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut IndexMap<Cow<'base, str>, ObjectLocation>, module: &ModuleRef<'base>) -> Result<(), TirError<'base>>  {
+    fn resolve_interface(context: &mut TirContext<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut IndexMap<Cow<'base, str>, ObjectLocation>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<(), TirError<'base>>  {
         let interface_path = build_signature_path(context, &interface.name, module);
 
         // Check if the interface is already defined
@@ -65,7 +65,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
         for field in interface.fields.iter() {
             match field {
                 InterfaceDefinitionFieldAst::Function(function) => {
-                    let signature = interface.resolve_function(context, module, function)?;
+                    let signature = interface.resolve_function(context, module, function, parent.clone())?;
                     fields.insert((*function.name.fragment()).into(), signature)
                         .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
                 }
@@ -74,7 +74,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                         return Err(TirError::extra_accessibility_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.extra.file.clone()));
                     }
 
-                    let field_type = get_object_location(context, &field.field_type, module)?;
+                    let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
                     fields.insert((*field.name.fragment()).into(), field_type)
                         .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
                 }
@@ -102,7 +102,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                 })?;
 
             if let AstSignatureValue::Interface(base_interface) = base_interface_signature.value.clone() {
-                Self::resolve_interface(context, &base_interface, fields, module)?;
+                Self::resolve_interface(context, &base_interface, fields, module, parent.clone())?;
             } else {
                 return Err(TirError::InvalidType {
                     source: base_interface.names.last().unwrap().extra.file.clone(),
@@ -114,7 +114,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
         Ok(())
     }
 
-    fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, interface_function: &InterfaceFunctionDefinitionAst<'base>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, interface_function: &InterfaceFunctionDefinitionAst<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface function: <u><b>{}</b></u>", self.name.fragment());
                 
         let full_name: Cow<'base, str> = Cow::Owned(format!("{}::{}", self.name.fragment(), interface_function.name.fragment()));
@@ -128,28 +128,40 @@ impl<'base> InterfaceDefinitionAst<'base> {
         let mut arguments = vec![];
 
         for argument in interface_function.arguments.iter() {
-            let type_name = build_type_name(&argument.field_type);
-            let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
+            let (argument_name, range, file) = match argument {
+                FunctionArgumentAst::This(this) => {
+                    let parent = context.object_signatures.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
+                    (Cow::Owned(parent.value.get_name().to_string()), this.to_range(), this.extra.file.clone())
+                },
+                FunctionArgumentAst::Argument { name, .. } => (Cow::Borrowed(*name.fragment()), name.to_range(), name.extra.file.clone())
+            };
+            
+            let type_name: String = match argument {
+                FunctionArgumentAst::This(this) => {
+                    let parent = context.object_signatures.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
+                    parent.value.get_name().to_string()
+                },
+                FunctionArgumentAst::Argument { field_type, .. } => build_type_name(field_type),
+            };
+                        let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
                 Some(field_type) => field_type,
-                None => {
-                    return Err(TirError::TypeNotFound {
-                        source: argument.field_type.names.last().unwrap().extra.file.clone(),
-                        position: argument.field_type.to_range(),
-                    });
-                }
+                None => return Err(TirError::type_not_found(range, file))
             };
 
-            if arguments.iter().any(|item: &FunctionArgument| item.name.fragment() == argument.name.fragment()) {
-                return Err(TirError::already_defined(argument.name.to_range(), argument.name.extra.file.clone()));
+            if arguments.iter().any(|item: &FunctionArgument| *item.name.fragment() == argument_name) {
+                return Err(TirError::already_defined(range, file));
             }
 
             arguments.push(FunctionArgument {
-                name: argument.name.clone(),
+                name: match argument {
+                    FunctionArgumentAst::This(this) => this.clone(),
+                    FunctionArgumentAst::Argument { name, .. } => name.clone()
+                },
                 field_type,
             });
         }
 
-        let return_type = get_object_location(context, &interface_function.return_type, module)?;
+        let return_type = get_object_location_or_resolve(context, &interface_function.return_type, module)?;
 
         let signature = ObjectSignature::new(
             ObjectSignatureValue::InterfaceFunction(

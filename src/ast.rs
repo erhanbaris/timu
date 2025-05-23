@@ -130,9 +130,12 @@ pub struct RefAst<'base> {
 }
 
 #[derive(Debug)]
-pub struct FunctionArgumentAst<'base> {
-    pub name: Span<'base>,
-    pub field_type: TypeNameAst<'base>,
+pub enum FunctionArgumentAst<'base> {
+    This(Span<'base>),
+    Argument {
+        name: Span<'base>,
+        field_type: TypeNameAst<'base>
+    }
 }
 
 #[derive(Debug)]

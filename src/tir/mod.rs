@@ -17,6 +17,7 @@ mod module;
 mod object_signature;
 mod resolver;
 mod signature;
+mod scope;
 
 pub type AstSignature<'base> = Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>;
 pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, AstLocation, ModuleRef<'base>>;

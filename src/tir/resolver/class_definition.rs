@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 use indexmap::IndexMap;
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location, ObjectSignature, TirError}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location_or_resolve, ObjectSignature, TirError}
 };
 
 use super::{ResolveSignature, ObjectLocation};
@@ -24,7 +24,7 @@ pub struct ClassDefinition<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
 
         let (signature_path, signature_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
@@ -33,12 +33,12 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
         for field in self.fields.iter() {
             match field {
                 ClassDefinitionFieldAst::Field(field) => {
-                    let field_type = get_object_location(context, &field.field_type, module)?;
+                    let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
                     fields.insert((*field.name.fragment()).into(), field_type)
                         .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
                 }
                 ClassDefinitionFieldAst::Function(function) => {
-                    let signature = function.resolve(context, module)?;
+                    let signature = function.resolve(context, module, Some(signature_location.clone()))?;
                     fields.insert((*function.name.fragment()).into(), signature)
                         .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
                 }

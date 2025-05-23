@@ -46,7 +46,7 @@ impl LocationTrait for AstLocation {
 }
 
 pub trait ResolveSignature<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>>;
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>>;
     fn name(&self) -> Cow<'base, str>;
 }
 
@@ -54,7 +54,7 @@ fn build_type_name(type_name: &TypeNameAst) -> String {
     type_name.names.iter().map(|path| *path.fragment()).collect::<Vec<&str>>().join(".")
 }
 
-fn get_object_location<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
+fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
     let type_name_str = build_type_name(type_name);
     let field_type = match try_resolve_signature(context, module, type_name_str.as_str())? {
         Some(field_type) => field_type,
@@ -88,34 +88,34 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
 
         simplelog::debug!(" - Resolving all uses");
         for use_item in uses {
-            use_item.resolve(context, &module)?;
+            use_item.resolve(context, &module, None)?;
         }
 
         simplelog::debug!(" - Resolving all interfaces");
         for interace in interaces {
             if module.upgrade(context).unwrap().object_signatures.get(interace.name().as_ref()).is_none() {
-                interace.resolve(context, &module)?;
+                interace.resolve(context, &module, None)?;
             }
         }
 
         simplelog::debug!(" - Resolving all classes");
         for class in classes {
             if module.upgrade(context).unwrap().object_signatures.get(class.name().as_ref()).is_none() {
-                class.resolve(context, &module)?;
+                class.resolve(context, &module, None)?;
             }
         }
 
         simplelog::debug!(" - Resolving all extends");
         for extend in extends {
             if module.upgrade(context).unwrap().object_signatures.get(extend.name().as_ref()).is_none() {
-                extend.resolve(context, &module)?;
+                extend.resolve(context, &module, None)?;
             }
         }
 
         simplelog::debug!(" - Resolving all functions");
         for function in functions {
             if module.upgrade(context).unwrap().object_signatures.get(function.name().as_ref()).is_none() {
-                function.resolve(context, &module)?;
+                function.resolve(context, &module, None)?;
             }
         }
     }

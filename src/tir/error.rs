@@ -14,6 +14,7 @@ pub enum TirError<'base> {
     InterfaceFieldNotDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     TypesDoNotMatch { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    ThisNeedToDefineInClass { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
 }
 
 impl Display for TirError<'_> {
@@ -59,6 +60,10 @@ impl Display for TirError<'_> {
                 source: _,
                 position: _,
             } => write!(f, "Extra field in interface"),
+            TirError::ThisNeedToDefineInClass {
+                source: _,
+                position: _,
+            } => write!(f, "This need to define in class"),
         }
     }
 }
@@ -155,6 +160,10 @@ impl<'base> TirError<'base> {
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),
             TirError::ExtraFieldInInterface {
+                source,
+                position,
+            } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::ThisNeedToDefineInClass {
                 source,
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),

@@ -35,8 +35,8 @@ use crate::{file::SourceFile, nom_tools::State};
     "class Myclass {func init(a: a, b: b): MyType {var a = 1; var b = &a; a = 20;}}"
 )]
 #[case(
-    "class Myclass { func init(): MyType {if (true || false) {} else if false {} else if false {} else if false {} else {}} }",
-    "class Myclass {func init(): MyType {if (true || false) {} else if false {} else if false {} else if false {} else {}}}"
+    "class Myclass { func init(this): MyType {if (true || false) {} else if false {} else if false {} else if false {} else {}} }",
+    "class Myclass {func init(this): MyType {if (true || false) {} else if false {} else if false {} else if false {} else {}}}"
 )]
 fn custom_class_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
     let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));

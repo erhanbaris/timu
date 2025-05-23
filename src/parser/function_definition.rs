@@ -87,10 +87,16 @@ impl Display for FunctionDefinitionAst<'_> {
 
 impl FunctionArgumentAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionArgumentAst<'_>, TimuParserError<'_>> {
+        let (input, this) = cleanup(opt(tag("this"))).parse(input)?;
+
+        if let Some(this) = this {
+            return Ok((input, FunctionArgumentAst::This(this)));
+        }
+
         let (input, (name, field_type)) = (cleanup(terminated(ident(), cleanup(char(':')))), cleanup(TypeNameAst::parse)).parse(input)?;
         Ok((
             input,
-            FunctionArgumentAst {
+            FunctionArgumentAst::Argument {
                 name,
                 field_type,
             },
@@ -100,6 +106,9 @@ impl FunctionArgumentAst<'_> {
 
 impl Display for FunctionArgumentAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.name.fragment(), self.field_type)
+        match self {
+            FunctionArgumentAst::This(_) => write!(f, "this"),
+            FunctionArgumentAst::Argument { name, field_type } => write!(f, "{}: {}", name.fragment(), field_type),
+        }
     }
 }

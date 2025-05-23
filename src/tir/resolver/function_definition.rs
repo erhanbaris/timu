@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 
 use crate::{
-    ast::{FunctionDefinitionAst, FunctionDefinitionLocationAst},
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location, ObjectSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location_or_resolve, ObjectSignature, TirError},
 };
 
 use super::{build_type_name, try_resolve_signature, ResolveSignature, ObjectLocation};
@@ -22,11 +22,17 @@ pub struct FunctionDefinition<'base> {
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgument<'base>>,
     pub return_type: ObjectLocation,
-    // pub body: BodyAst<'base>,
+}
+
+pub fn unwrap_for_this<'base>(parent: &Option<ObjectLocation>, this: &Span<'base>) -> Result<ObjectLocation, TirError<'base>> {
+    match parent {
+        Some(parent) => Ok(parent.clone()),
+        None => Err(TirError::ThisNeedToDefineInClass { position: this.to_range(), source: this.extra.file.clone() }),
+    }
 }
 
 impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let full_name = match &self.location {
             FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
@@ -36,28 +42,47 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
 
         let mut arguments = vec![];
-        let return_type = get_object_location(context, &self.return_type, module)?;
+        let return_type = get_object_location_or_resolve(context, &self.return_type, module)?;
 
+        /* Parse arguments */
         for argument in self.arguments.iter() {
-            let type_name = build_type_name(&argument.field_type);
-            let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
-                Some(field_type) => field_type,
-                None => {
-                    return Err(TirError::TypeNotFound {
-                        source: argument.field_type.names.last().unwrap().extra.file.clone(),
-                        position: argument.field_type.to_range(),
-                    });
-                }
+            let (argument_name, range, file) = match argument {
+                FunctionArgumentAst::This(this) => {
+                    let parent = context.object_signatures.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
+                    (Cow::Owned(parent.value.get_name().to_string()), this.to_range(), this.extra.file.clone())
+                },
+                FunctionArgumentAst::Argument { name, .. } => (Cow::Borrowed(*name.fragment()), name.to_range(), name.extra.file.clone())
+            };
+            
+            let type_name: String = match argument {
+                FunctionArgumentAst::This(this) => {
+                    let parent = context.object_signatures.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
+                    parent.value.get_name().to_string()
+                },
+                FunctionArgumentAst::Argument { field_type, .. } => build_type_name(field_type),
             };
 
-            if arguments.iter().any(|item: &FunctionArgument| item.name.fragment() == argument.name.fragment()) {
-                return Err(TirError::already_defined(argument.name.to_range(), argument.name.extra.file.clone()));
+            let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
+                Some(field_type) => field_type,
+                None => return Err(TirError::type_not_found(range, file))
+            };
+
+            if arguments.iter().any(|item: &FunctionArgument| *item.name.fragment() == argument_name) {
+                return Err(TirError::already_defined(range, file));
             }
 
             arguments.push(FunctionArgument {
-                name: argument.name.clone(),
+                name: match argument {
+                    FunctionArgumentAst::This(this) => this.clone(),
+                    FunctionArgumentAst::Argument { name, .. } => name.clone()
+                },
                 field_type,
             });
+        }
+
+        /* Parse body */
+        for statement in self.body.statements.iter() {
+            println!("Statement: {:?}", statement);
         }
 
         let signature = ObjectSignature::new(
