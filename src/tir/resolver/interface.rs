@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use crate::{
     ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst},
     nom_tools::{Span, ToRange},
-    tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{build_type_name, function_definition::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature}, signature::SignaturePath, ObjectSignature, TirError},
+    tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature}, signature::SignaturePath, ObjectSignature, TirError},
 };
 
 use super::{build_signature_path, find_ast_signature, ObjectLocation, ResolveSignature};

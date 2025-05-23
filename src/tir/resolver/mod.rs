@@ -4,11 +4,11 @@ use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
 use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, signature::{LocationTrait, SignaturePath}};
 
-pub mod class_definition;
-pub mod extend_definition;
-pub mod function_definition;
-pub mod interface_definition;
-pub mod module_definition;
+pub mod class;
+pub mod extend;
+pub mod function;
+pub mod interface;
+pub mod module;
 pub mod module_use;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

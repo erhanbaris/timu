@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use super::resolver::{class_definition::ClassDefinition, function_definition::FunctionDefinition, interface_definition::{InterfaceDefinition, InterfaceFunctionDefinition}};
+use super::resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}};
 
 #[derive(Debug)]
 pub enum ObjectSignatureValue<'base> {
