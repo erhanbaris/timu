@@ -310,5 +310,50 @@ class TestClass { }
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
+
+    #[test]
+    fn multiple_interface_validation_5() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], r#"
+interface Interface3 { func test(): TestClass; }
+interface Interface2 { func world(): TestClass; }
+interface Interface1: Interface2, Interface3 { func hello(): TestClass; }
+
+extend TestClass: Interface1 { func hello(): TestClass { } func world(): TestClass { } func test(): TestClass { } }
+
+class TestClass { }
+    "#)?;
+        crate::tir::build(vec![ast.into()]).unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_interface_validation_6() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], r#"
+interface Interface3 { func test(): TestClass; }
+interface Interface2: Interface3 { func world(): TestClass; }
+interface Interface1: Interface2 { func hello(): TestClass; }
+
+extend TestClass: Interface1 { func hello(): TestClass { } func world(): TestClass { } func test(): TestClass { } }
+
+class TestClass { }
+    "#)?;
+        crate::tir::build(vec![ast.into()]).unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_interface_validation_7() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], r#"
+interface Interface3 { func test(): TestClass; }
+interface Interface2: Interface3 { func world(): TestClass; }
+interface Interface1: Interface2, Interface3 { func hello(): TestClass; }
+
+extend TestClass: Interface1 { func hello(): TestClass { } func world(): TestClass { } func test(): TestClass { } }
+
+class TestClass { }
+    "#)?;
+        crate::tir::build(vec![ast.into()]).unwrap();
+        Ok(())
+    }
 }
 
