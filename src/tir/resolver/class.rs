@@ -6,7 +6,7 @@ use crate::{
     ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location_or_resolve, ObjectSignature, TirError}
 };
 
-use super::{ResolveSignature, ObjectLocation};
+use super::{ObjectLocation, ResolveSignature};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -27,8 +27,10 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
 
-        let (signature_path, signature_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
+        let (signature_path, class_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
         let mut fields = IndexMap::<Cow<'_, str>, ObjectLocation>::default();
+
+        let mut function_signatures = Vec::new();
 
         for field in self.fields.iter() {
             match field {
@@ -38,21 +40,34 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
                         .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
                 }
                 ClassDefinitionFieldAst::Function(function) => {
-                    let signature = function.resolve(context, module, Some(signature_location.clone()))?;
-                    fields.insert((*function.name.fragment()).into(), signature)
+                    let signature = function.resolve_signature(context, module, Some(class_location.clone()))?;
+                    fields.insert((*function.name.fragment()).into(), signature.clone())
                         .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
+                    function_signatures.push((signature, function));
                 }
             };
         }
         
-        let signature = ObjectSignature::new(ObjectSignatureValue::Class(ClassDefinition {
+        let class_signature = ObjectSignature::new(ObjectSignatureValue::Class(ClassDefinition {
             name: self.name.clone(),
             fields,
             extends: Default::default()
         }), self.name.extra.file.clone(), self.name.to_range());
 
-        context.update_object_location(signature_path.clone(), signature);
-        Ok(signature_location)
+        context.publish_object_location(signature_path.clone(), class_signature);
+
+        /* Convert all function signatures to normal functions */
+        for (location, function_ast) in function_signatures.into_iter() {
+            let function_signature = context.object_signatures.empty_from_location(location).unwrap();
+            
+            if let ObjectSignatureValue::ClassFunctionSignature(class_function) = function_signature.value {
+                function_ast.convert_signature_to_normal_function(context, class_function)?;
+            } else {
+                panic!("Expected ClassFunctionSignature, but got {:?}", function_signature.value);
+            }
+        }
+
+        Ok(class_location)
     }
     
     fn name(&self) -> Cow<'base, str> {
@@ -75,6 +90,27 @@ mod tests {
     fn recursive_type() -> Result<(), ()> {
         let ast = process_code(vec!["source".into()], "class test { a: test; func test(a: test): test {} }")?;
         crate::tir::build(vec![ast.into()]).unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn this_location_1() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], "class test { func test(this): test {} }")?;
+        crate::tir::build(vec![ast.into()]).unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn this_location_2() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], "class test { func test(this, a: test): test {} }")?;
+        crate::tir::build(vec![ast.into()]).unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn this_location_3() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], "class test { func test(a: test, this): test {} }")?;
+        crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 }

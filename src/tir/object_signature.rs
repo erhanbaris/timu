@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use super::resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}};
+use super::resolver::{class::ClassDefinition, function::{ClassFunctionSignature, FunctionDefinition}, interface::{InterfaceDefinition, InterfaceFunctionDefinition}};
 
 #[derive(Debug)]
 pub enum ObjectSignatureValue<'base> {
@@ -13,6 +13,8 @@ pub enum ObjectSignatureValue<'base> {
     Interface(InterfaceDefinition<'base>),
     #[allow(dead_code)]
     InterfaceFunction(InterfaceFunctionDefinition<'base>),
+    #[allow(dead_code)]
+    ClassFunctionSignature(ClassFunctionSignature<'base>),
 }
 
 impl<'base> AsRef<ObjectSignatureValue<'base>> for ObjectSignatureValue<'base> {
@@ -47,6 +49,7 @@ impl ObjectSignatureValue<'_> {
             ObjectSignatureValue::Module => "Module",
             ObjectSignatureValue::Interface(interface) => interface.name.fragment(),
             ObjectSignatureValue::InterfaceFunction(interface_function) => interface_function.name.fragment(),
+            ObjectSignatureValue::ClassFunctionSignature(function) => function.name.fragment(),
         }
     }
 

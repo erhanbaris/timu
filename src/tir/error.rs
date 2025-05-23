@@ -15,6 +15,7 @@ pub enum TirError<'base> {
     TypesDoNotMatch { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     ThisNeedToDefineInClass { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    ThisArgumentMustBeFirst { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
 }
 
 impl Display for TirError<'_> {
@@ -61,6 +62,10 @@ impl Display for TirError<'_> {
                 position: _,
             } => write!(f, "Extra field in interface"),
             TirError::ThisNeedToDefineInClass {
+                source: _,
+                position: _,
+            } => write!(f, "This need to define in class"),
+            TirError::ThisArgumentMustBeFirst {
                 source: _,
                 position: _,
             } => write!(f, "This need to define in class"),
@@ -120,6 +125,13 @@ impl<'base> TirError<'base> {
         }
     }
 
+    pub fn this_argument_must_be_first(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
+        TirError::ThisArgumentMustBeFirst {
+            position,
+            source,
+        }
+    }
+
     #[allow(dead_code)]
     pub fn get_error(&self) -> (Range<usize>, String, Rc<SourceFile<'_>>) {
         match self {
@@ -164,6 +176,10 @@ impl<'base> TirError<'base> {
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),
             TirError::ThisNeedToDefineInClass {
+                source,
+                position,
+            } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::ThisArgumentMustBeFirst {
                 source,
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),

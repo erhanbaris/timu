@@ -44,9 +44,22 @@ where
 }
 
 #[derive(Debug)]
+pub enum InnerValue<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug = ()> {
+    Reserved(SignatureReservation<'base>),
+    Value(Signature<'base, T, E>),
+}
+
+#[derive(Debug, Clone)]
+pub struct SignatureReservation<'base> {
+    pub name: Cow<'base, str>,
+    pub file: Rc<SourceFile<'base>>,
+    pub position: Range<usize>,
+}
+
+#[derive(Debug)]
 pub struct SignatureHolder<'base, T: Debug + AsRef<T> + AsMut<T>, L: LocationTrait, E: Debug = ()> {
     locations: IndexMap<SignaturePath<'base>, usize>,
-    signatures: Vec<Option<Signature<'base, T, E>>>,
+    signatures: Vec<Option<InnerValue<'base, T, E>>>,
     _marker: std::marker::PhantomData<L>,
 }
 
@@ -73,8 +86,8 @@ where
         }
     }
 
-    fn inner_add(&mut self, name: SignaturePath<'base>, signature: Option<Signature<'base, T, E>>) -> Result<L, L> {
-        self.signatures.push(signature);
+    fn inner_add(&mut self, name: SignaturePath<'base>, value: InnerValue<'base, T, E>) -> Result<L, L> {
+        self.signatures.push(Some(value));
         let index = self.signatures.len() - 1;
         match self.locations.insert(name, index) {
             Some(_) => Err(index.into()),
@@ -82,35 +95,63 @@ where
         }
     }
 
-    pub fn reserve(&mut self, name: SignaturePath<'base>) -> Result<L, L> {
-        debug!("Reserve signature: {}", name.get_name());
-        self.inner_add(name, None)
+    pub fn reserve(&mut self, path: SignaturePath<'base>, name: Cow<'base, str>, file: Rc<SourceFile<'base>>, position: Range<usize>) -> Result<L, L> {
+        debug!("Reserve signature: {}", name.as_ref());
+        self.inner_add(path, InnerValue::Reserved(SignatureReservation { name, file, position }))
     }
 
     pub fn update(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> L {
         debug!("Update signature: {}", name.get_name());
         let index = self.locations.get(&name).unwrap_or_else(|| panic!("Signature not found, but this is a bug"));
-        self.signatures[*index] = Some(signature);
+        self.signatures[*index] = Some(InnerValue::Value(signature));
         (*index).into()
         
     }
 
     pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> Result<L, L> {
         debug!("Adding signature: <u><b>{}</b></u>", name.get_name());
-        self.inner_add(name, Some(signature))
+        self.inner_add(name, InnerValue::Value(signature))
 
     }
 
     pub fn get(&self, name: &str) -> Option<&Signature<'base, T, E>> {
-        self.locations.get(name).and_then(|index| self.signatures[*index].as_ref())
+        match self.locations.get(name) {
+            Some(index) => self.get_from_location((*index).into()),
+            None => None,
+        }
     }
 
     pub fn get_from_location(&self, location: L) -> Option<&Signature<'base, T, E>> {
-        self.signatures.get(location.get()).and_then(|signature| signature.as_ref())
+        match self.signatures.get(location.get()) {
+            Some(Some(InnerValue::Value(signature))) => Some(signature),
+            Some(Some(InnerValue::Reserved(_))) => None,
+            _ => None,
+        }
+    }
+
+    pub fn empty_from_location(&mut self, location: L) -> Option<Signature<'base, T, E>> {
+        self.signatures.get(location.get())?;
+
+        match self.signatures[location.get()].take() {
+            Some(InnerValue::Value(signature)) => Some(signature),
+            Some(InnerValue::Reserved(_)) => None,
+            _ => None,
+        }
+    }
+
+    pub fn get_inner_value_from_location(&self, location: L) -> Option<&InnerValue<'base, T, E>> {
+        match self.signatures.get(location.get()) {
+            Some(Some(inner)) => Some(inner),
+            _ => None,
+        }
     }
 
     pub fn get_mut_from_location(&mut self, location: L) -> Option<&mut Signature<'base, T, E>> {
-        self.signatures.get_mut(location.get()).and_then(|signature| signature.as_mut())
+        match self.signatures.get_mut(location.get()) {
+            Some(Some(InnerValue::Value(signature))) => Some(signature),
+            Some(Some(InnerValue::Reserved(_))) => None,
+            _ => None,
+        }
     }
 
     #[allow(dead_code)]

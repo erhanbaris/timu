@@ -40,7 +40,7 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
             fields,
         }), self.name.extra.file.clone(), self.name.to_range());
 
-        context.update_object_location(signature_path.clone(), signature);
+        context.publish_object_location(signature_path.clone(), signature);
         Ok(signature_location)
     }
     
@@ -121,7 +121,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
         
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
         let signature_path = SignaturePath::owned(format!("{}.{}", tmp_module.path, full_name));
-        let signature_location = context.object_signatures.reserve(signature_path.clone())
+        let signature_location = context.object_signatures.reserve(signature_path.clone(), Cow::Borrowed(*interface_function.name.fragment()), interface_function.name.extra.file.clone(), interface_function.name.to_range())
             .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
         tmp_module.object_signatures.insert(SignaturePath::cow(full_name), signature_location);
 

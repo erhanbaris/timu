@@ -34,7 +34,7 @@ impl<'base> TirContext<'base> {
         let signature_path = SignaturePath::owned(format!("{}.{}", module.path, object_name));
 
         //add the signature to the context with full path
-        let signature_location = self.object_signatures.reserve(signature_path.clone())
+        let signature_location = self.object_signatures.reserve(signature_path.clone(), object_name.clone(), source.clone(), position.clone())
             .map_err(|_| TirError::already_defined(position, source))?;
 
         //add the signature to the module with only the name
@@ -42,7 +42,7 @@ impl<'base> TirContext<'base> {
         Ok((signature_path, signature_location))
     }
 
-    pub fn update_object_location(&mut self, name: SignaturePath<'base>, signature: Signature<'base, ObjectSignatureValue<'base>>) {
+    pub fn publish_object_location(&mut self, name: SignaturePath<'base>, signature: Signature<'base, ObjectSignatureValue<'base>>) {
         self.object_signatures.update(name, signature);
     }
 

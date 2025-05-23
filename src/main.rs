@@ -44,10 +44,9 @@ fn main() -> Result<(), ()> {
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
         let ast = process_code(vec!["source".into()], r#"
-class TestClass {
-    func test(this): TestClass {
-    }
-}
+interface ITest { func test(): TestClass; a: TestClass; }
+extend TestClass: ITest { func test(): TestClass { } a: TestClass; }
+class TestClass { }
         "#)?;
     
     process_ast(vec![ast.into()])?;
