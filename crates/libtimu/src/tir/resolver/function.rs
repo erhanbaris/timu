@@ -42,7 +42,7 @@ pub fn unwrap_for_this<'base>(parent: &Option<ObjectLocation>, this: &Span<'base
 }
 
 impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let full_name = match &self.location {
             FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
@@ -66,6 +66,8 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         context.publish_object_location(signature_path, signature);
         Ok(signature_location)
     }
+    
+    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         Cow::Borrowed(*self.name.fragment())
@@ -106,7 +108,7 @@ impl<'base> FunctionDefinitionAst<'base> {
 
         /* Parse body */
         for statement in self.body.statements.iter() {
-            statement.resolve(context, module, Some(function_location.clone()))?;
+            statement.definition(context, module, Some(function_location.clone()))?;
         }
 
         Ok(())

@@ -26,7 +26,7 @@ pub struct InterfaceFunctionDefinition<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.fragment());
 
         let (signature_path, signature_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
@@ -43,6 +43,8 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
         context.publish_object_location(signature_path.clone(), signature);
         Ok(signature_location)
     }
+    
+    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         Cow::Borrowed(*self.name.fragment())

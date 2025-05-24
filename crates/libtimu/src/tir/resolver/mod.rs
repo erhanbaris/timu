@@ -47,7 +47,8 @@ impl LocationTrait for AstLocation {
 }
 
 pub trait ResolveSignature<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>>;
+    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>>;
+    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: ObjectLocation) -> Result<(), TirError<'base>>;
     fn name(&self) -> Cow<'base, str>;
 }
 
@@ -89,34 +90,34 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
 
         simplelog::debug!(" - Resolving all uses");
         for use_item in uses {
-            use_item.resolve(context, &module, None)?;
+            use_item.definition(context, &module, None)?;
         }
 
         simplelog::debug!(" - Resolving all interfaces");
         for interface in interfaces {
             if module.upgrade(context).unwrap().object_signatures.get(interface.name().as_ref()).is_none() {
-                interface.resolve(context, &module, None)?;
+                interface.definition(context, &module, None)?;
             }
         }
 
         simplelog::debug!(" - Resolving all extends");
         for extend in extends {
             if module.upgrade(context).unwrap().object_signatures.get(extend.name().as_ref()).is_none() {
-                extend.resolve(context, &module, None)?;
+                extend.definition(context, &module, None)?;
             }
         }
 
         simplelog::debug!(" - Resolving all classes");
         for class in classes {
             if module.upgrade(context).unwrap().object_signatures.get(class.name().as_ref()).is_none() {
-                class.resolve(context, &module, None)?;
+                class.definition(context, &module, None)?;
             }
         }
 
         simplelog::debug!(" - Resolving all functions");
         for function in functions {
             if module.upgrade(context).unwrap().object_signatures.get(function.name().as_ref()).is_none() {
-                function.resolve(context, &module, None)?;
+                function.definition(context, &module, None)?;
             }
         }
     }

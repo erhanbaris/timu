@@ -25,12 +25,14 @@ pub struct ClassFunctionSignature<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for BodyStatementAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         match self {
             BodyStatementAst::FunctionCall(function_call) => Self::resolve_function_call(context, module, parent, function_call),
             _ => panic!("Unsupported BodyStatementAst variant: {:?}", self),
         }
     }
+    
+    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         Cow::Borrowed("")

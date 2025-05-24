@@ -34,15 +34,17 @@ impl<'base> AsMut<AstSignatureValue<'base>> for AstSignatureValue<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         match self {
-            AstSignatureValue::Module(target_module) => target_module.resolve(context, target_module, parent),
-            AstSignatureValue::Class(class) => class.resolve(context, module, parent),
-            AstSignatureValue::Function(function) => function.resolve(context, module, parent),
-            AstSignatureValue::Interface(interface) => interface.resolve(context, module, parent),
-            AstSignatureValue::Extend(extend) => extend.resolve(context, module, parent),
+            AstSignatureValue::Module(target_module) => target_module.definition(context, target_module, parent),
+            AstSignatureValue::Class(class) => class.definition(context, module, parent),
+            AstSignatureValue::Function(function) => function.definition(context, module, parent),
+            AstSignatureValue::Interface(interface) => interface.definition(context, module, parent),
+            AstSignatureValue::Extend(extend) => extend.definition(context, module, parent),
         }
     }
+
+    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         match self {
