@@ -26,6 +26,7 @@ pub fn print_error(error_type: &str, error_message: &str, span_range: std::ops::
         .unwrap();
 }
 
+#[allow(clippy::result_unit_err)]
 pub fn handle_builder(result: TirResult<'_>) -> Result<TirContext<'_>, ()> {
     match result {
         Ok(context) => Ok(context),
@@ -37,6 +38,7 @@ pub fn handle_builder(result: TirResult<'_>) -> Result<TirContext<'_>, ()> {
     }
 }
 
+#[allow(clippy::result_unit_err)]
 pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, ()> {
     match result {
         Ok((_, parsed)) => Ok(parsed),
