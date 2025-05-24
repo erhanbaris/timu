@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'timu'",
+            "name": "Debug executable 'timuc'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=timu",
-                    "--package=timu"
+                    "--bin=timuc",
+                    "--package=timuc"
                 ],
                 "filter": {
-                    "name": "timu",
+                    "name": "timuc",
                     "kind": "bin"
                 }
             },
@@ -28,16 +28,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'timu'",
+            "name": "Debug unit tests in executable 'timuc'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=timu",
-                    "--package=timu"
+                    "--bin=timuc",
+                    "--package=timuc"
                 ],
                 "filter": {
-                    "name": "timu",
+                    "name": "timuc",
                     "kind": "bin"
                 }
             },

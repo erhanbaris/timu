@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use crate::file::SourceFile;
 
-use super::{module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{AstLocation, ResolveSignature, ObjectLocation}, signature::{Signature, SignaturePath}, AstSignature, AstSignatureHolder, Module, ObjectSignatureHolder, TirError};
+use super::{module::ModuleRef, resolver::{AstLocation, ObjectLocation, ResolveSignature}, signature::SignaturePath, AstSignature, AstSignatureHolder, Module, ObjectSignature, ObjectSignatureHolder, TirError};
 
 #[derive(Debug, Default)]
 pub struct TirContext<'base> {
@@ -42,7 +42,7 @@ impl<'base> TirContext<'base> {
         Ok((signature_path, signature_location))
     }
 
-    pub fn publish_object_location(&mut self, name: SignaturePath<'base>, signature: Signature<'base, ObjectSignatureValue<'base>>) {
+    pub fn publish_object_location(&mut self, name: SignaturePath<'base>, signature: ObjectSignature<'base>) {
         self.object_signatures.update(name, signature);
     }
 

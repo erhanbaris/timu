@@ -6,9 +6,9 @@ pub use error::TirError;
 use module::{Module, ModuleRef};
 use object_signature::ObjectSignatureValue;
 use resolver::{build_file, AstLocation, ObjectLocation};
-use signature::{Signature, SignatureHolder};
+use signature::{Signature, SignatureHolder, SignaturePath};
 
-use crate::ast::FileAst;
+use crate::{ast::FileAst, file::SourceFile};
 
 mod ast_signature;
 mod context;
@@ -22,11 +22,20 @@ mod scope;
 pub type AstSignature<'base> = Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>;
 pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, AstLocation, ModuleRef<'base>>;
 
-pub type ObjectSignature<'base> = Signature<'base, ObjectSignatureValue<'base>>;
-pub type ObjectSignatureHolder<'base> = SignatureHolder<'base, ObjectSignatureValue<'base>, ObjectLocation>;
+pub type ObjectSignature<'base> = Signature<'base, ObjectSignatureValue<'base>, ObjectLocation>;
+pub type ObjectSignatureHolder<'base> = SignatureHolder<'base, ObjectSignatureValue<'base>, ObjectLocation, ObjectLocation>;
+
+fn build_primatives(context: &mut TirContext<'_>) {
+    context.object_signatures.add_signature(SignaturePath::borrowed("int"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Int), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.object_signatures.add_signature(SignaturePath::borrowed("float"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Float), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.object_signatures.add_signature(SignaturePath::borrowed("bool"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Bool), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.object_signatures.add_signature(SignaturePath::borrowed("string"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::String), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.object_signatures.add_signature(SignaturePath::borrowed("void"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Void), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+}
 
 pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError<'_>> {
     let mut context = TirContext::default();
+    build_primatives(&mut context);
 
     for ast in files.into_iter() {
         build_module(&mut context, ast)?;

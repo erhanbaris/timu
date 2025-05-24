@@ -1,111 +1,17 @@
-# Implement the interface
+interface ITest {
+    func test(): string;
+    a: string;
+}
 
-extend MyType: IData {
-    func hello() {
-        return "hello"
+extend TestClass: ITest {
+    func test(): string {
+        
     }
-
-    func world() {
-        var as = 123;
-        return "world"
-    }
+    a: string;
 }
 
-func func_a(a: i32): i32 {
-    return a * 2
-}
-func main () {
-    var a: ?int = Empty;
-    var a: ?int;
-    var b: ?int = 1024;
-    var c: ?int = Value(1024);
-    var d: bool = HasValue(1024);
-
-    if Value(1024) == c {
-
-    } else {
-
-    }
-}
-
-// Function definition (public)
-pub func calculate(data: int32): int32 {
-	// return type is int32
-}
-
-class MyType {
-    a: i32 = 100, # with default value
-    pub b: string, # public accessible
-    c: ?string, # nullable string
-
-    func init(): MyType { # constructor
-        return MyType {
-            a: 100,
-            b: "erhan",
-            c: None
-        }
-    }
-
-    func hello(this): MyType { # constructor
-        this.a = 100;
-        return MyType {
-            a: 100,
-            b: "erhan",
-            c: None
-        }
-    }
-}
-
-# Type interface
-interface IData: Cloneable {
-    a: i32 = 100;
-    func hello();
-    func world();
-}
-
-# Implement the interface
-extend MyType: IData {
-    func hello() {
-        return "hello"
-    }
-
-    func world() {
-        return "world"
-    }
-}
-
-func func_a(a: i32): i32 {
-    return a * 2
-}
-
-func func_b(a: i32): i32 {
-    return a * 3
-}
-
-func main() {
-    var d = MyType {
-        a: 100,
-        b: "erhan",
-        c: None
-    }
-
-    var v = MyType()
-
-    d.print()
-    MyType.hello()
-    MyType.world()
-
-    var a = func_a(2) => func_b() ## a will be 12
-
-    match d.b {
-        "a": {
-            return 100
-        }
-        "b": {
-            return 200
-        }
-        _ => {
-            return 300
-        }
+class TestClass {
+    func init(this): string {
+        this.test();
     }
 }

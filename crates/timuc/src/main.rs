@@ -12,10 +12,24 @@ fn main() -> Result<(), ()> {
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
         let ast = process_code(vec!["source".into()], r#"
-interface ITest { func test(): TestClass; a: TestClass; }
-extend TestClass: ITest { func test(): TestClass { } a: TestClass; }
-class TestClass { }
-        "#)?;
+interface ITest {
+    func test(): string;
+    a: string;
+}
+
+extend TestClass: ITest {
+    func test(): string {
+        
+    }
+    a: string;
+}
+
+class TestClass {
+    func init(this): string {
+        this.test();
+    }
+}
+"#)?;
     
     process_ast(vec![ast.into()])?;
     Ok(())

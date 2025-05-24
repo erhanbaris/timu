@@ -1,9 +1,20 @@
 use std::fmt::Debug;
 
-use super::resolver::{class::ClassDefinition, function::{ClassFunctionSignature, FunctionDefinition}, interface::{InterfaceDefinition, InterfaceFunctionDefinition}};
+use super::resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}};
+
+#[derive(Debug)]
+pub enum PrimativeType {
+    Int,
+    Float,
+    String,
+    Bool,
+    Void,
+}
 
 #[derive(Debug)]
 pub enum ObjectSignatureValue<'base> {
+    #[allow(dead_code)]
+    Primative(PrimativeType),
     #[allow(dead_code)]
     Function(FunctionDefinition<'base>),
     #[allow(dead_code)]
@@ -14,7 +25,7 @@ pub enum ObjectSignatureValue<'base> {
     #[allow(dead_code)]
     InterfaceFunction(InterfaceFunctionDefinition<'base>),
     #[allow(dead_code)]
-    ClassFunctionSignature(ClassFunctionSignature<'base>),
+    FunctionCall(),
 }
 
 impl<'base> AsRef<ObjectSignatureValue<'base>> for ObjectSignatureValue<'base> {
@@ -32,6 +43,7 @@ impl<'base> AsMut<ObjectSignatureValue<'base>> for ObjectSignatureValue<'base> {
 impl ObjectSignatureValue<'_> {
     pub fn compare_skeleton(&self, other: &Self) -> bool {
         match (self, other) {
+            (ObjectSignatureValue::Primative(left), ObjectSignatureValue::Primative(right)) => Self::compare_primatives(left, right),
             (ObjectSignatureValue::Function(left_function), ObjectSignatureValue::Function(right_function)) => Self::compare_functions(left_function, right_function),
             (ObjectSignatureValue::Class(left_class), ObjectSignatureValue::Class(right_class)) => Self::compare_classes(left_class, right_class),
             (ObjectSignatureValue::Module, ObjectSignatureValue::Module) => false,
@@ -44,13 +56,25 @@ impl ObjectSignatureValue<'_> {
 
     pub fn get_name(&self) -> &str {
         match self {
+            ObjectSignatureValue::Primative(primative) => match primative {
+                PrimativeType::Int => "int",
+                PrimativeType::Float => "float",
+                PrimativeType::String => "string",
+                PrimativeType::Bool => "bool",
+                PrimativeType::Void => "void",
+                
+            },
             ObjectSignatureValue::Function(function) => function.name.fragment(),
             ObjectSignatureValue::Class(class) => class.name.fragment(),
             ObjectSignatureValue::Module => "Module",
             ObjectSignatureValue::Interface(interface) => interface.name.fragment(),
             ObjectSignatureValue::InterfaceFunction(interface_function) => interface_function.name.fragment(),
-            ObjectSignatureValue::ClassFunctionSignature(function) => function.name.fragment(),
+            ObjectSignatureValue::FunctionCall() => "FunctionCall",
         }
+    }
+
+    fn compare_primatives(left: &PrimativeType, right: &PrimativeType) -> bool {
+        std::ptr::eq(left, right)
     }
 
     fn compare_classes(left: &ClassDefinition, right: &ClassDefinition) -> bool {

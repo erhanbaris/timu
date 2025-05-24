@@ -38,7 +38,7 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
         let signature = ObjectSignature::new(ObjectSignatureValue::Interface(InterfaceDefinition {
             name: self.name.clone(),
             fields,
-        }), self.name.extra.file.clone(), self.name.to_range());
+        }), self.name.extra.file.clone(), self.name.to_range(),None);
 
         context.publish_object_location(signature_path.clone(), signature);
         Ok(signature_location)
@@ -173,6 +173,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
             ),
             self.name.extra.file.clone(),
             self.name.to_range(),
+            None,
         );
         
         Ok(context.object_signatures.update(signature_path, signature))

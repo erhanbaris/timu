@@ -99,7 +99,6 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
             }
         }
 
-          
         let class_bunding = context.object_signatures.get_mut_from_location(class_location.clone());
         let class = match class_bunding {
             Some(signature) => match signature.value.as_mut() {

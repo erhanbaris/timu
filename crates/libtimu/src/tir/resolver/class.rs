@@ -51,20 +51,14 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
         let class_signature = ObjectSignature::new(ObjectSignatureValue::Class(ClassDefinition {
             name: self.name.clone(),
             fields,
-            extends: Default::default()
-        }), self.name.extra.file.clone(), self.name.to_range());
+            extends: Default::default(),
+        }), self.name.extra.file.clone(), self.name.to_range(), None);
 
         context.publish_object_location(signature_path.clone(), class_signature);
 
         /* Convert all function signatures to normal functions */
-        for (location, function_ast) in function_signatures.into_iter() {
-            let function_signature = context.object_signatures.empty_from_location(location).unwrap();
-            
-            if let ObjectSignatureValue::ClassFunctionSignature(class_function) = function_signature.value {
-                function_ast.convert_signature_to_normal_function(context, class_function)?;
-            } else {
-                panic!("Expected ClassFunctionSignature, but got {:?}", function_signature.value);
-            }
+        for (function_location, function_ast) in function_signatures.into_iter() {
+            function_ast.resolve_function_body(context, module, Some(class_location.clone()), function_location)?;
         }
 
         Ok(class_location)

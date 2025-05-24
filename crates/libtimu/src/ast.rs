@@ -170,7 +170,7 @@ pub struct FunctionDefinitionAst<'base> {
 
 #[derive(Debug)]
 pub struct FunctionCallAst<'base> {
-    pub paths: Vec<FunctionCallPathAst<'base>>,
+    pub paths: Vec<Span<'base>>,
     pub arguments: Vec<ExpressionAst<'base>>,
 }
 

@@ -10,7 +10,7 @@ pub trait LocationTrait: Debug + From<usize> + Clone {
 }
 
 #[derive(Debug)]
-pub struct Signature<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug = ()> {
+pub struct Signature<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug> {
     #[allow(dead_code)]
     pub value: T,
     pub file: Rc<SourceFile<'base>>,
@@ -24,12 +24,12 @@ where
     T: Debug + AsRef<T> + AsMut<T>,
     E: Debug,
 {
-    pub fn new(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>) -> Self {
+    pub fn new(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>, extra: Option<E>) -> Self {
         Self {
             value,
             file,
             position,
-            extra: None,
+            extra,
         }
     }
 
@@ -44,7 +44,7 @@ where
 }
 
 #[derive(Debug)]
-pub enum InnerValue<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug = ()> {
+pub enum SignatureInfo<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug = ()> {
     Reserved(SignatureReservation<'base>),
     Value(Signature<'base, T, E>),
 }
@@ -59,7 +59,7 @@ pub struct SignatureReservation<'base> {
 #[derive(Debug)]
 pub struct SignatureHolder<'base, T: Debug + AsRef<T> + AsMut<T>, L: LocationTrait, E: Debug = ()> {
     locations: IndexMap<SignaturePath<'base>, usize>,
-    signatures: Vec<Option<InnerValue<'base, T, E>>>,
+    signatures: Vec<Option<SignatureInfo<'base, T, E>>>,
     _marker: std::marker::PhantomData<L>,
 }
 
@@ -86,7 +86,7 @@ where
         }
     }
 
-    fn inner_add(&mut self, name: SignaturePath<'base>, value: InnerValue<'base, T, E>) -> Result<L, L> {
+    fn inner_add(&mut self, name: SignaturePath<'base>, value: SignatureInfo<'base, T, E>) -> Result<L, L> {
         self.signatures.push(Some(value));
         let index = self.signatures.len() - 1;
         match self.locations.insert(name, index) {
@@ -97,20 +97,20 @@ where
 
     pub fn reserve(&mut self, path: SignaturePath<'base>, name: Cow<'base, str>, file: Rc<SourceFile<'base>>, position: Range<usize>) -> Result<L, L> {
         debug!("Reserve signature: {}", name.as_ref());
-        self.inner_add(path, InnerValue::Reserved(SignatureReservation { name, file, position }))
+        self.inner_add(path, SignatureInfo::Reserved(SignatureReservation { name, file, position }))
     }
 
     pub fn update(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> L {
         debug!("Update signature: {}", name.get_name());
         let index = self.locations.get(&name).unwrap_or_else(|| panic!("Signature not found, but this is a bug"));
-        self.signatures[*index] = Some(InnerValue::Value(signature));
+        self.signatures[*index] = Some(SignatureInfo::Value(signature));
         (*index).into()
         
     }
 
     pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> Result<L, L> {
         debug!("Adding signature: <u><b>{}</b></u>", name.get_name());
-        self.inner_add(name, InnerValue::Value(signature))
+        self.inner_add(name, SignatureInfo::Value(signature))
 
     }
 
@@ -123,23 +123,21 @@ where
 
     pub fn get_from_location(&self, location: L) -> Option<&Signature<'base, T, E>> {
         match self.signatures.get(location.get()) {
-            Some(Some(InnerValue::Value(signature))) => Some(signature),
-            Some(Some(InnerValue::Reserved(_))) => None,
+            Some(Some(SignatureInfo::Value(signature))) => Some(signature),
             _ => None,
         }
     }
 
-    pub fn empty_from_location(&mut self, location: L) -> Option<Signature<'base, T, E>> {
+    pub fn take_from_location(&mut self, location: L) -> Option<Signature<'base, T, E>> {
         self.signatures.get(location.get())?;
 
         match self.signatures[location.get()].take() {
-            Some(InnerValue::Value(signature)) => Some(signature),
-            Some(InnerValue::Reserved(_)) => None,
+            Some(SignatureInfo::Value(signature)) => Some(signature),
             _ => None,
         }
     }
 
-    pub fn get_inner_value_from_location(&self, location: L) -> Option<&InnerValue<'base, T, E>> {
+    pub fn get_signature_from_location(&self, location: L) -> Option<&SignatureInfo<'base, T, E>> {
         match self.signatures.get(location.get()) {
             Some(Some(inner)) => Some(inner),
             _ => None,
@@ -148,8 +146,7 @@ where
 
     pub fn get_mut_from_location(&mut self, location: L) -> Option<&mut Signature<'base, T, E>> {
         match self.signatures.get_mut(location.get()) {
-            Some(Some(InnerValue::Value(signature))) => Some(signature),
-            Some(Some(InnerValue::Reserved(_))) => None,
+            Some(Some(SignatureInfo::Value(signature))) => Some(signature),
             _ => None,
         }
     }

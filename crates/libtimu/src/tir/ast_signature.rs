@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    context::TirContext, module::{Module, ModuleRef}, resolver::{AstLocation, ResolveSignature, ObjectLocation}, signature::{Signature, SignaturePath}, TirError
+    context::TirContext, module::{Module, ModuleRef}, resolver::{AstLocation, ObjectLocation, ResolveSignature}, signature::{Signature, SignaturePath}, AstSignature, TirError
 };
 
 #[derive(Debug, Clone)]
@@ -169,13 +169,14 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
 
     module.ast_signatures = ast_signature;
 
-    let signature = Signature::new(
+    let signature = AstSignature::new(
         AstSignatureValue::Module(module.get_ref()),
         module.file.clone(),
         std::ops::Range {
             start: 0,
             end: 0,
         },
+        None
     );
 
     context.add_ast_signature(module_name.clone().into(), signature).map_err(|item| {

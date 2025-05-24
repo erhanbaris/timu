@@ -1,5 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
-        "Cargo.toml"
+        "Cargo.toml",
+        "crates/libtimu/Cargo.toml",
+        "crates/timuc/Cargo.toml",
     ]
 }

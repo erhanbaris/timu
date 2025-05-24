@@ -10,6 +10,7 @@ pub mod function;
 pub mod interface;
 pub mod module;
 pub mod module_use;
+pub mod statement;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectLocation(#[allow(dead_code)]pub usize);
@@ -81,7 +82,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
     
     if let Some(ast) = context.modules.get(module.as_ref()).and_then(|module| module.ast.clone()) {
         let uses = ast.get_uses().collect::<Vec<_>>();
-        let interaces = ast.get_interfaces().collect::<Vec<_>>();
+        let interfaces = ast.get_interfaces().collect::<Vec<_>>();
         let functions = ast.get_functions().collect::<Vec<_>>();
         let classes = ast.get_classes().collect::<Vec<_>>();
         let extends = ast.get_extends().collect::<Vec<_>>();
@@ -92,16 +93,9 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
         }
 
         simplelog::debug!(" - Resolving all interfaces");
-        for interace in interaces {
-            if module.upgrade(context).unwrap().object_signatures.get(interace.name().as_ref()).is_none() {
-                interace.resolve(context, &module, None)?;
-            }
-        }
-
-        simplelog::debug!(" - Resolving all classes");
-        for class in classes {
-            if module.upgrade(context).unwrap().object_signatures.get(class.name().as_ref()).is_none() {
-                class.resolve(context, &module, None)?;
+        for interface in interfaces {
+            if module.upgrade(context).unwrap().object_signatures.get(interface.name().as_ref()).is_none() {
+                interface.resolve(context, &module, None)?;
             }
         }
 
@@ -109,6 +103,13 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
         for extend in extends {
             if module.upgrade(context).unwrap().object_signatures.get(extend.name().as_ref()).is_none() {
                 extend.resolve(context, &module, None)?;
+            }
+        }
+
+        simplelog::debug!(" - Resolving all classes");
+        for class in classes {
+            if module.upgrade(context).unwrap().object_signatures.get(class.name().as_ref()).is_none() {
+                class.resolve(context, &module, None)?;
             }
         }
 
@@ -171,7 +172,10 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         None => {
             match module.get_ast_signature(key.as_ref()) {
                 Some(location) => location,
-                None => return Ok(None),
+                None => match context.object_signatures.location(key.as_ref()) {
+                    Some(location) => return Ok(Some(location)),
+                    None => return Ok(None),
+                },
             }
         },
     };

@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
 
-use nom::branch::alt;
 use nom::character::complete::char;
 use nom::combinator::{cut, map, peek};
 use nom::error::context;
@@ -9,7 +8,7 @@ use nom::sequence::terminated;
 use nom::{IResult, Parser, sequence::delimited};
 
 use crate::ast::{
-    BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallPathAst, TypeNameAst
+    BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallPathAst
 };
 use crate::nom_tools::{Span, cleanup};
 use crate::parser::ident;
@@ -19,12 +18,7 @@ use super::TimuParserError;
 impl FunctionCallAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
         let (input, paths) = terminated(
-            separated_list1(char('.'), 
-            alt((
-                    Self::ident_for_function_path,
-                    TypeNameAst::parse_for_function_path,
-                ))
-            ),
+            separated_list1(char('.'), ident()),
             peek(cleanup(char('(')))).parse(input)?;
         let (input, arguments) =
             map(delimited(char('('), cleanup(separated_list0(char(','), ExpressionAst::parse)), context("Missing ')'", cut(char(')')))), |items| {
@@ -51,6 +45,7 @@ impl FunctionCallAst<'_> {
         Ok((input, ExpressionAst::FunctionCall(function_call)))
     }
 
+    #[allow(dead_code)]
     fn ident_for_function_path(input: Span<'_>) -> IResult<Span<'_>, FunctionCallPathAst<'_>, TimuParserError<'_>> {
         let (input, path) = ident().parse(input)?;
         Ok((

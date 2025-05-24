@@ -3,34 +3,26 @@ use std::borrow::Cow;
 use crate::{
     ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location_or_resolve, signature::{InnerValue, SignaturePath}, ObjectSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location_or_resolve, signature::{SignatureInfo, SignaturePath}, ObjectSignature, TirError},
 };
 
 use super::{build_type_name, try_resolve_signature, ResolveSignature, ObjectLocation};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct FunctionArgument<'base> {
     pub name: Span<'base>,
     pub field_type: ObjectLocation,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct FunctionDefinition<'base> {
     pub is_public: bool,
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgument<'base>>,
     pub return_type: ObjectLocation,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct ClassFunctionSignature<'base> {
-    pub is_public: bool,
-    pub name: Span<'base>,
-    pub arguments: Vec<FunctionArgument<'base>>,
-    pub return_type: ObjectLocation,
+    pub body: Vec<ObjectLocation>,
     pub signature_path: SignaturePath<'base>,
 }
 
@@ -51,10 +43,11 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         
         let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
 
-        let signature_value = self.build(context, module, parent, signature_path)?;
+        let signature_value = self.build(context, module, parent.clone(), signature_path)?;
 
         /* Parse body */
         for statement in self.body.statements.iter() {
+            statement.resolve(context, module, Some(signature_location.clone()))?;
             println!("Statement: {:?}", statement);
         }
 
@@ -65,13 +58,16 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
                     name: signature_value.name,
                     arguments: signature_value.arguments,
                     return_type: signature_value.return_type,
+                    body: Default::default(),
+                    signature_path: signature_value.signature_path.clone(),
                 },
             ),
             self.name.extra.file.clone(),
             self.name.to_range(),
+            parent,
         );
         
-        context.publish_object_location(signature_value.signature_path.clone(), signature);
+        context.publish_object_location(signature_value.signature_path, signature);
         Ok(signature_location)
     }
     
@@ -89,43 +85,37 @@ impl<'base> FunctionDefinitionAst<'base> {
         };
         
         let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
-        let signature_value = self.build(context, module, parent, signature_path.clone())?;
+        let signature_value = self.build(context, module, parent.clone(), signature_path.clone())?;
 
         let signature = ObjectSignature::new(
-            ObjectSignatureValue::ClassFunctionSignature(signature_value),
+            ObjectSignatureValue::Function(signature_value),
             self.name.extra.file.clone(),
             self.name.to_range(),
+            parent,
         );
         
         context.publish_object_location(signature_path.clone(), signature);
         Ok(signature_location)
     }
 
-    pub fn convert_signature_to_normal_function(&self, context: &mut TirContext<'base>, signature_value: ClassFunctionSignature<'base>) -> Result<(), TirError<'base>> {
+    pub fn resolve_function_body(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>, function_location: ObjectLocation) -> Result<(), TirError<'base>> {
         
+        let function_signature = context.object_signatures.get_mut_from_location(function_location.clone()).unwrap();
+        let _ = if let ObjectSignatureValue::Function(function) = function_signature.value.as_mut() {
+            function
+        } else {
+            panic!("Expected ClassFunctionSignature, but got {:?}", function_signature.value);
+        };
+
         /* Parse body */
         for statement in self.body.statements.iter() {
-            println!("Statement: {:?}", statement);
+            statement.resolve(context, module, Some(function_location.clone()))?;
         }
 
-        let signature = ObjectSignature::new(
-            ObjectSignatureValue::Function (
-                FunctionDefinition {
-                    is_public: signature_value.is_public,
-                    name: signature_value.name,
-                    arguments: signature_value.arguments,
-                    return_type: signature_value.return_type,
-                },
-            ),
-            self.name.extra.file.clone(),
-            self.name.to_range(),
-        );
-        
-        context.publish_object_location(signature_value.signature_path, signature);
         Ok(())
     }
 
-    fn build(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>, signature_path: SignaturePath<'base>) -> Result<ClassFunctionSignature<'base>, TirError<'base>> {
+    fn build(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError<'base>> {
         let mut arguments = vec![];
         let return_type = get_object_location_or_resolve(context, &self.return_type, module)?;
 
@@ -138,12 +128,12 @@ impl<'base> FunctionDefinitionAst<'base> {
                         return Err(TirError::this_argument_must_be_first(this.to_range(), this.extra.file.clone()));
                     }
                     
-                    match context.object_signatures.get_inner_value_from_location(unwrap_for_this(&parent, this)?).unwrap() {
-                        InnerValue::Reserved(reservation) => {
+                    match context.object_signatures.get_signature_from_location(unwrap_for_this(&parent, this)?).unwrap() {
+                        SignatureInfo::Reserved(reservation) => {
                             let reservation = reservation.clone();
                             (reservation.name, reservation.position, reservation.file)
                         },
-                        InnerValue::Value(value) => {
+                        SignatureInfo::Value(value) => {
                             (Cow::Owned(value.value.get_name().to_string()), this.to_range(), this.extra.file.clone())
                         }
                     }
@@ -153,9 +143,9 @@ impl<'base> FunctionDefinitionAst<'base> {
             
             let type_name = match argument {
                 FunctionArgumentAst::This(this) => {
-                    match context.object_signatures.get_inner_value_from_location(unwrap_for_this(&parent, this)?).unwrap() {
-                        InnerValue::Reserved(reservation) => reservation.name.clone(),
-                        InnerValue::Value(value) => Cow::Owned(value.value.get_name().to_string())
+                    match context.object_signatures.get_signature_from_location(unwrap_for_this(&parent, this)?).unwrap() {
+                        SignatureInfo::Reserved(reservation) => reservation.name.clone(),
+                        SignatureInfo::Value(value) => Cow::Owned(value.value.get_name().to_string())
                     }
                 },
                 FunctionArgumentAst::Argument { field_type, .. } => Cow::Owned(build_type_name(field_type)),
@@ -179,12 +169,13 @@ impl<'base> FunctionDefinitionAst<'base> {
             });
         }
 
-        Ok(ClassFunctionSignature {
+        Ok(FunctionDefinition {
             is_public: self.is_public.is_some(),
             name: self.name.clone(),
             arguments,
             return_type,
             signature_path,
+            body: Vec::new(),
         })
     }
 
