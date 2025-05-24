@@ -2,7 +2,7 @@ use core::panic;
 use std::{borrow::Cow, rc::Rc};
 
 use crate::{
-    ast::{BodyStatementAst, FunctionCallAst}, file::SourceFile, nom_tools::Span, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, signature::SignaturePath, ObjectSignature, TirError}
+    ast::{BodyStatementAst, ExpressionAst, FunctionCallAst}, file::SourceFile, nom_tools::Span, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, signature::SignaturePath, ObjectSignature, TirError}
 };
 
 use super::{ObjectLocation, ResolveSignature};
@@ -42,9 +42,8 @@ impl<'base> ResolveSignature<'base> for BodyStatementAst<'base> {
 }
 
 impl<'base> BodyStatementAst<'base> {
-    fn resolve_function_call(context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>, function_call: &FunctionCallAst<'base>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve_function_call(context: &TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>, function_call: &FunctionCallAst<'base>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving function call: <u><b>{}</b></u>", "func");
-        let (signature_path, signature_location) = context.reserve_object_location("".into(), module, 0..0, Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")))?;
         let module_object = module.upgrade(context).unwrap();
 
         let parent_location = parent.clone().unwrap();
@@ -55,33 +54,33 @@ impl<'base> BodyStatementAst<'base> {
             _ => panic!("Parent object is not a function or is missing, {:?}", parent_object),
         };
 
-        let mut object_location = signature_location.clone();
+        let mut callee_object_location = function_parent.clone().expect("Parent object is missing, but this is a bug");
         for (index, path) in function_call.paths.iter().enumerate() {
             match *path.fragment() {
-                "this" => object_location = function_parent.clone().expect("Parent object is missing, but this is a bug"),
+                "this" => continue, // 'this' is handled by the parent object
                 path => {
                     if index == 0 {
                         if let Some(argument) = function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
-                            object_location = argument.field_type.clone();
+                            callee_object_location = argument.field_type.clone();
 
                         } else if let Some(data) = module_object.object_signatures.get(path) {
-                            object_location = data.clone();
+                            callee_object_location = data.clone();
 
                         } else {
                             panic!("Function argument or object not found: {}", path);
                         }
                     } else {
-                        match context.object_signatures.get_from_location(object_location.clone()).map(|signature| signature.value.as_ref()) {
+                        match context.object_signatures.get_from_location(callee_object_location.clone()).map(|signature| signature.value.as_ref()) {
                             Some(ObjectSignatureValue::Class(class)) => {
                                 if let Some(field) = class.fields.get(path) {
-                                    object_location = field.clone();
+                                    callee_object_location = field.clone();
                                 } else {
                                     panic!("Field not found in class: {}", path);
                                 }
                             },
                             Some(ObjectSignatureValue::Function(function)) => {
                                 if let Some(argument) = function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
-                                    object_location = argument.field_type.clone();
+                                    callee_object_location = argument.field_type.clone();
                                 } else {
                                     panic!("Function argument not found: {}", path);
                                 }
@@ -93,15 +92,44 @@ impl<'base> BodyStatementAst<'base> {
             }
         }
 
-        let signature = ObjectSignature::new(
-            ObjectSignatureValue::FunctionCall(),
+        let callee_object = context.object_signatures.get_from_location(callee_object_location.clone()).unwrap();
+
+        let callee = match callee_object.value.as_ref() {
+            ObjectSignatureValue::Function(function) => function,
+            _ => panic!("Expected a function signature, but got {:?}", callee_object.value)
+        };
+
+        /* Parse arguments */
+        if callee.arguments.len() != function_call.arguments.len() {
+            panic!("Function call argument count mismatch: expected {}, got {}", callee.arguments.len(), function_call.arguments.len());
+        }
+        
+        for (index, argument) in function_call.arguments.iter().enumerate() {
+            let callee_function_argument = context.object_signatures.get_from_location(callee.arguments[index].field_type.clone()).unwrap();
+
+            let argument_location = match argument {
+                ExpressionAst::FunctionCall(func_call) => Self::resolve_function_call(context, module, parent.clone(), func_call)?,
+                ExpressionAst::Primitive(_) => ObjectLocation::UNDEFINED,
+                _ => {
+                    panic!("Unsupported argument type: {:?}", argument);
+                }
+            };
+
+            let pass_argument = context.object_signatures.get_from_location(argument_location.clone()).unwrap();
+
+            if callee_function_argument.value.compare_skeleton(&pass_argument.value) {
+                panic!("Argument type mismatch: expected {:?}, got {:?}", callee_function_argument.value, pass_argument.value);
+            }
+        }
+
+        let _signature = ObjectSignature::new(
+            ObjectSignatureValue::FunctionCall(callee_object_location),
             Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")),
             0..0,
             parent,
         );
         
-        context.publish_object_location(signature_path.clone(), signature);
-        Ok(signature_location)
+        Ok(ObjectLocation::UNDEFINED)
     }
 }
 

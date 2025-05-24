@@ -124,19 +124,20 @@ mod tests {
         let ast = process_code(vec!["source".into()], r#"
         interface ITest {
     func test(): string;
-    a: string;
+    a: TestClass;
 }
 
 extend TestClass: ITest {
     func test(): string {
         
     }
-    a: string;
+    a: TestClass;
 }
 
 class TestClass {
     func init(this): string {
         this.test();
+        this.a.test();
     }
 }
     "#)?;

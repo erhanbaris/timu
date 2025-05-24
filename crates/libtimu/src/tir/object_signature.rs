@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 
-use super::resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}};
+use strum_macros::EnumIs;
+
+use super::resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}, ObjectLocation};
 
 #[derive(Debug)]
 pub enum PrimativeType {
@@ -11,7 +13,7 @@ pub enum PrimativeType {
     Void,
 }
 
-#[derive(Debug)]
+#[derive(Debug, EnumIs)]
 pub enum ObjectSignatureValue<'base> {
     #[allow(dead_code)]
     Primative(PrimativeType),
@@ -25,7 +27,7 @@ pub enum ObjectSignatureValue<'base> {
     #[allow(dead_code)]
     InterfaceFunction(InterfaceFunctionDefinition<'base>),
     #[allow(dead_code)]
-    FunctionCall(),
+    FunctionCall(ObjectLocation),
 }
 
 impl<'base> AsRef<ObjectSignatureValue<'base>> for ObjectSignatureValue<'base> {
@@ -69,7 +71,7 @@ impl ObjectSignatureValue<'_> {
             ObjectSignatureValue::Module => "Module",
             ObjectSignatureValue::Interface(interface) => interface.name.fragment(),
             ObjectSignatureValue::InterfaceFunction(interface_function) => interface_function.name.fragment(),
-            ObjectSignatureValue::FunctionCall() => "FunctionCall",
+            ObjectSignatureValue::FunctionCall(_) => "FunctionCall",
         }
     }
 
