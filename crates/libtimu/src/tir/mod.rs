@@ -5,10 +5,10 @@ pub use context::TirContext;
 pub use error::TirError;
 use module::{Module, ModuleRef};
 use object_signature::ObjectSignatureValue;
-use resolver::{build_file, AstLocation, ObjectLocation};
+use resolver::{build_file, AstLocation, ObjectLocation, ResolveSignature};
 use signature::{Signature, SignatureHolder, SignaturePath};
 
-use crate::{ast::FileAst, file::SourceFile};
+use crate::{ast::{FileAst, FileStatementAst}, file::SourceFile};
 
 mod ast_signature;
 mod context;
@@ -31,6 +31,38 @@ fn build_primatives(context: &mut TirContext<'_>) {
     context.object_signatures.add_signature(SignaturePath::borrowed("bool"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Bool), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
     context.object_signatures.add_signature(SignaturePath::borrowed("string"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::String), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
     context.object_signatures.add_signature(SignaturePath::borrowed("void"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Void), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+}
+
+impl<'base> ResolveSignature<'base> for FileStatementAst<'base> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+        match self {
+            FileStatementAst::Class(class_definition_ast) => class_definition_ast.resolve(context, module, parent),
+            FileStatementAst::Function(function_definition_ast) => function_definition_ast.resolve(context, module, parent),
+            FileStatementAst::Interface(interface_definition_ast) => interface_definition_ast.resolve(context, module, parent),
+            FileStatementAst::Extend(extend_definition_ast) => extend_definition_ast.resolve(context, module, parent),
+            FileStatementAst::Use(use_ast) => use_ast.resolve(context, module, parent),
+        }
+    }
+
+    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: ObjectLocation) -> Result<(), TirError<'base>> {
+        match self {
+            FileStatementAst::Class(class_definition_ast) => class_definition_ast.finish(context, module, location),
+            FileStatementAst::Function(function_definition_ast) => function_definition_ast.finish(context, module, location),
+            FileStatementAst::Interface(interface_definition_ast) => interface_definition_ast.finish(context, module, location),
+            FileStatementAst::Extend(extend_definition_ast) => extend_definition_ast.finish(context, module, location),
+            FileStatementAst::Use(use_ast) => use_ast.finish(context, module, location),
+        }
+    }
+
+    fn name(&self) -> std::borrow::Cow<'base, str> {
+        match self {
+            FileStatementAst::Class(class_definition_ast) => class_definition_ast.name(),
+            FileStatementAst::Function(function_definition_ast) => function_definition_ast.name(),
+            FileStatementAst::Interface(interface_definition_ast) => interface_definition_ast.name(),
+            FileStatementAst::Extend(extend_definition_ast) => extend_definition_ast.name(),
+            FileStatementAst::Use(use_ast) => use_ast.name(),
+        }
+    }
 }
 
 pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError<'_>> {

@@ -25,14 +25,16 @@ pub struct ClassFunctionSignature<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for BodyStatementAst<'base> {
-    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         match self {
             BodyStatementAst::FunctionCall(function_call) => Self::resolve_function_call(context, module, parent, function_call),
             _ => panic!("Unsupported BodyStatementAst variant: {:?}", self),
         }
     }
     
-    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> {
+        Ok(())
+    }
     
     fn name(&self) -> Cow<'base, str> {
         Cow::Borrowed("")
@@ -45,7 +47,8 @@ impl<'base> BodyStatementAst<'base> {
         let (signature_path, signature_location) = context.reserve_object_location("".into(), module, 0..0, Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")))?;
         let module_object = module.upgrade(context).unwrap();
 
-        let parent_object = context.object_signatures.get_from_location(parent.clone().unwrap());
+        let parent_location = parent.clone().unwrap();
+        let parent_object = context.object_signatures.get_from_location(parent_location);
         
         let (function, function_parent) = match parent_object.map(|signature| (signature.value.as_ref(), signature.extra.clone())) {
             Some((ObjectSignatureValue::Function(function), function_parent)) => (function, function_parent),

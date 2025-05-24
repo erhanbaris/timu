@@ -1,5 +1,5 @@
 use std::{borrow::Cow, rc::Rc};
-
+use strum_macros::EnumIs;
 use crate::{
     file::SourceFile,
     nom_tools::{Span, ToRange},
@@ -57,7 +57,7 @@ pub struct FileAst<'base> {
     pub statements: Vec<FileStatementAst<'base>>,
 }
 
-#[derive(Debug)]
+#[derive(EnumIs, Debug)]
 pub enum FileStatementAst<'base> {
     Class(Rc<ClassDefinitionAst<'base>>),
     Function(Rc<FunctionDefinitionAst<'base>>),
@@ -73,7 +73,7 @@ pub struct UseAst<'base> {
 }
 
 impl<'base> UseAst<'base> {
-    pub fn name(&self) -> Span<'base> {
+    pub fn ast_name(&self) -> Span<'base> {
         self.import.paths.last().unwrap().clone()
     }
 }

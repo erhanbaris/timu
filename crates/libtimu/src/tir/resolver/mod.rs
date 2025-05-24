@@ -47,7 +47,7 @@ impl LocationTrait for AstLocation {
 }
 
 pub trait ResolveSignature<'base> {
-    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>>;
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>>;
     fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: ObjectLocation) -> Result<(), TirError<'base>>;
     fn name(&self) -> Cow<'base, str>;
 }
@@ -82,43 +82,93 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
     simplelog::debug!("<on-red>Building file: {:?}</>", module.as_ref());
     
     if let Some(ast) = context.modules.get(module.as_ref()).and_then(|module| module.ast.clone()) {
-        let uses = ast.get_uses().collect::<Vec<_>>();
-        let interfaces = ast.get_interfaces().collect::<Vec<_>>();
-        let functions = ast.get_functions().collect::<Vec<_>>();
-        let classes = ast.get_classes().collect::<Vec<_>>();
-        let extends = ast.get_extends().collect::<Vec<_>>();
+        let uses = ast.statements.iter().filter(|statement| statement.is_use()).collect::<Vec<_>>();
+        let interfaces = ast.statements.iter().filter(|statement| statement.is_interface()).collect::<Vec<_>>();
+        let functions = ast.statements.iter().filter(|statement| statement.is_function()).collect::<Vec<_>>();
+        let classes = ast.statements.iter().filter(|statement| statement.is_class()).collect::<Vec<_>>();
+        let extends = ast.statements.iter().filter(|statement| statement.is_extend()).collect::<Vec<_>>();
+
+        let mut uses_locations = Vec::new();
+        let mut interfaces_locations = Vec::new();
+        let mut functions_locations = Vec::new();
+        let mut classes_locations = Vec::new();
+        let mut extends_locations = Vec::new();
 
         simplelog::debug!(" - Resolving all uses");
-        for use_item in uses {
-            use_item.definition(context, &module, None)?;
+        for use_item in uses.iter() {
+            uses_locations.push((use_item, use_item.resolve(context, &module, None)?));
         }
 
         simplelog::debug!(" - Resolving all interfaces");
-        for interface in interfaces {
+        for interface in interfaces.iter() {
             if module.upgrade(context).unwrap().object_signatures.get(interface.name().as_ref()).is_none() {
-                interface.definition(context, &module, None)?;
+                interfaces_locations.push((interface, interface.resolve(context, &module, None)?));
             }
         }
 
         simplelog::debug!(" - Resolving all extends");
-        for extend in extends {
+        for extend in extends.iter() {
             if module.upgrade(context).unwrap().object_signatures.get(extend.name().as_ref()).is_none() {
-                extend.definition(context, &module, None)?;
+                extends_locations.push((extend, extend.resolve(context, &module, None)?));
             }
         }
 
         simplelog::debug!(" - Resolving all classes");
-        for class in classes {
+        for class in classes.iter() {
             if module.upgrade(context).unwrap().object_signatures.get(class.name().as_ref()).is_none() {
-                class.definition(context, &module, None)?;
+                classes_locations.push((class, class.resolve(context, &module, None)?));
             }
         }
 
         simplelog::debug!(" - Resolving all functions");
-        for function in functions {
+        for function in functions.iter() {
             if module.upgrade(context).unwrap().object_signatures.get(function.name().as_ref()).is_none() {
-                function.definition(context, &module, None)?;
+                functions_locations.push((function, function.resolve(context, &module, None)?));
             }
+        }
+        
+        /* Finish */
+        simplelog::debug!(" - Finishing all uses");
+        for use_item in uses.iter() {
+            use_item.finish(context, &module, ObjectLocation::UNDEFINED)?;
+        }
+
+        simplelog::debug!(" - Finishing all interfaces");
+        for interface in interfaces.iter() {
+            // create a new signature path
+            let module_object = context.modules.get(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
+            let signature_path = SignaturePath::owned(format!("{}.{}", module_object.path, interface.name()));
+    
+            //add the signature to the context with full path
+            let location = context.object_signatures.location(signature_path.get_raw_path()).unwrap();
+            interface.finish(context, &module, location)?;
+        }
+
+        simplelog::debug!(" - Finishing all extends");
+        for extend in extends.iter() {
+            extend.finish(context, &module, ObjectLocation::UNDEFINED)?;
+        }
+
+        simplelog::debug!(" - Finishing all classes");
+        for class in classes.iter() {
+            // create a new signature path
+            let module_object = context.modules.get(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
+            let signature_path = SignaturePath::owned(format!("{}.{}", module_object.path, class.name()));
+    
+            //add the signature to the context with full path
+            let location = context.object_signatures.location(signature_path.get_raw_path()).unwrap();
+            class.finish(context, &module, location)?;
+        }
+
+        simplelog::debug!(" - Finishing all functions");
+        for function in functions.iter() {
+            // create a new signature path
+            let module_object = context.modules.get(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
+            let signature_path = SignaturePath::owned(format!("{}.{}", module_object.path, function.name()));
+    
+            //add the signature to the context with full path
+            let location = context.object_signatures.location(signature_path.get_raw_path()).unwrap();
+            function.finish(context, &module, location)?;
         }
     }
 

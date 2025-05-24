@@ -25,7 +25,7 @@ pub struct ExtendDefinition<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
-    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
         let mut extend_fields = IndexMap::<Cow<'_, str>, ObjectLocation>::default();
@@ -82,7 +82,7 @@ impl<'base> ExtendDefinitionAst<'base> {
         for field in self.fields.iter() {
             match field {
                 ExtendDefinitionFieldAst::Function(function) => {
-                    let signature = function.definition(context, module, Some(class_location.clone()))?;
+                    let signature = function.resolve(context, module, Some(class_location.clone()))?;
                     extend_fields.insert((*function.name.fragment()).into(), signature.clone())
                         .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
                     extend_fields_for_track.insert((*function.name.fragment()).into(), signature);

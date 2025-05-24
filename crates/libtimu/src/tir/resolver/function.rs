@@ -26,14 +26,6 @@ pub struct FunctionDefinition<'base> {
     pub signature_path: SignaturePath<'base>,
 }
 
-pub enum FunctionBodyResolveType<'base, 'call> {
-    Location(ObjectLocation),
-    Definition {
-        definition: &'call mut FunctionDefinition<'base>,
-        location: ObjectLocation
-    },
-}
-
 pub fn unwrap_for_this<'base>(parent: &Option<ObjectLocation>, this: &Span<'base>) -> Result<ObjectLocation, TirError<'base>> {
     match parent {
         Some(parent) => Ok(parent.clone()),
@@ -42,7 +34,7 @@ pub fn unwrap_for_this<'base>(parent: &Option<ObjectLocation>, this: &Span<'base
 }
 
 impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
-    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let full_name = match &self.location {
             FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
@@ -51,10 +43,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         
         let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
 
-        let mut definition = self.build_definition(context, module, parent.clone(), signature_path.clone())?;
-
-        /* Parse body */
-        self.resolve_function_body(context, module, parent.clone(), FunctionBodyResolveType::Definition { definition: &mut definition, location: signature_location.clone() })?;
+        let definition = self.build_definition(context, module, parent.clone(), signature_path.clone())?;
 
         let signature = ObjectSignature::new(
             ObjectSignatureValue::Function (definition),
@@ -67,7 +56,16 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         Ok(signature_location)
     }
     
-    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, function_location: ObjectLocation) -> Result<(), TirError<'base>> {
+
+        /* Parse body */
+        for statement in self.body.statements.iter() {
+            let location = statement.resolve(context, module, Some(function_location.clone()))?;
+            statement.finish(context, module, location)?;
+        }
+
+        Ok(())
+     }
     
     fn name(&self) -> Cow<'base, str> {
         Cow::Borrowed(*self.name.fragment())
@@ -94,24 +92,6 @@ impl<'base> FunctionDefinitionAst<'base> {
         
         context.publish_object_location(signature_path.clone(), signature);
         Ok(signature_location)
-    }
-
-    pub fn resolve_function_body(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>, resolve_type: FunctionBodyResolveType) -> Result<(), TirError<'base>> {
-        
-        let function_location = match resolve_type {
-            FunctionBodyResolveType::Location(location) => location,
-            FunctionBodyResolveType::Definition { definition, location } => {
-                definition.body = Vec::new();
-                location
-            }
-        };
-
-        /* Parse body */
-        for statement in self.body.statements.iter() {
-            statement.definition(context, module, Some(function_location.clone()))?;
-        }
-
-        Ok(())
     }
 
     fn build_definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError<'base>> {

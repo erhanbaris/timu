@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 use indexmap::IndexMap;
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{function::FunctionBodyResolveType, get_object_location_or_resolve}, ObjectSignature, TirError}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, FunctionDefinitionLocationAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location_or_resolve, ObjectSignature, TirError}
 };
 
 use super::{ObjectLocation, ResolveSignature};
@@ -24,7 +24,7 @@ pub struct ClassDefinition<'base> {
 }
 
 impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
-    fn definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
 
         let (signature_path, class_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
@@ -56,15 +56,24 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
 
         context.publish_object_location(signature_path.clone(), class_signature);
 
-        /* Convert all function signatures to normal functions */
-        for (function_location, function_ast) in function_signatures.into_iter() {
-            function_ast.resolve_function_body(context, module, Some(class_location.clone()), FunctionBodyResolveType::Location(function_location))?;
-        }
-
         Ok(class_location)
     }
     
-    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> {
+        for field in self.fields.iter() {
+            if let ClassDefinitionFieldAst::Function(function) = field {
+                let full_name = match &function.location {
+                    FunctionDefinitionLocationAst::Module => Cow::Borrowed(*function.name.fragment()),
+                    FunctionDefinitionLocationAst::Class(class) => Cow::Owned(format!("{}.{}", class.fragment(), function.name.fragment())),
+                };
+
+                let function_location = context.object_signatures.location(format!("{}.{}", module.name(), full_name).as_str()).unwrap();
+                function.finish(context, module, function_location)?;
+            }
+        }
+        
+        Ok(())
+    }
     
     fn name(&self) -> Cow<'base, str> {
         Cow::Borrowed(*self.name.fragment())
@@ -107,6 +116,31 @@ mod tests {
     fn this_location_3() -> Result<(), ()> {
         let ast = process_code(vec!["source".into()], "class test { func test(a: test, this): test {} }")?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
+        Ok(())
+    }
+
+    #[test]
+    fn call_interface_function() -> Result<(), ()> {
+        let ast = process_code(vec!["source".into()], r#"
+        interface ITest {
+    func test(): string;
+    a: string;
+}
+
+extend TestClass: ITest {
+    func test(): string {
+        
+    }
+    a: string;
+}
+
+class TestClass {
+    func init(this): string {
+        this.test();
+    }
+}
+    "#)?;
+        crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 }
