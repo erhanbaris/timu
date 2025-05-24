@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 use indexmap::IndexMap;
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location_or_resolve, ObjectSignature, TirError}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{function::FunctionBodyResolveType, get_object_location_or_resolve}, ObjectSignature, TirError}
 };
 
 use super::{ObjectLocation, ResolveSignature};
@@ -58,7 +58,7 @@ impl<'base> ResolveSignature<'base> for ClassDefinitionAst<'base> {
 
         /* Convert all function signatures to normal functions */
         for (function_location, function_ast) in function_signatures.into_iter() {
-            function_ast.resolve_function_body(context, module, Some(class_location.clone()), function_location)?;
+            function_ast.resolve_function_body(context, module, Some(class_location.clone()), FunctionBodyResolveType::Location(function_location))?;
         }
 
         Ok(class_location)

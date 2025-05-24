@@ -33,6 +33,50 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
 
         let class_location = get_object_location_or_resolve(context, &self.name, module)?;
 
+        self.resolve_fields(context, module, &mut extend_fields, &mut extend_fields_for_track, class_location.clone())?;
+        self.resolve_interfaces(context, module, &extend_fields, &mut extend_fields_for_track)?;
+
+        let class_binding = context.object_signatures.get_mut_from_location(class_location.clone());
+        let class = match class_binding {
+            Some(signature) => match signature.value.as_mut() {
+                ObjectSignatureValue::Class(class) => class,
+                _ => return Err(TirError::invalid_type(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
+            },
+            None => return Err(TirError::type_not_found(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
+        };
+
+        /* Validate */
+        if !extend_fields_for_track.is_empty() {
+            let first_item = extend_fields_for_track.first().unwrap();
+            let signature = context.object_signatures.get_from_location(first_item.1.clone()).unwrap();
+            return Err(TirError::extra_field_in_interface(signature.position.clone(), signature.file.clone()));
+        }
+
+        for (key, value) in extend_fields.into_iter() {
+            if class.fields.contains_key(&key) {
+                return Err(TirError::already_defined(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone()));
+            }
+
+            class.fields.insert(key, value);
+        }
+        
+        Ok(ObjectLocation::UNDEFINED)
+    }
+    
+    fn name(&self) -> Cow<'base, str> {
+        let name = self.name.names.first().unwrap().fragment();
+        let interfaces = self.base_interfaces
+            .iter()
+            .map(|item| build_type_name(item))
+            .collect::<Vec<_>>()
+            .join("-");
+
+        format!("{}-{}", name, interfaces).into()
+    }
+}
+
+impl<'base> ExtendDefinitionAst<'base> {
+    fn resolve_fields(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &mut IndexMap<Cow<'base, str>, ObjectLocation>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, ObjectLocation>, class_location: ObjectLocation) -> Result<(), TirError<'base>> {
         for field in self.fields.iter() {
             match field {
                 ExtendDefinitionFieldAst::Function(function) => {
@@ -54,6 +98,10 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
             };
         }
 
+        Ok(())
+    }
+    
+    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &IndexMap<Cow<'base, str>, ObjectLocation>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, ObjectLocation>) -> Result<(), TirError<'base>> {
         for interface_ast in self.base_interfaces.iter() {
             // Find the inferface signature
             let type_name = build_type_name(interface_ast);
@@ -99,42 +147,7 @@ impl<'base> ResolveSignature<'base> for ExtendDefinitionAst<'base> {
             }
         }
 
-        let class_bunding = context.object_signatures.get_mut_from_location(class_location.clone());
-        let class = match class_bunding {
-            Some(signature) => match signature.value.as_mut() {
-                ObjectSignatureValue::Class(class) => class,
-                _ => return Err(TirError::invalid_type(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
-            },
-            None => return Err(TirError::type_not_found(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
-        };
-
-
-        if !extend_fields_for_track.is_empty() {
-            let first_item = extend_fields_for_track.first().unwrap();
-            let signature = context.object_signatures.get_from_location(first_item.1.clone()).unwrap();
-            return Err(TirError::extra_field_in_interface(signature.position.clone(), signature.file.clone()));
-        }
-
-        for (key, value) in extend_fields.into_iter() {
-            if class.fields.contains_key(&key) {
-                return Err(TirError::already_defined(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone()));
-            }
-
-            class.fields.insert(key, value);
-        }
-        
-        Ok(ObjectLocation::UNDEFINED)
-    }
-    
-    fn name(&self) -> Cow<'base, str> {
-        let name = self.name.names.first().unwrap().fragment();
-        let interfaces = self.base_interfaces
-            .iter()
-            .map(|item| build_type_name(item))
-            .collect::<Vec<_>>()
-            .join("-");
-
-        format!("{}-{}", name, interfaces).into()
+        Ok(())
     }
 }
 

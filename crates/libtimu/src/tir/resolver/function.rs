@@ -26,6 +26,14 @@ pub struct FunctionDefinition<'base> {
     pub signature_path: SignaturePath<'base>,
 }
 
+pub enum FunctionBodyResolveType<'base, 'call> {
+    Location(ObjectLocation),
+    Definition {
+        definition: &'call mut FunctionDefinition<'base>,
+        location: ObjectLocation
+    },
+}
+
 pub fn unwrap_for_this<'base>(parent: &Option<ObjectLocation>, this: &Span<'base>) -> Result<ObjectLocation, TirError<'base>> {
     match parent {
         Some(parent) => Ok(parent.clone()),
@@ -43,31 +51,19 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         
         let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
 
-        let signature_value = self.build(context, module, parent.clone(), signature_path)?;
+        let mut definition = self.build_definition(context, module, parent.clone(), signature_path.clone())?;
 
         /* Parse body */
-        for statement in self.body.statements.iter() {
-            statement.resolve(context, module, Some(signature_location.clone()))?;
-            println!("Statement: {:?}", statement);
-        }
+        self.resolve_function_body(context, module, parent.clone(), FunctionBodyResolveType::Definition { definition: &mut definition, location: signature_location.clone() })?;
 
         let signature = ObjectSignature::new(
-            ObjectSignatureValue::Function (
-                FunctionDefinition {
-                    is_public: signature_value.is_public,
-                    name: signature_value.name,
-                    arguments: signature_value.arguments,
-                    return_type: signature_value.return_type,
-                    body: Default::default(),
-                    signature_path: signature_value.signature_path.clone(),
-                },
-            ),
+            ObjectSignatureValue::Function (definition),
             self.name.extra.file.clone(),
             self.name.to_range(),
             parent,
         );
         
-        context.publish_object_location(signature_value.signature_path, signature);
+        context.publish_object_location(signature_path, signature);
         Ok(signature_location)
     }
     
@@ -85,7 +81,7 @@ impl<'base> FunctionDefinitionAst<'base> {
         };
         
         let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
-        let signature_value = self.build(context, module, parent.clone(), signature_path.clone())?;
+        let signature_value = self.build_definition(context, module, parent.clone(), signature_path.clone())?;
 
         let signature = ObjectSignature::new(
             ObjectSignatureValue::Function(signature_value),
@@ -98,13 +94,14 @@ impl<'base> FunctionDefinitionAst<'base> {
         Ok(signature_location)
     }
 
-    pub fn resolve_function_body(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>, function_location: ObjectLocation) -> Result<(), TirError<'base>> {
+    pub fn resolve_function_body(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>, resolve_type: FunctionBodyResolveType) -> Result<(), TirError<'base>> {
         
-        let function_signature = context.object_signatures.get_mut_from_location(function_location.clone()).unwrap();
-        let _ = if let ObjectSignatureValue::Function(function) = function_signature.value.as_mut() {
-            function
-        } else {
-            panic!("Expected ClassFunctionSignature, but got {:?}", function_signature.value);
+        let function_location = match resolve_type {
+            FunctionBodyResolveType::Location(location) => location,
+            FunctionBodyResolveType::Definition { definition, location } => {
+                definition.body = Vec::new();
+                location
+            }
         };
 
         /* Parse body */
@@ -115,7 +112,7 @@ impl<'base> FunctionDefinitionAst<'base> {
         Ok(())
     }
 
-    fn build(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError<'base>> {
+    fn build_definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError<'base>> {
         let mut arguments = vec![];
         let return_type = get_object_location_or_resolve(context, &self.return_type, module)?;
 
