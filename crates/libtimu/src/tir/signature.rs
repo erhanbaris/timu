@@ -9,8 +9,8 @@ pub trait LocationTrait: Debug + From<usize> + Clone {
     fn get(&self) -> usize;
 }
 
-#[derive(Debug)]
-pub struct Signature<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug> {
+#[derive(Debug, Clone)]
+pub struct Signature<'base, T: Debug + Clone + AsRef<T> + AsMut<T>, E: Debug + Clone> {
     #[allow(dead_code)]
     pub value: T,
     pub file: Rc<SourceFile<'base>>,
@@ -21,8 +21,8 @@ pub struct Signature<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug> {
 
 impl<'base, T, E> Signature<'base, T, E>
 where
-    T: Debug + AsRef<T> + AsMut<T>,
-    E: Debug,
+    T: Debug + Clone + AsRef<T> + AsMut<T>,
+    E: Debug + Clone,
 {
     pub fn new(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>, extra: Option<E>) -> Self {
         Self {
@@ -44,7 +44,7 @@ where
 }
 
 #[derive(Debug)]
-pub enum SignatureInfo<'base, T: Debug + AsRef<T> + AsMut<T>, E: Debug = ()> {
+pub enum SignatureInfo<'base, T: Debug + Clone + AsRef<T> + AsMut<T>, E: Debug + Clone = ()> {
     Reserved(SignatureReservation<'base>),
     Value(Signature<'base, T, E>),
 }
@@ -57,15 +57,15 @@ pub struct SignatureReservation<'base> {
 }
 
 #[derive(Debug)]
-pub struct SignatureHolder<'base, T: Debug + PartialEq + AsRef<T> + AsMut<T>, L: LocationTrait, E: Debug = ()> {
+pub struct SignatureHolder<'base, T: Debug + Clone + PartialEq + AsRef<T> + AsMut<T>, L: LocationTrait, E: Debug + Clone = ()> {
     locations: IndexMap<SignaturePath<'base>, usize>,
     signatures: Vec<Option<SignatureInfo<'base, T, E>>>,
     _marker: std::marker::PhantomData<L>,
 }
 
 impl<T, E, L> Default for SignatureHolder<'_, T, L, E> where
-    T: Debug + PartialEq + AsRef<T> + AsMut<T>,
-    E: Debug, 
+    T: Debug + Clone + PartialEq + AsRef<T> + AsMut<T>,
+    E: Debug + Clone, 
     L: LocationTrait {
     fn default() -> Self {
         Self::new()
@@ -74,8 +74,8 @@ impl<T, E, L> Default for SignatureHolder<'_, T, L, E> where
 
 impl<'base, T, E, L> SignatureHolder<'base, T, L, E>
 where
-    T: Debug + PartialEq + AsRef<T> + AsMut<T>,
-    E: Debug,
+    T: Debug + Clone + PartialEq + AsRef<T> + AsMut<T>,
+    E: Debug + Clone,
     L: LocationTrait
 {
     pub fn new() -> Self {

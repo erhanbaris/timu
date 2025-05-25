@@ -15,7 +15,7 @@ pub struct ClassArgument<'base> {
     pub field_type: Rc<TypeSignature<'base>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct ClassDefinition<'base> {
     pub name: Span<'base>,

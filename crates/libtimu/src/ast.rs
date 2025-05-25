@@ -141,7 +141,7 @@ pub enum ExtendDefinitionFieldAst<'base> {
     Field(FieldAst<'base>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypeNameAst<'base> {
     pub nullable: bool,
     pub names: Vec<Span<'base>>,
@@ -201,6 +201,7 @@ pub struct FunctionDefinitionAst<'base> {
 
 #[derive(Debug, PartialEq)]
 pub struct FunctionCallAst<'base> {
+    pub call_span: Span<'base>,
     pub paths: Vec<Span<'base>>,
     pub arguments: Vec<ExpressionAst<'base>>,
 }

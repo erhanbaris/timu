@@ -4,7 +4,7 @@ use strum_macros::EnumIs;
 
 use super::{resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}, ObjectLocation, TypeLocation}, TirContext};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PrimitiveType {
     String,
     Bool,
@@ -21,7 +21,7 @@ pub enum PrimitiveType {
     Void,
 }
 
-#[derive(Debug, EnumIs, PartialEq)]
+#[derive(Debug, Clone, EnumIs, PartialEq)]
 pub enum TypeValue<'base> {
     #[allow(dead_code)]
     Object(ObjectLocation),

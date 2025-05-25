@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 use nom::character::complete::char;
-use nom::combinator::{cut, map, peek};
+use nom::combinator::{consumed, cut, map, peek};
 use nom::error::context;
 use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::terminated;
@@ -17,9 +17,9 @@ use super::TimuParserError;
 
 impl FunctionCallAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
-        let (input, paths) = terminated(
+        let (input, (call_span, paths)) = consumed(terminated(
             separated_list1(char('.'), ident()),
-            peek(cleanup(char('(')))).parse(input)?;
+            peek(cleanup(char('('))))).parse(input)?;
         let (input, arguments) =
             map(delimited(char('('), cleanup(separated_list0(char(','), ExpressionAst::parse)), context("Missing ')'", cut(char(')')))), |items| {
                 items
@@ -28,6 +28,7 @@ impl FunctionCallAst<'_> {
         Ok((
             input,
             FunctionCallAst {
+                call_span,
                 paths,
                 arguments,
             },

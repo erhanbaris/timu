@@ -10,14 +10,14 @@ use crate::{
 
 use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct InterfaceDefinition<'base> {
     pub name: Span<'base>,
     pub fields: IndexMap<Cow<'base, str>, TypeLocation>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct InterfaceFunctionDefinition<'base> {
     pub name: Span<'base>,

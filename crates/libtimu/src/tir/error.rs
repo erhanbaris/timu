@@ -2,6 +2,8 @@ use std::{borrow::Cow, error::Error, fmt::Display, ops::Range, rc::Rc};
 
 use crate::file::SourceFile;
 
+use super::resolver::statement::FunctionCallError;
+
 #[derive(Debug)]
 pub enum TirError<'base> {
     ImportNotFound { module: Cow<'base, str>, #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
@@ -16,6 +18,18 @@ pub enum TirError<'base> {
     ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     ThisNeedToDefineInClass { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     ThisArgumentMustBeFirst { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    FunctionCall(Box<FunctionCallError<'base>>),
+}
+
+pub struct InnerError<'base> {
+    pub position: Range<usize>,
+    #[allow(dead_code)]
+    pub message: String,
+    pub file: Rc<SourceFile<'base>>
+}
+
+pub trait CustomError {
+    fn get_error(&self) -> Vec<InnerError<'_>>;
 }
 
 impl Display for TirError<'_> {
@@ -26,6 +40,7 @@ impl Display for TirError<'_> {
                 position: _,
                 source: _,
             } => write!(f, "Import not found: {}", module),
+            TirError::FunctionCall(error) => write!(f, "{}", error),
             TirError::ModuleAlreadyDefined {
                 source: _,
             } => write!(f, "Module already defined"),
@@ -140,6 +155,7 @@ impl<'base> TirError<'base> {
                 position,
                 source,
             } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::FunctionCall(error) => (error.get_error()[0].position.clone(), format!("{}", error), error.get_error()[0].file.clone()),
             TirError::ModuleAlreadyDefined {
                 source,
             } => (0..0, format!("{}", self), source.clone()),

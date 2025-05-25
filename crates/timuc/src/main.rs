@@ -28,11 +28,11 @@ class TestClass {
     func init(this): string {
         this.test("erhanbaris");
         this.a.test("baris");
-        abc();
+        abc(abc("erhan"));
     }
 }
 
-func abc(): TestClass {
+func abc(a:string): TestClass {
 }
 "#)?;
     

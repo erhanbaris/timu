@@ -1,3 +1,146 @@
+use std::rc::Rc;
+
+
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst}, file::SourceFile, nom_tools::{Span, ToRange}, tir::{error::{CustomError, InnerError}, module::ModuleRef, resolver::{statement::try_resolve_primitive, TypeLocation}, TirContext, TirError, TypeSignature, TypeValue}};
+
+#[derive(Debug, thiserror::Error)]
+pub enum FunctionCallError<'base> {
+    #[error("Unsupported argument type in function call: {0}")]
+    UnsupportedArgumentType(Span<'base>),
+
+    #[error("Function call argument count mismatch: expected {expected}, got {got}")]
+    FunctionCallArgumentCountMismatch {
+        expected: usize,
+        expected_source: TypeSignature<'base>,
+        got: usize,
+    },
+}
+
+impl<'base> From<FunctionCallError<'base>> for TirError<'base> {
+    fn from(value: FunctionCallError<'base>) -> Self {
+        TirError::FunctionCall(Box::new(value))
+    }
+}
+
+impl CustomError for FunctionCallError<'_> {
+    fn get_error(&self) -> Vec<crate::tir::error::InnerError<'_>> {
+        match self {
+            FunctionCallError::UnsupportedArgumentType(span) => vec![InnerError {
+                position: span.to_range(), // Placeholder, should be replaced with actual position
+                message: format!("{}", self),
+                file: span.extra.file.clone(),
+            }],
+            FunctionCallError::FunctionCallArgumentCountMismatch { expected_source, .. } => vec![InnerError {
+                position: expected_source.position.clone(),
+                message: format!("{}", self),
+                file: expected_source.file.clone(),
+            }],
+        }
+    }
+}
+
+impl<'base> BodyStatementAst<'base> {
+    pub fn resolve_function_call(context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>, function_call: &FunctionCallAst<'base>) -> Result<TypeLocation, TirError<'base>> {
+        simplelog::debug!("Resolving function call: <u><b>{}(..)</b></u>", function_call.paths.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."));
+        let module_object = module.upgrade(context).unwrap();
+
+        let parent_location = parent.clone().unwrap();
+        let parent_object = context.types.get_from_location(parent_location);
+        
+        let (function, function_parent) = match parent_object.map(|signature| (signature.value.as_ref(), signature.extra.clone())) {
+            Some((TypeValue::Function(function), function_parent)) => (function, function_parent),
+            _ => panic!("Parent object is not a function or is missing, {:?}", parent_object),
+        };
+
+
+        let mut callee_object_location = function_parent.clone().expect("Parent object is missing, but this is a bug");
+        for (index, path) in function_call.paths.iter().enumerate() {
+
+            match *path.fragment() {
+                "this" => continue, // 'this' is handled by the parent object
+                path => {
+                    if index == 0 {
+                        if let Some(argument) = function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
+                            callee_object_location = argument.field_type.clone();
+
+                        } else if let Some(data) = module_object.object_signatures.get(path) {
+                            callee_object_location = data.clone();
+
+                        } else {
+                            panic!("Function argument or object not found: {}", path);
+                        }
+                    } else {
+                        match context.types.get_from_location(callee_object_location.clone()).map(|signature| signature.value.as_ref()) {
+                            Some(TypeValue::Class(class)) => {
+                                if let Some(field) = class.fields.get(path) {
+                                    callee_object_location = field.clone();
+                                } else {
+                                    panic!("Field not found in class: {}", path);
+                                }
+                            },
+                            Some(TypeValue::Function(function)) => {
+                                if let Some(argument) = function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
+                                    callee_object_location = argument.field_type.clone();
+                                } else {
+                                    panic!("Function argument not found: {}", path);
+                                }
+                            },
+                            _ => panic!("Object location is not a class or function, but this is a bug"),
+                        }
+                    }
+                }
+            }
+        }
+
+        
+        let mut arguments = Vec::new();
+        for argument in function_call.arguments.iter() {
+            let argument_location = match argument {
+                ExpressionAst::FunctionCall(func_call) => Self::resolve_function_call(context, module, parent.clone(), func_call)?,
+                ExpressionAst::Primitive { span, value } => try_resolve_primitive(context, value, span)?,
+                _ => {
+                    return Err(FunctionCallError::UnsupportedArgumentType(function_call.call_span.clone()).into());
+                }
+            };
+
+            arguments.push(argument_location);
+        }
+
+        let callee_object = context.types.get_from_location(callee_object_location.clone()).expect("Compiler bug");
+        let callee = match callee_object.value.as_ref() {
+            TypeValue::Function(function) => function,
+            _ => panic!("Expected a function signature, but got {:?}", callee_object.value)
+        };
+
+        /* Validate parameters */
+        if callee.arguments.len() != arguments.len() {
+            return Err(FunctionCallError::FunctionCallArgumentCountMismatch {
+                expected: callee.arguments.len(),
+                got: arguments.len(),
+                expected_source: callee_object.clone() 
+            }.into());
+        }
+
+        for (callee_arg, call_arg) in callee.arguments.iter().zip(arguments.iter()) {
+            let callee_argument_signature = context.types.get_from_location(callee_arg.field_type.clone()).unwrap();
+        
+            let call_argument_signature = context.types.get_from_location(call_arg.clone()).unwrap();
+            if !callee_argument_signature.value.compare_skeleton(context, &call_argument_signature.value) {
+                panic!("Argument type mismatch: expected {:?}, got {:?}", callee_argument_signature.value, call_argument_signature.value);
+            }
+        }
+
+        let _signature = TypeSignature::new(
+            TypeValue::FunctionCall { callee: callee_object_location, arguments },
+            Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")),
+            0..0,
+            parent,
+        );
+
+        // CALL FUNCTION RESULT SHOULD BE ASSIGNED TO A VARIABLE
+        Ok(TypeLocation::UNDEFINED)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -71,7 +214,6 @@ class TestClass {
     }
 
     #[test]
-    #[should_panic]
     fn func_call_4() {
         let ast = process_code(vec!["source".into()], r#"
 
@@ -88,7 +230,6 @@ class TestClass {
     }
 
     #[test]
-    #[should_panic]
     fn func_call_5() {
         let ast = process_code(vec!["source".into()], r#"
 
