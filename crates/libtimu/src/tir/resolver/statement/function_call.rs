@@ -151,4 +151,22 @@ func abc(): TestClass {
 "#).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap();
     }
+
+    #[test]
+    #[should_panic]
+    fn func_call_8() {
+        let ast = process_code(vec!["source".into()], r#"
+
+class TestClass {
+    func init(this): string {
+        this.abc("");
+    }
+
+    func abc(a: i32): string {
+    }
+}
+"#).unwrap();
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+    }
+
 }
