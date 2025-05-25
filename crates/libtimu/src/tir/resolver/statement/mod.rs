@@ -128,7 +128,7 @@ impl<'base> BodyStatementAst<'base> {
             let callee_argument_signature = context.types.get_from_location(callee_arg.field_type.clone()).unwrap();
         
             let call_argument_signature = context.types.get_from_location(call_arg.clone()).unwrap();
-            if callee_argument_signature.value.compare_skeleton(&call_argument_signature.value) {
+            if !callee_argument_signature.value.compare_skeleton(context, &call_argument_signature.value) {
                 panic!("Argument type mismatch: expected {:?}, got {:?}", callee_argument_signature.value, call_argument_signature.value);
             }
         }

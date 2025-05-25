@@ -2,14 +2,22 @@ use std::fmt::Debug;
 
 use strum_macros::EnumIs;
 
-use super::resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}, ObjectLocation, TypeLocation};
+use super::{resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}, ObjectLocation, TypeLocation}, TirContext};
 
 #[derive(Debug, PartialEq)]
 pub enum PrimitiveType {
-    Int,
-    Float,
     String,
     Bool,
+    I8,
+    U8,
+    I16,
+    U16,
+    I32,
+    U32,
+    I64,
+    U64,
+    Float,
+    Double,
     Void,
 }
 
@@ -53,10 +61,11 @@ impl<'base> AsMut<TypeValue<'base>> for TypeValue<'base> {
 }
 
 impl TypeValue<'_> {
-    pub fn compare_skeleton(&self, other: &Self) -> bool {
+    pub fn compare_skeleton(&self, context: &TirContext<'_>, other: &Self) -> bool {
         match (self, other) {
             (TypeValue::PrimitiveType(left), TypeValue::PrimitiveType(right)) => Self::compare_primitive_types(left, right),
             (TypeValue::Object(left), TypeValue::Object(right)) => Self::compare_primitive_value(left, right),
+            (TypeValue::PrimitiveType(left), TypeValue::Object(right)) => Self::compare_primitive_object(context, left, right),
             (TypeValue::Function(left_function), TypeValue::Function(right_function)) => Self::compare_functions(left_function, right_function),
             (TypeValue::Class(left_class), TypeValue::Class(right_class)) => Self::compare_classes(left_class, right_class),
             (TypeValue::Module, TypeValue::Module) => false,
@@ -67,15 +76,29 @@ impl TypeValue<'_> {
         }
     }
 
+    fn compare_primitive_object(context: &TirContext<'_>, primitive: &PrimitiveType, object_location: &ObjectLocation) -> bool {
+        if let Some(object) = context.objects.get_from_location(object_location.clone()) {
+           return *primitive == object.to_type();
+        }
+        false
+    }
+
     pub fn get_name(&self) -> &str {
         match self {
             TypeValue::PrimitiveType(primitive) => match primitive {
-                PrimitiveType::Int => "int",
-                PrimitiveType::Float => "float",
-                PrimitiveType::String => "string",
-                PrimitiveType::Bool => "bool",
-                PrimitiveType::Void => "void",
-                
+                PrimitiveType::String => "String",
+                PrimitiveType::Bool => "Bool",
+                PrimitiveType::I8 => "I8",
+                PrimitiveType::U8 => "U8",
+                PrimitiveType::I16 => "I16",
+                PrimitiveType::U16 => "U16",
+                PrimitiveType::I32 => "I32",
+                PrimitiveType::U32 => "U32",
+                PrimitiveType::I64 => "I64",
+                PrimitiveType::U64 => "U64",
+                PrimitiveType::Float => "Float",
+                PrimitiveType::Double => "Double",
+                PrimitiveType::Void => "Void",
             },
             TypeValue::Object(_) => "PrimitiveValue",
             TypeValue::Function(function) => function.name.fragment(),

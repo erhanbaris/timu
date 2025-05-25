@@ -143,7 +143,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                     None => return Err(TirError::type_not_found(interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone())),
                 };
 
-                if !defined_field_type.value.compare_skeleton(&interface_field_type.value) {
+                if !defined_field_type.value.compare_skeleton(context, &interface_field_type.value) {
                     return Err(TirError::types_do_not_match(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone()));
                 }
 

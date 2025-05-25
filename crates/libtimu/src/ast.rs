@@ -3,7 +3,7 @@ use strum_macros::EnumIs;
 use crate::{
     file::SourceFile,
     nom_tools::{Span, ToRange},
-    parser::splited_path::SplitedPath,
+    parser::splited_path::SplitedPath, tir::PrimitiveType,
 };
 
 #[derive(PartialEq, Debug, Clone)]
@@ -21,6 +21,25 @@ pub enum PrimitiveValue<'base> {
     U64(u64),
     Float(f64, u8),
     Double(f64, u8),
+}
+
+impl PrimitiveValue<'_> {
+    pub fn to_type(&self) -> PrimitiveType {
+       match self {
+            PrimitiveValue::String(_) => PrimitiveType::String,
+            PrimitiveValue::Bool(_) => PrimitiveType::Bool,
+            PrimitiveValue::I8(_) => PrimitiveType::I8,
+            PrimitiveValue::U8(_) => PrimitiveType::U8,
+            PrimitiveValue::I16(_) => PrimitiveType::I16,
+            PrimitiveValue::U16(_) => PrimitiveType::U16,
+            PrimitiveValue::I32(_) => PrimitiveType::I32,
+            PrimitiveValue::U32(_) => PrimitiveType::U32,
+            PrimitiveValue::I64(_) => PrimitiveType::I64,
+            PrimitiveValue::U64(_) => PrimitiveType::U64,
+            PrimitiveValue::Float(_, _) => PrimitiveType::Float,
+            PrimitiveValue::Double(_, _) => PrimitiveType::Double,
+       }
+    }
 }
 
 impl<'base> AsRef<PrimitiveValue<'base>> for PrimitiveValue<'base> {

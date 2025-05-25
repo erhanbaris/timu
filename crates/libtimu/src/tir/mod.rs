@@ -4,7 +4,7 @@ use ast_signature::{AstSignatureValue, build_module};
 pub use context::TirContext;
 pub use error::TirError;
 use module::{Module, ModuleRef};
-use object_signature::TypeValue;
+pub use object_signature::{PrimitiveType, TypeValue};
 use resolver::{build_file, AstSignatureLocation, ObjectLocation, ResolveAst, TypeLocation};
 use signature::{Holder, Signature, SignatureHolder, SignaturePath};
 
@@ -19,6 +19,7 @@ mod resolver;
 mod signature;
 mod scope;
 
+
 pub type AstSignature<'base> = Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>;
 pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, AstSignatureLocation, ModuleRef<'base>>;
 
@@ -31,7 +32,14 @@ pub static BOOL_FALSE_LOCATION: ObjectLocation = ObjectLocation(0);
 pub static BOOL_TRUE_LOCATION: ObjectLocation = ObjectLocation(1);
 
 fn build_primitive_types(context: &mut TirContext<'_>) {
-    context.types.add_signature(SignaturePath::borrowed("int"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::Int), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("i8"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::I8), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("u8"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::U8), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("i16"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::I16), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("u16"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::U16), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("i32"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::I32), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("u32"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::U32), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("i64"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::I64), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("u64"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::U64), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
     context.types.add_signature(SignaturePath::borrowed("float"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::Float), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
     context.types.add_signature(SignaturePath::borrowed("bool"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::Bool), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
     context.types.add_signature(SignaturePath::borrowed("string"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::String), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
