@@ -1,14 +1,14 @@
-use std::rc::Rc;
+use std::{borrow::Cow, rc::Rc};
 
 use ast_signature::{AstSignatureValue, build_module};
 pub use context::TirContext;
 pub use error::TirError;
 use module::{Module, ModuleRef};
-use object_signature::ObjectSignatureValue;
-use resolver::{build_file, AstLocation, ObjectLocation, ResolveSignature};
-use signature::{Signature, SignatureHolder, SignaturePath};
+use object_signature::TypeValue;
+use resolver::{build_file, AstSignatureLocation, ObjectLocation, ResolveAst, TypeLocation};
+use signature::{Holder, Signature, SignatureHolder, SignaturePath};
 
-use crate::{ast::{FileAst, FileStatementAst}, file::SourceFile};
+use crate::{ast::{FileAst, FileStatementAst, PrimitiveValue}, file::SourceFile};
 
 mod ast_signature;
 mod context;
@@ -20,21 +20,33 @@ mod signature;
 mod scope;
 
 pub type AstSignature<'base> = Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>>;
-pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, AstLocation, ModuleRef<'base>>;
+pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, AstSignatureLocation, ModuleRef<'base>>;
 
-pub type ObjectSignature<'base> = Signature<'base, ObjectSignatureValue<'base>, ObjectLocation>;
-pub type ObjectSignatureHolder<'base> = SignatureHolder<'base, ObjectSignatureValue<'base>, ObjectLocation, ObjectLocation>;
+pub type TypeSignature<'base> = Signature<'base, TypeValue<'base>, TypeLocation>;
+pub type TypeSignatureHolder<'base> = SignatureHolder<'base, TypeValue<'base>, TypeLocation, TypeLocation>;
 
-fn build_primatives(context: &mut TirContext<'_>) {
-    context.object_signatures.add_signature(SignaturePath::borrowed("int"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Int), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
-    context.object_signatures.add_signature(SignaturePath::borrowed("float"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Float), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
-    context.object_signatures.add_signature(SignaturePath::borrowed("bool"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Bool), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
-    context.object_signatures.add_signature(SignaturePath::borrowed("string"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::String), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
-    context.object_signatures.add_signature(SignaturePath::borrowed("void"), ObjectSignature::new(ObjectSignatureValue::Primative(object_signature::PrimativeType::Void), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+pub type ObjectSignatureHolder<'base> = Holder<Cow<'base, str>, PrimitiveValue<'base>, ObjectLocation>;
+
+pub static BOOL_FALSE_LOCATION: ObjectLocation = ObjectLocation(0);
+pub static BOOL_TRUE_LOCATION: ObjectLocation = ObjectLocation(1);
+
+fn build_primitive_types(context: &mut TirContext<'_>) {
+    context.types.add_signature(SignaturePath::borrowed("int"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::Int), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("float"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::Float), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("bool"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::Bool), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("string"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::String), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
+    context.types.add_signature(SignaturePath::borrowed("void"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::Void), Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")), 0..0, None)).unwrap();
 }
 
-impl<'base> ResolveSignature<'base> for FileStatementAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+fn build_primitive_values(context: &mut TirContext<'_>) {
+    context.objects.find_or_insert(&PrimitiveValue::Bool(false));
+    context.objects.find_or_insert(&PrimitiveValue::Bool(true));
+}
+
+impl<'base> ResolveAst<'base> for FileStatementAst<'base> {
+    type Result = TypeLocation;
+
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         match self {
             FileStatementAst::Class(class_definition_ast) => class_definition_ast.resolve(context, module, parent),
             FileStatementAst::Function(function_definition_ast) => function_definition_ast.resolve(context, module, parent),
@@ -44,7 +56,7 @@ impl<'base> ResolveSignature<'base> for FileStatementAst<'base> {
         }
     }
 
-    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: ObjectLocation) -> Result<(), TirError<'base>> {
+    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: TypeLocation) -> Result<(), TirError<'base>> {
         match self {
             FileStatementAst::Class(class_definition_ast) => class_definition_ast.finish(context, module, location),
             FileStatementAst::Function(function_definition_ast) => function_definition_ast.finish(context, module, location),
@@ -67,7 +79,8 @@ impl<'base> ResolveSignature<'base> for FileStatementAst<'base> {
 
 pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError<'_>> {
     let mut context = TirContext::default();
-    build_primatives(&mut context);
+    build_primitive_types(&mut context);
+    build_primitive_values(&mut context);
 
     for ast in files.into_iter() {
         build_module(&mut context, ast)?;

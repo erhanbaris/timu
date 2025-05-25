@@ -5,10 +5,12 @@ use crate::{
     tir::{context::TirContext, module::ModuleRef, TirError},
 };
 
-use super::{ResolveSignature, ObjectLocation};
+use super::{ResolveAst, TypeLocation};
 
-impl<'base> ResolveSignature<'base> for UseAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+impl<'base> ResolveAst<'base> for UseAst<'base> {
+    type Result = TypeLocation;
+    
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         if let Some(signature_location) = context.get_ast_location(&self.import.text) {
             let name = match &self.alias {
                 Some(alias) => std::borrow::Cow::Borrowed(*alias.fragment()),
@@ -30,10 +32,10 @@ impl<'base> ResolveSignature<'base> for UseAst<'base> {
             });
         }
 
-        Ok(ObjectLocation::UNDEFINED)
+        Ok(TypeLocation::UNDEFINED)
     }
 
-    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: TypeLocation) -> Result<(), TirError<'base>> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         if let Some(alias) = &self.alias {

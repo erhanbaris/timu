@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use crate::{ast::FileAst, file::SourceFile};
 
-use super::{resolver::{AstLocation, ObjectLocation}, signature::SignaturePath, TirContext};
+use super::{resolver::{AstSignatureLocation, TypeLocation}, signature::SignaturePath, TirContext};
 
 #[derive(Debug)]
 pub struct Module<'base> {
@@ -12,9 +12,9 @@ pub struct Module<'base> {
     pub name: Cow<'base, str>,
     pub path: Cow<'base, str>,
     pub file: Rc<SourceFile<'base>>,
-    pub ast_signatures: IndexMap<SignaturePath<'base>, AstLocation>,
-    pub ast_imported_modules: IndexMap<Cow<'base, str>, AstLocation>,
-    pub object_signatures: IndexMap<SignaturePath<'base>, ObjectLocation>,
+    pub ast_signatures: IndexMap<SignaturePath<'base>, AstSignatureLocation>,
+    pub ast_imported_modules: IndexMap<Cow<'base, str>, AstSignatureLocation>,
+    pub object_signatures: IndexMap<SignaturePath<'base>, TypeLocation>,
     pub ast: Option<Rc<FileAst<'base>>>,
     pub modules: IndexMap<Cow<'base, str>, ModuleRef<'base>>,
 }
@@ -50,13 +50,13 @@ impl<'base> Module<'base> {
         ModuleRef::new(self.path.clone(), self.file.clone())
     }
 
-    pub fn get_ast_signature<T: AsRef<str>>(&self, key: T) -> Option<AstLocation> {
+    pub fn get_ast_signature<T: AsRef<str>>(&self, key: T) -> Option<AstSignatureLocation> {
         self.ast_signatures.get(key.as_ref()).cloned()
     }
 }
     
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ModuleRef<'base>(pub Cow<'base, str>, Rc<SourceFile<'base>>);
 
 impl<'base> ModuleRef<'base> {

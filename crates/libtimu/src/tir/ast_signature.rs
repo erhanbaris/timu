@@ -9,10 +9,10 @@ use crate::{
 };
 
 use super::{
-    context::TirContext, module::{Module, ModuleRef}, resolver::{AstLocation, ObjectLocation, ResolveSignature}, signature::{Signature, SignaturePath}, AstSignature, TirError
+    context::TirContext, module::{Module, ModuleRef}, resolver::{AstSignatureLocation, TypeLocation, ResolveAst}, signature::{Signature, SignaturePath}, AstSignature, TirError
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AstSignatureValue<'base> {
     Module(#[allow(dead_code)] ModuleRef<'base>),
     Class(#[allow(dead_code)] Rc<ClassDefinitionAst<'base>>),
@@ -33,8 +33,10 @@ impl<'base> AsMut<AstSignatureValue<'base>> for AstSignatureValue<'base> {
     }
 }
 
-impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+impl<'base> ResolveAst<'base> for AstSignatureValue<'base> {
+    type Result = TypeLocation;
+    
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         match self {
             AstSignatureValue::Module(target_module) => target_module.resolve(context, target_module, parent),
             AstSignatureValue::Class(class) => class.resolve(context, module, parent),
@@ -44,7 +46,7 @@ impl<'base> ResolveSignature<'base> for AstSignatureValue<'base> {
         }
     }
 
-    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: TypeLocation) -> Result<(), TirError<'base>> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         match self {
@@ -113,7 +115,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
 
 pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module: Module<'base>) -> Result<(), TirError<'base>> {
     let module_name = module.path.to_string();
-    let mut ast_signature: IndexMap<SignaturePath<'base>, AstLocation> = IndexMap::new();
+    let mut ast_signature: IndexMap<SignaturePath<'base>, AstSignatureLocation> = IndexMap::new();
 
     if let Some(ast) = &module.ast {
         // Interface signatures

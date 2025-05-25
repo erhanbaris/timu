@@ -4,13 +4,13 @@ use nom::Err;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{char, none_of, one_of};
-use nom::combinator::{opt, recognize, value};
+use nom::combinator::{consumed, opt, recognize, value};
 use nom::multi::{fold, many0, many1};
 use nom::sequence::{preceded, terminated};
 use nom::{IResult, Parser, sequence::delimited};
 use nom_language::error::VerboseErrorKind;
 
-use crate::ast::{ExpressionAst, PrimitiveType};
+use crate::ast::{ExpressionAst, PrimitiveValue};
 use crate::nom_tools::{cleanup, Between, Span};
 
 use super::TimuParserError;
@@ -40,7 +40,7 @@ fn character(input: Span<'_>) -> IResult<Span<'_>, char, TimuParserError<'_>> {
     }
 }
 
-pub fn string(input: Span<'_>) -> IResult<Span<'_>, PrimitiveType, TimuParserError<'_>> {
+pub fn string(input: Span<'_>) -> IResult<Span<'_>, PrimitiveValue, TimuParserError<'_>> {
     let (input, string) = delimited(
         char('"'),
         fold(0.., character, String::new, |mut string, c| {
@@ -51,10 +51,10 @@ pub fn string(input: Span<'_>) -> IResult<Span<'_>, PrimitiveType, TimuParserErr
     )
     .parse(input)?;
 
-    Ok((input, PrimitiveType::String(string.into())))
+    Ok((input, PrimitiveValue::String(string.into())))
 }
 
-pub fn number<'base>(input: Span<'base>) -> IResult<Span<'base>, PrimitiveType<'base>, TimuParserError<'base>> {
+pub fn number<'base>(input: Span<'base>) -> IResult<Span<'base>, PrimitiveValue<'base>, TimuParserError<'base>> {
     let (input, (representing, (number, floating))) = (
         opt(one_of("+-")),
         (
@@ -100,8 +100,8 @@ pub fn number<'base>(input: Span<'base>) -> IResult<Span<'base>, PrimitiveType<'
         };
 
         match FLOAT_RANGE.between(number) {
-            true => PrimitiveType::Float(number, dot_place as u8),
-            false => PrimitiveType::Double(number, dot_place as u8) 
+            true => PrimitiveValue::Float(number, dot_place as u8),
+            false => PrimitiveValue::Double(number, dot_place as u8) 
         }
     } else {
         let number = match number.replace("_", "").parse::<i128>() {
@@ -119,21 +119,21 @@ pub fn number<'base>(input: Span<'base>) -> IResult<Span<'base>, PrimitiveType<'
         };
 
         if I8_RANGE.between(number) {
-            PrimitiveType::I8(number as i8)
+            PrimitiveValue::I8(number as i8)
         } else if U8_RANGE.between(number) {
-            PrimitiveType::U8(number as u8)
+            PrimitiveValue::U8(number as u8)
         } else if I16_RANGE.between(number) {
-            PrimitiveType::I16(number as i16)
+            PrimitiveValue::I16(number as i16)
         } else if U16_RANGE.between(number) {
-            PrimitiveType::U16(number as u16)
+            PrimitiveValue::U16(number as u16)
         } else if I32_RANGE.between(number) {
-            PrimitiveType::I32(number as i32)
+            PrimitiveValue::I32(number as i32)
         } else if U32_RANGE.between(number) {
-            PrimitiveType::U32(number as u32)
+            PrimitiveValue::U32(number as u32)
         } else if I64_RANGE.between(number) {
-            PrimitiveType::I64(number as i64)
+            PrimitiveValue::I64(number as i64)
         } else if U64_RANGE.between(number) {
-            PrimitiveType::U64(number as u64)
+            PrimitiveValue::U64(number as u64)
         } else {
             return Err(Err::Failure(TimuParserError {
                 errors: vec![(input, VerboseErrorKind::Context("Invalid number length"))],
@@ -144,43 +144,43 @@ pub fn number<'base>(input: Span<'base>) -> IResult<Span<'base>, PrimitiveType<'
     Ok((input, number))
 }
 
-impl PrimitiveType<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, PrimitiveType, TimuParserError<'_>> {
+impl PrimitiveValue<'_> {
+    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, (Span<'_>, PrimitiveValue), TimuParserError<'_>> {
         let (input, value) =
-            cleanup(alt((
+            consumed(cleanup(alt((
                 number, 
                 string, 
-                value(PrimitiveType::Bool(true), tag("true")), 
-                value(PrimitiveType::Bool(false), tag("false"))
-            ))).parse(input)?;
+                value(PrimitiveValue::Bool(true), tag("true")), 
+                value(PrimitiveValue::Bool(false), tag("false"))
+            )))).parse(input)?;
 
         Ok((input, value))
     }
 
     pub fn parse_for_expression(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
-        let (input, primitive) = Self::parse(input)?;
+        let (input, (span, value)) = Self::parse(input)?;
         Ok((
             input,
-            ExpressionAst::Primitive(primitive),
+            ExpressionAst::Primitive { span, value },
         ))
     }
 }
 
-impl Display for PrimitiveType<'_> {
+impl Display for PrimitiveValue<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            PrimitiveType::String(value) => write!(f, "{}", value),
-            PrimitiveType::Bool(value) => write!(f, "{}", value),
-            PrimitiveType::I8(value) => write!(f, "{}", value),
-            PrimitiveType::U8(value) => write!(f, "{}", value),
-            PrimitiveType::I16(value) => write!(f, "{}", value),
-            PrimitiveType::U16(value) => write!(f, "{}", value),
-            PrimitiveType::I32(value) => write!(f, "{}", value),
-            PrimitiveType::U32(value) => write!(f, "{}", value),
-            PrimitiveType::I64(value) => write!(f, "{}", value),
-            PrimitiveType::U64(value) => write!(f, "{}", value),
-            PrimitiveType::Float(value, len) => write!(f, "{:.*}", *len as usize, value),
-            PrimitiveType::Double(value, len) => write!(f, "{:.*}", *len as usize, value),
+            PrimitiveValue::String(value) => write!(f, "{}", value),
+            PrimitiveValue::Bool(value) => write!(f, "{}", value),
+            PrimitiveValue::I8(value) => write!(f, "{}", value),
+            PrimitiveValue::U8(value) => write!(f, "{}", value),
+            PrimitiveValue::I16(value) => write!(f, "{}", value),
+            PrimitiveValue::U16(value) => write!(f, "{}", value),
+            PrimitiveValue::I32(value) => write!(f, "{}", value),
+            PrimitiveValue::U32(value) => write!(f, "{}", value),
+            PrimitiveValue::I64(value) => write!(f, "{}", value),
+            PrimitiveValue::U64(value) => write!(f, "{}", value),
+            PrimitiveValue::Float(value, len) => write!(f, "{:.*}", *len as usize, value),
+            PrimitiveValue::Double(value, len) => write!(f, "{:.*}", *len as usize, value),
         }
     }
 }

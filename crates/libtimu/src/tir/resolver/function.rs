@@ -3,38 +3,40 @@ use std::borrow::Cow;
 use crate::{
     ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::get_object_location_or_resolve, signature::{SignatureInfo, SignaturePath}, ObjectSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, signature::{SignatureInfo, SignaturePath}, TypeSignature, TirError},
 };
 
-use super::{build_type_name, try_resolve_signature, ResolveSignature, ObjectLocation};
+use super::{build_type_name, try_resolve_signature, ResolveAst, TypeLocation};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct FunctionArgument<'base> {
     pub name: Span<'base>,
-    pub field_type: ObjectLocation,
+    pub field_type: TypeLocation,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct FunctionDefinition<'base> {
     pub is_public: bool,
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgument<'base>>,
-    pub return_type: ObjectLocation,
-    pub body: Vec<ObjectLocation>,
+    pub return_type: TypeLocation,
+    pub body: Vec<TypeLocation>,
     pub signature_path: SignaturePath<'base>,
 }
 
-pub fn unwrap_for_this<'base>(parent: &Option<ObjectLocation>, this: &Span<'base>) -> Result<ObjectLocation, TirError<'base>> {
+pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>) -> Result<TypeLocation, TirError<'base>> {
     match parent {
         Some(parent) => Ok(parent.clone()),
         None => Err(TirError::ThisNeedToDefineInClass { position: this.to_range(), source: this.extra.file.clone() }),
     }
 }
 
-impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
+    type Result = TypeLocation;
+    
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let full_name = match &self.location {
             FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
@@ -45,8 +47,8 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
 
         let definition = self.build_definition(context, module, parent.clone(), signature_path.clone())?;
 
-        let signature = ObjectSignature::new(
-            ObjectSignatureValue::Function (definition),
+        let signature = TypeSignature::new(
+            TypeValue::Function (definition),
             self.name.extra.file.clone(),
             self.name.to_range(),
             parent,
@@ -56,7 +58,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
         Ok(signature_location)
     }
     
-    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, function_location: ObjectLocation) -> Result<(), TirError<'base>> {
+    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, function_location: TypeLocation) -> Result<(), TirError<'base>> {
 
         /* Parse body */
         for statement in self.body.statements.iter() {
@@ -73,28 +75,7 @@ impl<'base> ResolveSignature<'base> for FunctionDefinitionAst<'base> {
 }
 
 impl<'base> FunctionDefinitionAst<'base> {
-    pub fn resolve_signature(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
-        simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
-        let full_name = match &self.location {
-            FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
-            FunctionDefinitionLocationAst::Class(class) => Cow::Owned(format!("{}.{}", class.fragment(), self.name.fragment())),
-        };
-        
-        let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
-        let signature_value = self.build_definition(context, module, parent.clone(), signature_path.clone())?;
-
-        let signature = ObjectSignature::new(
-            ObjectSignatureValue::Function(signature_value),
-            self.name.extra.file.clone(),
-            self.name.to_range(),
-            parent,
-        );
-        
-        context.publish_object_location(signature_path.clone(), signature);
-        Ok(signature_location)
-    }
-
-    fn build_definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError<'base>> {
+    fn build_definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError<'base>> {
         let mut arguments = vec![];
         let return_type = get_object_location_or_resolve(context, &self.return_type, module)?;
 
@@ -107,7 +88,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                         return Err(TirError::this_argument_must_be_first(this.to_range(), this.extra.file.clone()));
                     }
                     
-                    match context.object_signatures.get_signature_from_location(unwrap_for_this(&parent, this)?).unwrap() {
+                    match context.types.get_signature_from_location(unwrap_for_this(&parent, this)?).unwrap() {
                         SignatureInfo::Reserved(reservation) => {
                             let reservation = reservation.clone();
                             (reservation.name, reservation.position, reservation.file)
@@ -122,7 +103,7 @@ impl<'base> FunctionDefinitionAst<'base> {
             
             let type_name = match argument {
                 FunctionArgumentAst::This(this) => {
-                    match context.object_signatures.get_signature_from_location(unwrap_for_this(&parent, this)?).unwrap() {
+                    match context.types.get_signature_from_location(unwrap_for_this(&parent, this)?).unwrap() {
                         SignatureInfo::Reserved(reservation) => reservation.name.clone(),
                         SignatureInfo::Value(value) => Cow::Owned(value.value.get_name().to_string())
                     }

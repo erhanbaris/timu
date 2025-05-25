@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use nom::{branch::alt, bytes::complete::tag, character::complete::char, combinator::{cut, not, value}, error::context, multi::many, sequence::{delimited, pair, preceded}, IResult, Parser};
 
-use crate::{ast::{ExpressionAst, ExpressionOperatorType, FunctionCallAst, PrimitiveType, RefAst}, nom_tools::{cleanup, Span}};
+use crate::{ast::{ExpressionAst, ExpressionOperatorType, FunctionCallAst, PrimitiveValue, RefAst}, nom_tools::{cleanup, Span}};
 
 use super::{ident, TimuParserError};
 
@@ -117,7 +117,7 @@ impl ExpressionAst<'_> {
         let (input, expression) = cleanup(alt((
             RefAst::parse_for_expression,
             FunctionCallAst::parse_for_expression,
-            PrimitiveType::parse_for_expression,
+            PrimitiveValue::parse_for_expression,
             Self::not,
             Self::ident_for_expression,
             Self::parentheses,
@@ -188,7 +188,7 @@ impl ExpressionAst<'_> {
 impl Display for ExpressionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExpressionAst::Primitive(primitive) => write!(f, "{}", primitive),
+            ExpressionAst::Primitive { value, .. } => write!(f, "{}", value),
             ExpressionAst::Ident(ident) => write!(f, "{}", ident),
             ExpressionAst::FunctionCall(function_call) => write!(f, "{}", function_call),
             ExpressionAst::Operation { left, operator, right } => {

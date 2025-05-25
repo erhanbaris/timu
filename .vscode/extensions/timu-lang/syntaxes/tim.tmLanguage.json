@@ -19,7 +19,7 @@
 				"match": "\\b(if|else|while|for|return|match)\\b"
 			}, {
 				"name": "keyword.other.tim",
-				"match": "\\b(use|static|var|const|pub|extend|class|interface|func)\\b"
+				"match": "\\b(use|static|var|const|pub|extend|this|class|interface|func)\\b"
 			}]
 		},
 		"comment": {

@@ -4,33 +4,33 @@ use nom_language::error::VerboseErrorKind;
 use pretty_assertions::assert_eq;
 use rstest::*;
 
-use crate::ast::PrimitiveType;
+use crate::ast::PrimitiveValue;
 use crate::nom_tools::Span;
 use crate::{file::SourceFile, nom_tools::State};
 
 #[rstest]
-#[case("1", PrimitiveType::I8(1))]
-#[case("-1", PrimitiveType::I8(-1))]
-#[case("129", PrimitiveType::U8(129))]
-#[case("-129", PrimitiveType::I16(-129))]
-#[case("32767", PrimitiveType::I16(32767))]
-#[case("32_767", PrimitiveType::I16(32767))]
-#[case("12_345_678", PrimitiveType::I32(12345678))]
-#[case("-12_345_678", PrimitiveType::I32(-12345678))]
-#[case("+12_345_678", PrimitiveType::I32(12345678))]
-#[case("true", PrimitiveType::Bool(true))]
-#[case("false", PrimitiveType::Bool(false))]
-#[case("\"erhan\"", PrimitiveType::String("erhan".into()))]
+#[case("1", PrimitiveValue::I8(1))]
+#[case("-1", PrimitiveValue::I8(-1))]
+#[case("129", PrimitiveValue::U8(129))]
+#[case("-129", PrimitiveValue::I16(-129))]
+#[case("32767", PrimitiveValue::I16(32767))]
+#[case("32_767", PrimitiveValue::I16(32767))]
+#[case("12_345_678", PrimitiveValue::I32(12345678))]
+#[case("-12_345_678", PrimitiveValue::I32(-12345678))]
+#[case("+12_345_678", PrimitiveValue::I32(12345678))]
+#[case("true", PrimitiveValue::Bool(true))]
+#[case("false", PrimitiveValue::Bool(false))]
+#[case("\"erhan\"", PrimitiveValue::String("erhan".into()))]
 #[case(r#""
 erhan
-""#, PrimitiveType::String(r#"
+""#, PrimitiveValue::String(r#"
 erhan
 "#.into()))]
 #[case(r#""
 \"
 erhan
-""#, PrimitiveType::String("\n\"\nerhan\n".into()))]
-fn parse_primitive_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveType) {
+""#, PrimitiveValue::String("\n\"\nerhan\n".into()))]
+fn parse_primitive_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveValue) {
     let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
     let state = State {
@@ -38,7 +38,7 @@ fn parse_primitive_test<'base>(#[case] code: &'base str, #[case] expected: Primi
     };
 
     let input = Span::new_extra(code, state);
-    let (_, value) = PrimitiveType::parse(input).unwrap();
+    let (_, (_, value)) = PrimitiveValue::parse(input).unwrap();
 
     assert_eq!(value, expected, "Parsed primitive type does not match expected");
 }
@@ -54,7 +54,7 @@ fn invalid_primitive_test<'base>(#[case] code: &'base str, #[case] expected: &'b
     };
 
     let input = Span::new_extra(code, state);
-    let error = PrimitiveType::parse(input).unwrap_err();
+    let error = PrimitiveValue::parse(input).unwrap_err();
 
     if let nom::Err::Failure(error) = error {
         if let VerboseErrorKind::Context(ctx) = error.errors[0].1 {

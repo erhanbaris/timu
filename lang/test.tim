@@ -1,17 +1,18 @@
 interface ITest {
-    func test(): string;
-    a: string;
+    func test(a: string): string;
+    a: TestClass;
 }
 
 extend TestClass: ITest {
-    func test(): string {
+    func test(a: string): string {
         
     }
-    a: string;
+    a: TestClass;
 }
 
 class TestClass {
     func init(this): string {
-        this.test();
+        this.test("erhanbaris");
+        this.a.test("baris");
     }
 }

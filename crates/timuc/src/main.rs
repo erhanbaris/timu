@@ -26,8 +26,8 @@ extend TestClass: ITest {
 
 class TestClass {
     func init(this): string {
-        this.test();
-        this.a.test();
+        this.test("erhanbaris");
+        this.a.test("baris");
     }
 }
 "#)?;

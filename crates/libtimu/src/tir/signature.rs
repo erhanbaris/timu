@@ -57,14 +57,14 @@ pub struct SignatureReservation<'base> {
 }
 
 #[derive(Debug)]
-pub struct SignatureHolder<'base, T: Debug + AsRef<T> + AsMut<T>, L: LocationTrait, E: Debug = ()> {
+pub struct SignatureHolder<'base, T: Debug + PartialEq + AsRef<T> + AsMut<T>, L: LocationTrait, E: Debug = ()> {
     locations: IndexMap<SignaturePath<'base>, usize>,
     signatures: Vec<Option<SignatureInfo<'base, T, E>>>,
     _marker: std::marker::PhantomData<L>,
 }
 
 impl<T, E, L> Default for SignatureHolder<'_, T, L, E> where
-    T: Debug + AsRef<T> + AsMut<T>,
+    T: Debug + PartialEq + AsRef<T> + AsMut<T>,
     E: Debug, 
     L: LocationTrait {
     fn default() -> Self {
@@ -74,7 +74,7 @@ impl<T, E, L> Default for SignatureHolder<'_, T, L, E> where
 
 impl<'base, T, E, L> SignatureHolder<'base, T, L, E>
 where
-    T: Debug + AsRef<T> + AsMut<T>,
+    T: Debug + PartialEq + AsRef<T> + AsMut<T>,
     E: Debug,
     L: LocationTrait
 {
@@ -111,7 +111,18 @@ where
     pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> Result<L, L> {
         debug!("Adding signature: <u><b>{}</b></u>", name.get_name());
         self.inner_add(name, SignatureInfo::Value(signature))
+    }
 
+    pub fn find_by_value(&self, value: &T) -> Option<L> {
+        for (index, signature) in self.signatures.iter().enumerate() {
+            if let Some(SignatureInfo::Value(signature)) = signature {
+                if &signature.value == value {
+                    return Some(index.into())
+                }
+            }
+        }
+
+        None
     }
 
     pub fn get(&self, name: &str) -> Option<&Signature<'base, T, E>> {
@@ -156,6 +167,87 @@ where
         self.locations.get(name).map(|index| (*index).into())
     }
 }
+
+
+
+#[derive(Debug)]
+pub struct Holder<K: AsRef<str> + Borrow<str> + Hash + Eq + Clone, T: Debug + PartialEq + AsRef<T> + AsMut<T>, L: LocationTrait> {
+    locations: IndexMap<K, usize>,
+    signatures: Vec<T>,
+    _marker: std::marker::PhantomData<L>,
+}
+
+impl<K, T, L> Default for Holder<K, T, L> where
+    K: AsRef<str> + Borrow<str> + Hash + Eq + Clone, 
+    T: Debug + PartialEq + AsRef<T> + AsMut<T> + Clone,
+    L: LocationTrait {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K, T, L> Holder<K, T, L>
+where
+    K: AsRef<str> + Borrow<str> + Hash + Eq + Clone, 
+    T: Debug + PartialEq + AsRef<T> + AsMut<T> + Clone,
+    L: LocationTrait
+{
+    pub fn new() -> Self {
+        Self {
+            signatures: Default::default(),
+            locations: IndexMap::new(),
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn update(&mut self, name: K, value: T) -> L {
+        let index = self.locations.get(name.as_ref()).unwrap_or_else(|| panic!("Value not found, but this is a bug"));
+        self.signatures[*index] = value;
+        (*index).into()
+    }
+
+    pub fn find_or_insert(&mut self, value: &T) -> L {
+        match self.find_by_value(value) {
+            Some(location) => location,
+            None => {
+                self.signatures.push(value.clone());
+                (self.signatures.len() - 1).into()
+            }
+        }
+    }
+
+    pub fn add_with_key(&mut self, name: K, value: &T) -> Result<L, L> {
+        let index = self.find_or_insert(value);
+        match self.locations.insert(name, index.get()) {
+            Some(_) => Err(index),
+            None => Ok(index)
+        }
+    }
+
+    pub fn find_by_value(&self, search: &T) -> Option<L> {
+        self.signatures
+            .iter()
+            .position(|value| search == value)
+            .map(|index| index.into())
+    }
+
+    pub fn get(&self, name: &str) -> Option<&T> {
+        match self.locations.get(name) {
+            Some(index) => self.get_from_location((*index).into()),
+            None => None,
+        }
+    }
+
+    pub fn get_from_location(&self, location: L) -> Option<&T> {
+        self.signatures.get(location.get())
+    }
+
+    #[allow(dead_code)]
+    pub fn location(&self, name: &str) -> Option<L> {
+        self.locations.get(name).map(|index| (*index).into())
+    }
+}
+
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum SignaturePathType {

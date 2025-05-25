@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt::Debug};
 
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
@@ -11,6 +11,25 @@ pub mod interface;
 pub mod module;
 pub mod module_use;
 pub mod statement;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeLocation(#[allow(dead_code)]pub usize);
+
+impl TypeLocation {
+    pub const UNDEFINED: Self = TypeLocation(usize::MAX);
+}
+
+impl From<usize> for TypeLocation {
+    fn from(signature_location: usize) -> Self {
+        TypeLocation(signature_location)
+    }
+}
+
+impl LocationTrait for TypeLocation {
+    fn get(&self) -> usize {
+        self.0
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectLocation(#[allow(dead_code)]pub usize);
@@ -32,23 +51,25 @@ impl LocationTrait for ObjectLocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AstLocation(#[allow(dead_code)]pub usize);
+pub struct AstSignatureLocation(#[allow(dead_code)]pub usize);
 
-impl From<usize> for AstLocation {
+impl From<usize> for AstSignatureLocation {
     fn from(signature_location: usize) -> Self {
-        AstLocation(signature_location)
+        AstSignatureLocation(signature_location)
     }
 }
 
-impl LocationTrait for AstLocation {
+impl LocationTrait for AstSignatureLocation {
     fn get(&self) -> usize {
         self.0
     }
 }
 
-pub trait ResolveSignature<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>>;
-    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: ObjectLocation) -> Result<(), TirError<'base>>;
+pub trait ResolveAst<'base> {
+    type Result: Debug + Clone;
+
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<Self::Result, TirError<'base>>;
+    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: TypeLocation) -> Result<(), TirError<'base>>;
     fn name(&self) -> Cow<'base, str>;
 }
 
@@ -56,7 +77,7 @@ fn build_type_name(type_name: &TypeNameAst) -> String {
     type_name.names.iter().map(|path| *path.fragment()).collect::<Vec<&str>>().join(".")
 }
 
-fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<ObjectLocation, TirError<'base>> {
+fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<TypeLocation, TirError<'base>> {
     let type_name_str = build_type_name(type_name);
     let field_type = match try_resolve_signature(context, module, type_name_str.as_str())? {
         Some(field_type) => field_type,
@@ -130,7 +151,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
         /* Finish */
         simplelog::debug!(" - Finishing all uses");
         for use_item in uses.iter() {
-            use_item.finish(context, &module, ObjectLocation::UNDEFINED)?;
+            use_item.finish(context, &module, TypeLocation::UNDEFINED)?;
         }
 
         simplelog::debug!(" - Finishing all interfaces");
@@ -140,13 +161,13 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
             let signature_path = SignaturePath::owned(format!("{}.{}", module_object.path, interface.name()));
     
             //add the signature to the context with full path
-            let location = context.object_signatures.location(signature_path.get_raw_path()).unwrap();
+            let location = context.types.location(signature_path.get_raw_path()).unwrap();
             interface.finish(context, &module, location)?;
         }
 
         simplelog::debug!(" - Finishing all extends");
         for extend in extends.iter() {
-            extend.finish(context, &module, ObjectLocation::UNDEFINED)?;
+            extend.finish(context, &module, TypeLocation::UNDEFINED)?;
         }
 
         simplelog::debug!(" - Finishing all classes");
@@ -156,7 +177,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
             let signature_path = SignaturePath::owned(format!("{}.{}", module_object.path, class.name()));
     
             //add the signature to the context with full path
-            let location = context.object_signatures.location(signature_path.get_raw_path()).unwrap();
+            let location = context.types.location(signature_path.get_raw_path()).unwrap();
             class.finish(context, &module, location)?;
         }
 
@@ -167,7 +188,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
             let signature_path = SignaturePath::owned(format!("{}.{}", module_object.path, function.name()));
     
             //add the signature to the context with full path
-            let location = context.object_signatures.location(signature_path.get_raw_path()).unwrap();
+            let location = context.types.location(signature_path.get_raw_path()).unwrap();
             function.finish(context, &module, location)?;
         }
     }
@@ -194,7 +215,7 @@ fn find_module<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &M
 }
 
 
-fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<ObjectLocation>, TirError<'base>> {
+fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError<'base>> {
     // Check if the key is a module name
     let mut parts = key.as_ref().split('.').peekable();
     let module_name = match parts.next() {
@@ -211,7 +232,7 @@ fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<
     try_resolve_signature(context, &found_module, signature_name)
 }
 
-pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<ObjectLocation>, TirError<'base>> {
+pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError<'base>> {
     let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
     
     if let Some(location) = module.object_signatures.get(key.as_ref()) {
@@ -223,7 +244,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         None => {
             match module.get_ast_signature(key.as_ref()) {
                 Some(location) => location,
-                None => match context.object_signatures.location(key.as_ref()) {
+                None => match context.types.location(key.as_ref()) {
                     Some(location) => return Ok(Some(location)),
                     None => return Ok(None),
                 },
@@ -243,7 +264,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
     Ok(Some(context.resolve_from_location(signature_location)?))
 }
 
-pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: SignaturePath<'base>) -> Option<AstLocation> {
+pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: SignaturePath<'base>) -> Option<AstSignatureLocation> {
     let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
 
     if let Some(location) = module.ast_signatures.get(key.get_name()) {
@@ -258,7 +279,7 @@ pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &Modul
 
 pub fn try_resolve_signature<'base, K: AsRef<str>>(
     context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K,
-) -> Result<Option<ObjectLocation>, TirError<'base>> {
+) -> Result<Option<TypeLocation>, TirError<'base>> {
     // Check if the key has a module name
     match key.as_ref().contains('.') {
         true => try_resolve_moduled_signature(context, module, key),

@@ -90,20 +90,20 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        ast::{PrimitiveType, TypeNameAst},
+        ast::{PrimitiveValue, TypeNameAst},
         file::SourceFile, nom_tools::State, parser::primitive::{number, string},
     };
 
     use super::Span;
 
     #[rstest]
-    #[case(r#""hello""#, PrimitiveType::String("hello".into()))]
-    #[case(r#""hello\nworld""#, PrimitiveType::String("hello\nworld".into()))]
-    #[case(r#""hello\tworld""#, PrimitiveType::String("hello\tworld".into()))]
-    #[case(r#""hello\\world""#, PrimitiveType::String("hello\\world".into()))]
-    #[case(r#""hello\"world""#, PrimitiveType::String("hello\"world".into()))]
-    #[case(r#""hello/world""#, PrimitiveType::String("hello/world".into()))]
-    fn string_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveType) {
+    #[case(r#""hello""#, PrimitiveValue::String("hello".into()))]
+    #[case(r#""hello\nworld""#, PrimitiveValue::String("hello\nworld".into()))]
+    #[case(r#""hello\tworld""#, PrimitiveValue::String("hello\tworld".into()))]
+    #[case(r#""hello\\world""#, PrimitiveValue::String("hello\\world".into()))]
+    #[case(r#""hello\"world""#, PrimitiveValue::String("hello\"world".into()))]
+    #[case(r#""hello/world""#, PrimitiveValue::String("hello/world".into()))]
+    fn string_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveValue) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -117,9 +117,9 @@ mod tests {
     }
 
     #[rstest]
-    #[case("true", PrimitiveType::Bool(true))]
-    #[case("false", PrimitiveType::Bool(false))]
-    fn boolean_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveType) {
+    #[case("true", PrimitiveValue::Bool(true))]
+    #[case("false", PrimitiveValue::Bool(false))]
+    fn boolean_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveValue) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -127,22 +127,22 @@ mod tests {
         };
 
         let input = Span::new_extra(code, state);
-        let (_, boolean) = PrimitiveType::parse(input).unwrap();
+        let (_, (_, boolean)) = PrimitiveValue::parse(input).unwrap();
 
         assert_eq!(boolean, expected, "Parsed boolean does not match expected");
     }
 
     #[rstest]
-    #[case("123", PrimitiveType::I8(123))]
-    #[case("-123", PrimitiveType::I8(-123))]
-    #[case("255", PrimitiveType::U8(255))]
-    #[case("32767", PrimitiveType::I16(32767))]
-    #[case("65535", PrimitiveType::U16(65535))]
-    #[case("2147483647", PrimitiveType::I32(2147483647))]
-    #[case("4294967295", PrimitiveType::U32(4294967295))]
-    #[case("9223372036854775807", PrimitiveType::I64(9223372036854775807))]
-    #[case("18446744073709551615", PrimitiveType::U64(18446744073709551615))]
-    fn integer_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveType) {
+    #[case("123", PrimitiveValue::I8(123))]
+    #[case("-123", PrimitiveValue::I8(-123))]
+    #[case("255", PrimitiveValue::U8(255))]
+    #[case("32767", PrimitiveValue::I16(32767))]
+    #[case("65535", PrimitiveValue::U16(65535))]
+    #[case("2147483647", PrimitiveValue::I32(2147483647))]
+    #[case("4294967295", PrimitiveValue::U32(4294967295))]
+    #[case("9223372036854775807", PrimitiveValue::I64(9223372036854775807))]
+    #[case("18446744073709551615", PrimitiveValue::U64(18446744073709551615))]
+    fn integer_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveValue) {
         let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
 
         let state = State {
@@ -200,7 +200,7 @@ mod tests {
         let input = Span::new_extra(code, state);
         let (_, number) = number(input).unwrap();
 
-        assert_eq!(number, PrimitiveType::Float(expected, dot_place), "Parsed type name does not match expected");
+        assert_eq!(number, PrimitiveValue::Float(expected, dot_place), "Parsed type name does not match expected");
     }
 
     #[rstest]
@@ -215,6 +215,6 @@ mod tests {
         let input = Span::new_extra(code, state);
         let (_, number) = number(input).unwrap();
 
-        assert_eq!(number, PrimitiveType::Double(expected, dot_place), "Parsed type name does not match expected");
+        assert_eq!(number, PrimitiveValue::Double(expected, dot_place), "Parsed type name does not match expected");
     }
 }

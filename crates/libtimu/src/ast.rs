@@ -7,7 +7,7 @@ use crate::{
 };
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum PrimitiveType<'base> {
+pub enum PrimitiveValue<'base> {
     String(Cow<'base, str>),
     Bool(bool),
     //Array(Vec<Box<TimuAst<'base>>>),
@@ -21,6 +21,18 @@ pub enum PrimitiveType<'base> {
     U64(u64),
     Float(f64, u8),
     Double(f64, u8),
+}
+
+impl<'base> AsRef<PrimitiveValue<'base>> for PrimitiveValue<'base> {
+    fn as_ref(&self) -> &PrimitiveValue<'base> {
+        self
+    }
+}
+
+impl<'base> AsMut<PrimitiveValue<'base>> for PrimitiveValue<'base> {
+    fn as_mut(&mut self) -> &mut PrimitiveValue<'base> {
+        self
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -78,39 +90,39 @@ impl<'base> UseAst<'base> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ClassDefinitionAst<'base> {
     pub name: Span<'base>,
     pub fields: Vec<ClassDefinitionFieldAst<'base>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct InterfaceDefinitionAst<'base> {
     pub name: Span<'base>,
     pub fields: Vec<InterfaceDefinitionFieldAst<'base>>,
     pub base_interfaces: Vec<TypeNameAst<'base>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum InterfaceDefinitionFieldAst<'base> {
     Function(InterfaceFunctionDefinitionAst<'base>),
     Field(FieldAst<'base>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ExtendDefinitionAst<'base> {
     pub name: TypeNameAst<'base>,
     pub fields: Vec<ExtendDefinitionFieldAst<'base>>,
     pub base_interfaces: Vec<TypeNameAst<'base>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ExtendDefinitionFieldAst<'base> {
     Function(FunctionDefinitionAst<'base>),
     Field(FieldAst<'base>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct TypeNameAst<'base> {
     pub nullable: bool,
     pub names: Vec<Span<'base>>,
@@ -124,12 +136,12 @@ impl ToRange for TypeNameAst<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct RefAst<'base> {
     pub names: Vec<Span<'base>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum FunctionArgumentAst<'base> {
     This(Span<'base>),
     Argument {
@@ -138,7 +150,7 @@ pub enum FunctionArgumentAst<'base> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BodyStatementAst<'base> {
     VariableDefinition(VariableDefinitionAst<'base>),
     VariableAssign(VariableAssignAst<'base>),
@@ -146,19 +158,19 @@ pub enum BodyStatementAst<'base> {
     IfCondition(IfConditionAst<'base>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BodyAst<'base> {
     pub statements: Vec<BodyStatementAst<'base>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum FunctionDefinitionLocationAst<'base> {
     Class(Span<'base>),
     #[allow(dead_code)]
     Module,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FunctionDefinitionAst<'base> {
     pub is_public: Option<Span<'base>>,
     pub name: Span<'base>,
@@ -168,7 +180,7 @@ pub struct FunctionDefinitionAst<'base> {
     pub location: FunctionDefinitionLocationAst<'base>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FunctionCallAst<'base> {
     pub paths: Vec<Span<'base>>,
     pub arguments: Vec<ExpressionAst<'base>>,
@@ -180,29 +192,32 @@ pub enum FunctionCallPathAst<'base> {
     TypeName(TypeNameAst<'base>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct InterfaceFunctionDefinitionAst<'base> {
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgumentAst<'base>>,
     pub return_type: TypeNameAst<'base>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ClassDefinitionFieldAst<'base> {
     Field(FieldAst<'base>),
     Function(FunctionDefinitionAst<'base>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FieldAst<'base> {
     pub is_public: Option<Span<'base>>,
     pub name: Span<'base>,
     pub field_type: TypeNameAst<'base>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ExpressionAst<'base> {
-    Primitive(PrimitiveType<'base>),
+    Primitive { 
+        span: Span<'base>,
+        value: PrimitiveValue<'base>
+    },
     Ref(RefAst<'base>),
     Not(Box<ExpressionAst<'base>>),
     Ident(Span<'base>),
@@ -210,7 +225,7 @@ pub enum ExpressionAst<'base> {
     Operation { left: Box<ExpressionAst<'base>>, operator: ExpressionOperatorType, right: Box<ExpressionAst<'base>> },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct IfConditionAst<'base> {
     pub expression: ExpressionAst<'base>,
     pub true_body: BodyAst<'base>,
@@ -218,7 +233,7 @@ pub struct IfConditionAst<'base> {
     pub false_body: Option<BodyAst<'base>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct VariableDefinitionAst<'base> {
     pub variable_definition_type: VariableDefinitionType,
     pub name: Span<'base>,
@@ -226,7 +241,7 @@ pub struct VariableDefinitionAst<'base> {
     pub expression: Option<ExpressionAst<'base>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct VariableAssignAst<'base> {
     pub name: Span<'base>,
     pub expression: ExpressionAst<'base>,

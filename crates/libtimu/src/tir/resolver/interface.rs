@@ -5,37 +5,39 @@ use indexmap::IndexMap;
 use crate::{
     ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst},
     nom_tools::{Span, ToRange},
-    tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::ObjectSignatureValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature}, signature::SignaturePath, ObjectSignature, TirError},
+    tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature}, signature::SignaturePath, TypeSignature, TirError},
 };
 
-use super::{build_signature_path, find_ast_signature, ObjectLocation, ResolveSignature};
+use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct InterfaceDefinition<'base> {
     pub name: Span<'base>,
-    pub fields: IndexMap<Cow<'base, str>, ObjectLocation>,
+    pub fields: IndexMap<Cow<'base, str>, TypeLocation>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct InterfaceFunctionDefinition<'base> {
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgument<'base>>,
-    pub return_type: ObjectLocation,
+    pub return_type: TypeLocation,
 }
 
-impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
+    type Result = TypeLocation;
+    
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.fragment());
 
         let (signature_path, signature_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
 
-        let mut fields = IndexMap::<Cow<'_, str>, ObjectLocation>::default();
+        let mut fields = IndexMap::<Cow<'_, str>, TypeLocation>::default();
         
         Self::resolve_interface(context, self, &mut fields, module, parent)?;
 
-        let signature = ObjectSignature::new(ObjectSignatureValue::Interface(InterfaceDefinition {
+        let signature = TypeSignature::new(TypeValue::Interface(InterfaceDefinition {
             name: self.name.clone(),
             fields,
         }), self.name.extra.file.clone(), self.name.to_range(),None);
@@ -44,7 +46,7 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
         Ok(signature_location)
     }
     
-    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: ObjectLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: TypeLocation) -> Result<(), TirError<'base>> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         Cow::Borrowed(*self.name.fragment())
@@ -52,11 +54,11 @@ impl<'base> ResolveSignature<'base> for InterfaceDefinitionAst<'base> {
 }
 
 impl<'base> InterfaceDefinitionAst<'base> {
-    fn resolve_interface(context: &mut TirContext<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut IndexMap<Cow<'base, str>, ObjectLocation>, module: &ModuleRef<'base>, parent: Option<ObjectLocation>) -> Result<(), TirError<'base>>  {
+    fn resolve_interface(context: &mut TirContext<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut IndexMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<(), TirError<'base>>  {
         let interface_path = build_signature_path(context, &interface.name, module);
 
         // Check if the interface is already defined
-        if let Some(ObjectSignatureValue::Interface(interface)) = context.object_signatures.get(interface_path.get_raw_path()).map(|signature| signature.value.as_ref()){
+        if let Some(TypeValue::Interface(interface)) = context.types.get(interface_path.get_raw_path()).map(|signature| signature.value.as_ref()){
             for (field, location) in interface.fields.iter() {
                 fields.insert(field.clone(), location.clone());
             }
@@ -116,14 +118,14 @@ impl<'base> InterfaceDefinitionAst<'base> {
         Ok(())
     }
 
-    fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, interface_function: &InterfaceFunctionDefinitionAst<'base>, parent: Option<ObjectLocation>) -> Result<ObjectLocation, TirError<'base>> {
+    fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, interface_function: &InterfaceFunctionDefinitionAst<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface function: <u><b>{}</b></u>", self.name.fragment());
                 
         let full_name: Cow<'base, str> = Cow::Owned(format!("{}::{}", self.name.fragment(), interface_function.name.fragment()));
         
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
         let signature_path = SignaturePath::owned(format!("{}.{}", tmp_module.path, full_name));
-        let signature_location = context.object_signatures.reserve(signature_path.clone(), Cow::Borrowed(*interface_function.name.fragment()), interface_function.name.extra.file.clone(), interface_function.name.to_range())
+        let signature_location = context.types.reserve(signature_path.clone(), Cow::Borrowed(*interface_function.name.fragment()), interface_function.name.extra.file.clone(), interface_function.name.to_range())
             .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
         tmp_module.object_signatures.insert(SignaturePath::cow(full_name), signature_location);
 
@@ -132,7 +134,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
         for argument in interface_function.arguments.iter() {
             let (argument_name, range, file) = match argument {
                 FunctionArgumentAst::This(this) => {
-                    let parent = context.object_signatures.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
+                    let parent = context.types.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
                     (Cow::Owned(parent.value.get_name().to_string()), this.to_range(), this.extra.file.clone())
                 },
                 FunctionArgumentAst::Argument { name, .. } => (Cow::Borrowed(*name.fragment()), name.to_range(), name.extra.file.clone())
@@ -140,7 +142,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
             
             let type_name: String = match argument {
                 FunctionArgumentAst::This(this) => {
-                    let parent = context.object_signatures.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
+                    let parent = context.types.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
                     parent.value.get_name().to_string()
                 },
                 FunctionArgumentAst::Argument { field_type, .. } => build_type_name(field_type),
@@ -165,8 +167,8 @@ impl<'base> InterfaceDefinitionAst<'base> {
 
         let return_type = get_object_location_or_resolve(context, &interface_function.return_type, module)?;
 
-        let signature = ObjectSignature::new(
-            ObjectSignatureValue::InterfaceFunction(
+        let signature = TypeSignature::new(
+            TypeValue::InterfaceFunction(
                 InterfaceFunctionDefinition {
                     name: interface_function.name.clone(),
                     arguments,
@@ -178,7 +180,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
             None,
         );
         
-        Ok(context.object_signatures.update(signature_path, signature))
+        Ok(context.types.update(signature_path, signature))
     }
 }
 
