@@ -6,6 +6,7 @@ use crate::{
 };
 
 use super::{ResolveAst, TypeLocation};
+mod function_call;
 
 #[derive(Debug)]
 #[allow(dead_code)]
