@@ -1,35 +1,80 @@
 use std::{borrow::Cow, error::Error, fmt::Display, ops::Range, rc::Rc};
 
+use strum::EnumProperty;
+use strum_macros::{EnumDiscriminants, EnumProperty};
+
 use crate::file::SourceFile;
 
 use super::resolver::statement::FunctionCallError;
 
-#[derive(Debug)]
+#[derive(Debug, EnumDiscriminants, EnumProperty)]
 pub enum TirError<'base> {
+    #[strum(props(code=1))]
     ImportNotFound { module: Cow<'base, str>, #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[strum(props(code=2))]
     ModuleAlreadyDefined { source: Rc<SourceFile<'base>> },
+    #[strum(props(code=3))]
     AstModuleAlreadyDefined { position: Range<usize>, source: Rc<SourceFile<'base>> },
+    #[strum(props(code=4))]
     TypeNotFound { #[allow(dead_code)] source: Rc<SourceFile<'base>>, #[allow(dead_code)] position: Range<usize> },
+    #[strum(props(code=5))]
     AlreadyDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[strum(props(code=6))]
     ExtraAccessibilityIdentifier { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[strum(props(code=7))]
     InvalidType { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[strum(props(code=8))]
     InterfaceFieldNotDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[strum(props(code=9))]
     TypesDoNotMatch { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[strum(props(code=10))]
     ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[strum(props(code=11))]
     ThisNeedToDefineInClass { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[strum(props(code=12))]
     ThisArgumentMustBeFirst { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[strum(props(code=13))]
     FunctionCall(Box<FunctionCallError<'base>>),
 }
 
-pub struct InnerError<'base> {
+pub struct ErrorReport<'base> {
+    #[allow(dead_code)]
     pub position: Range<usize>,
     #[allow(dead_code)]
     pub message: String,
-    pub file: Rc<SourceFile<'base>>
+    #[allow(dead_code)]
+    pub file: Rc<SourceFile<'base>>,
+    #[allow(dead_code)]
+    pub error_code: String,
 }
 
 pub trait CustomError {
-    fn get_error(&self) -> Vec<InnerError<'_>>;
+    fn get_errors(&self, parent_error_code: &str) -> Vec<ErrorReport<'_>>;
+    fn get_error_code(&self) -> i64;
+    fn build_error_code(&self, parent_error_code: &str) -> String {
+        format!("{}-{}", parent_error_code, self.get_error_code())
+    }
+}
+
+impl CustomError for TirError<'_> {
+    fn get_errors(&self, parent_error_code: &str) -> Vec<ErrorReport<'_>> {
+        match self {
+            TirError::FunctionCall(error) => error.get_errors(&self.build_error_code(parent_error_code)),
+            _ => {
+                let error = self.get_error();
+                vec![ErrorReport {
+                    position: error.0,
+                    message: error.1,
+                    file: error.2,
+                    error_code: self.build_error_code(parent_error_code),
+                }]
+            },
+        }
+    }
+    
+    fn get_error_code(&self) -> i64 {
+        self.get_int("code").unwrap()
+    }
 }
 
 impl Display for TirError<'_> {
@@ -155,7 +200,7 @@ impl<'base> TirError<'base> {
                 position,
                 source,
             } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::FunctionCall(error) => (error.get_error()[0].position.clone(), format!("{}", error), error.get_error()[0].file.clone()),
+            TirError::FunctionCall(_) => unimplemented!("Please use get_errors() for FunctionCallError"),
             TirError::ModuleAlreadyDefined {
                 source,
             } => (0..0, format!("{}", self), source.clone()),

@@ -22,6 +22,26 @@ pub enum PrimitiveType {
 }
 
 #[derive(Debug, Clone, EnumIs, PartialEq)]
+pub enum ExpressionValue {    
+    #[allow(dead_code)]
+    FunctionCall { callee: TypeLocation, arguments: Vec<TypeLocation> },
+}
+
+#[derive(Debug, Clone, EnumIs, PartialEq)]
+pub enum StatementValue {    
+    #[allow(dead_code)]
+    VariableAssign(TypeLocation, ExpressionValue),
+}
+
+impl StatementValue {
+    pub fn get_name(&self) -> &str {
+        match self {
+            StatementValue::VariableAssign(_, _) => "VariableAssign",
+        }
+    }
+}
+
+#[derive(Debug, Clone, EnumIs, PartialEq)]
 pub enum TypeValue<'base> {
     #[allow(dead_code)]
     Object(ObjectLocation),
@@ -45,7 +65,7 @@ pub enum TypeValue<'base> {
     InterfaceFunction(InterfaceFunctionDefinition<'base>),
     
     #[allow(dead_code)]
-    FunctionCall { callee: TypeLocation, arguments: Vec<TypeLocation> },
+    Statement(StatementValue),
 }
 
 impl<'base> AsRef<TypeValue<'base>> for TypeValue<'base> {
@@ -106,7 +126,7 @@ impl TypeValue<'_> {
             TypeValue::Module => "Module",
             TypeValue::Interface(interface) => interface.name.fragment(),
             TypeValue::InterfaceFunction(interface_function) => interface_function.name.fragment(),
-            TypeValue::FunctionCall { .. } => "FunctionCall",
+            TypeValue::Statement(statement) => statement.get_name(),
         }
     }
 

@@ -1,14 +1,19 @@
 use std::rc::Rc;
 
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst}, file::SourceFile, nom_tools::{Span, ToRange}, tir::{error::{CustomError, InnerError}, module::ModuleRef, resolver::{statement::try_resolve_primitive, TypeLocation}, TirContext, TirError, TypeSignature, TypeValue}};
+use strum::EnumProperty;
+use strum_macros::{EnumDiscriminants, EnumProperty};
 
-#[derive(Debug, thiserror::Error)]
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst}, file::SourceFile, nom_tools::{Span, ToRange}, tir::{error::{CustomError, ErrorReport}, module::ModuleRef, object_signature::{ExpressionValue, StatementValue}, resolver::{statement::try_resolve_primitive, TypeLocation}, signature::SignaturePath, TirContext, TirError, TypeSignature, TypeValue}};
+
+#[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError<'base> {
     #[error("Unsupported argument type in function call: {0}")]
+    #[strum(props(code=1))]
     UnsupportedArgumentType(Span<'base>),
 
     #[error("Function call argument count mismatch: expected {expected}, got {got}")]
+    #[strum(props(code=2))]
     FunctionCallArgumentCountMismatch {
         expected: usize,
         expected_source: TypeSignature<'base>,
@@ -23,19 +28,25 @@ impl<'base> From<FunctionCallError<'base>> for TirError<'base> {
 }
 
 impl CustomError for FunctionCallError<'_> {
-    fn get_error(&self) -> Vec<crate::tir::error::InnerError<'_>> {
+    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport<'_>> {
         match self {
-            FunctionCallError::UnsupportedArgumentType(span) => vec![InnerError {
+            FunctionCallError::UnsupportedArgumentType(span) => vec![ErrorReport {
                 position: span.to_range(), // Placeholder, should be replaced with actual position
                 message: format!("{}", self),
                 file: span.extra.file.clone(),
+                error_code: self.get_int("code").unwrap().to_string(),
             }],
-            FunctionCallError::FunctionCallArgumentCountMismatch { expected_source, .. } => vec![InnerError {
+            FunctionCallError::FunctionCallArgumentCountMismatch { expected_source, .. } => vec![ErrorReport {
                 position: expected_source.position.clone(),
                 message: format!("{}", self),
                 file: expected_source.file.clone(),
+                error_code: self.build_error_code(parent_error_code),
             }],
         }
+    }
+    
+    fn get_error_code(&self) -> i64 {
+        self.get_int("code").unwrap()
     }
 }
 
@@ -130,15 +141,15 @@ impl<'base> BodyStatementAst<'base> {
             }
         }
 
-        let _signature = TypeSignature::new(
-            TypeValue::FunctionCall { callee: callee_object_location, arguments },
+        let function_call_signature = TypeSignature::new(
+            TypeValue::Statement(StatementValue::VariableAssign(callee.return_type.clone(), ExpressionValue::FunctionCall { callee: callee_object_location, arguments })),
             Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")),
             0..0,
             parent,
         );
 
-        // CALL FUNCTION RESULT SHOULD BE ASSIGNED TO A VARIABLE
-        Ok(TypeLocation::UNDEFINED)
+        let function_call_location = context.types.add_signature(SignaturePath::owned(context.create_tmp_type()), function_call_signature).unwrap();
+        Ok(function_call_location)
     }
 }
 
