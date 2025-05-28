@@ -11,28 +11,40 @@ use super::resolver::statement::FunctionCallError;
 pub enum TirError<'base> {
     #[strum(props(code=1))]
     ImportNotFound { module: Cow<'base, str>, #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=2))]
     ModuleAlreadyDefined { source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=3))]
     AstModuleAlreadyDefined { position: Range<usize>, source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=4))]
     TypeNotFound { #[allow(dead_code)] source: Rc<SourceFile<'base>>, #[allow(dead_code)] position: Range<usize> },
+    
     #[strum(props(code=5))]
     AlreadyDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=6))]
     ExtraAccessibilityIdentifier { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=7))]
     InvalidType { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=8))]
     InterfaceFieldNotDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=9))]
     TypesDoNotMatch { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=10))]
     ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=11))]
     ThisNeedToDefineInClass { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=12))]
     ThisArgumentMustBeFirst { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    
     #[strum(props(code=13))]
     FunctionCall(Box<FunctionCallError<'base>>),
 }

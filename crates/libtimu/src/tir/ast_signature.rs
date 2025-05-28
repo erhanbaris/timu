@@ -34,8 +34,6 @@ impl<'base> AsMut<AstSignatureValue<'base>> for AstSignatureValue<'base> {
 }
 
 impl<'base> ResolveAst<'base> for AstSignatureValue<'base> {
-    type Result = TypeLocation;
-    
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         match self {
             AstSignatureValue::Module(target_module) => target_module.resolve(context, target_module, parent),

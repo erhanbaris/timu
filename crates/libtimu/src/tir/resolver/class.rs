@@ -24,8 +24,6 @@ pub struct ClassDefinition<'base> {
 }
 
 impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
-    type Result = TypeLocation;
-    
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
 

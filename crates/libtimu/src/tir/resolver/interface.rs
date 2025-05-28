@@ -26,8 +26,6 @@ pub struct InterfaceFunctionDefinition<'base> {
 }
 
 impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
-    type Result = TypeLocation;
-    
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.fragment());
 

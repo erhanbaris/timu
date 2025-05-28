@@ -25,8 +25,6 @@ pub struct ExtendDefinition<'base> {
 }
 
 impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
-    type Result = TypeLocation;
-    
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         

@@ -8,8 +8,6 @@ use crate::{
 use super::{ResolveAst, TypeLocation};
 
 impl<'base> ResolveAst<'base> for UseAst<'base> {
-    type Result = TypeLocation;
-    
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         if let Some(signature_location) = context.get_ast_location(&self.import.text) {
             let name = match &self.alias {

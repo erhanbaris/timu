@@ -33,9 +33,7 @@ pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>)
     }
 }
 
-impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
-    type Result = TypeLocation;
-    
+impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {    
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
         let full_name = match &self.location {

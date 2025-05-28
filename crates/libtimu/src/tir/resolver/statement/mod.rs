@@ -2,7 +2,7 @@ use core::panic;
 use std::borrow::Cow;
 
 use crate::{
-    ast::{BodyStatementAst, PrimitiveValue}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, signature::SignaturePath, TirError, TypeSignature}
+    ast::{BodyStatementAst, PrimitiveValue}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, signature::SignaturePath, TirError}
 };
 
 use super::{ResolveAst, TypeLocation};
@@ -28,8 +28,6 @@ pub struct ClassFunctionSignature<'base> {
 }
 
 impl<'base> ResolveAst<'base> for BodyStatementAst<'base> {
-    type Result = TypeLocation;
-    
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         match self {
             BodyStatementAst::FunctionCall(function_call) => Self::resolve_function_call(context, module, parent, function_call),
@@ -47,8 +45,11 @@ impl<'base> ResolveAst<'base> for BodyStatementAst<'base> {
 }
 
 pub fn try_resolve_primitive<'base>(context: &mut TirContext<'base>, primitive: &PrimitiveValue<'base>, span: &Span<'base>) -> Result<TypeLocation, TirError<'base>> {
-    let location = context.objects.find_or_insert(primitive);
-    Ok(context.types.add_signature(SignaturePath::owned(context.create_tmp_type()), TypeSignature::new(TypeValue::Object(location), span.extra.file.clone(), span.to_range(), None)).unwrap())
+    let location = context.types.find_by_value(&TypeValue::PrimitiveType(primitive.to_type()));
+    match location {
+        Some(location) => Ok(location),
+        None => Err(TirError::TypeNotFound { source: span.extra.file.clone(), position: span.to_range() }),
+    }
 }
 
 #[cfg(test)]

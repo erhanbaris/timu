@@ -1,10 +1,7 @@
-use std::rc::Rc;
-
-
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst}, file::SourceFile, nom_tools::{Span, ToRange}, tir::{error::{CustomError, ErrorReport}, module::ModuleRef, object_signature::{ExpressionValue, StatementValue}, resolver::{statement::try_resolve_primitive, TypeLocation}, signature::SignaturePath, TirContext, TirError, TypeSignature, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst}, nom_tools::{Span, ToRange}, tir::{error::{CustomError, ErrorReport}, module::ModuleRef, resolver::{statement::try_resolve_primitive, TypeLocation}, TirContext, TirError, TypeSignature, TypeValue}};
 
 #[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError<'base> {
@@ -141,15 +138,7 @@ impl<'base> BodyStatementAst<'base> {
             }
         }
 
-        let function_call_signature = TypeSignature::new(
-            TypeValue::Statement(StatementValue::VariableAssign(callee.return_type.clone(), ExpressionValue::FunctionCall { callee: callee_object_location, arguments })),
-            Rc::new(SourceFile::new(vec!["<standart>".into()], "<native-code>")),
-            0..0,
-            parent,
-        );
-
-        let function_call_location = context.types.add_signature(SignaturePath::owned(context.create_tmp_type()), function_call_signature).unwrap();
-        Ok(function_call_location)
+        Ok(TypeLocation::UNDEFINED)
     }
 }
 

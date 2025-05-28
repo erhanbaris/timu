@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use crate::file::SourceFile;
 
-use super::{module::ModuleRef, resolver::{AstSignatureLocation, ResolveAst, TypeLocation}, signature::SignaturePath, AstSignature, AstSignatureHolder, Module, ObjectSignatureHolder, TirError, TypeSignature, TypeSignatureHolder};
+use super::{module::ModuleRef, resolver::{AstSignatureLocation, ResolveAst, TypeLocation}, signature::SignaturePath, AstSignature, AstSignatureHolder, Module, TirError, TypeSignature, TypeSignatureHolder};
 
 #[derive(Debug, Default)]
 pub struct TirContext<'base> {
@@ -12,8 +12,6 @@ pub struct TirContext<'base> {
     pub ast_signatures: AstSignatureHolder<'base>,
     #[allow(dead_code)]
     pub types: TypeSignatureHolder<'base>,
-    #[allow(dead_code)]
-    pub objects: ObjectSignatureHolder<'base>,
 
     pub tmp_type_indexer: AtomicUsize,
 }
@@ -54,7 +52,7 @@ impl<'base> TirContext<'base> {
         self.types.update(name, signature);
     }
 
-    pub fn resolve<T: ResolveAst<'base, Result = TypeLocation>>(&mut self, signature: &T, module: &ModuleRef<'base>) -> Result<TypeLocation, TirError<'base>> {
+    pub fn resolve<T: ResolveAst<'base>>(&mut self, signature: &T, module: &ModuleRef<'base>) -> Result<TypeLocation, TirError<'base>> {
         signature.resolve(self, module, None)
     }
 

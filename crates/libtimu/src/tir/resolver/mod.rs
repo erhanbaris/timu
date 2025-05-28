@@ -1,5 +1,7 @@
 use std::{borrow::Cow, fmt::Debug};
 
+use nom::combinator::Opt;
+
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
 use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, signature::{LocationTrait, SignaturePath}};
@@ -66,11 +68,21 @@ impl LocationTrait for AstSignatureLocation {
 }
 
 pub trait ResolveAst<'base> {
-    type Result: Debug + Clone;
-
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<Self::Result, TirError<'base>>;
+    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>>;
     fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: TypeLocation) -> Result<(), TirError<'base>>;
     fn name(&self) -> Cow<'base, str>;
+
+    fn build_full_name(&self, context: &TirContext<'_>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> String {
+        let module = module_ref.upgrade(context).unwrap();
+        
+        let mut full_name = String::new();
+        if let Some(parent_location) = parent {
+            full_name.push_str(&parent_location.get().to_string());
+            full_name.push('.');
+        }
+        full_name.push_str(self.name().as_ref());
+        full_name
+    }
 }
 
 fn build_type_name(type_name: &TypeNameAst) -> String {

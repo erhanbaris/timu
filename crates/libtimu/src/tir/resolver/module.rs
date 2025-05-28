@@ -5,8 +5,6 @@ use crate::tir::{context::TirContext, module::ModuleRef, object_signature::TypeV
 use super::{ResolveAst, TypeLocation};
 
 impl<'base> ResolveAst<'base> for ModuleRef<'base> {
-    type Result = TypeLocation;
-    
     fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         let (signature_path, signature_location) = context.reserve_object_location(self.as_cow(), module, 0..0, self.file())?;
         let signature = TypeSignature::new(TypeValue::Module, self.file(), 0..0, None);

@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use strum_macros::EnumIs;
 
-use super::{resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}, ObjectLocation, TypeLocation}, TirContext};
+use super::{resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}, ObjectLocation}, TirContext};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PrimitiveType {
@@ -22,30 +22,7 @@ pub enum PrimitiveType {
 }
 
 #[derive(Debug, Clone, EnumIs, PartialEq)]
-pub enum ExpressionValue {    
-    #[allow(dead_code)]
-    FunctionCall { callee: TypeLocation, arguments: Vec<TypeLocation> },
-}
-
-#[derive(Debug, Clone, EnumIs, PartialEq)]
-pub enum StatementValue {    
-    #[allow(dead_code)]
-    VariableAssign(TypeLocation, ExpressionValue),
-}
-
-impl StatementValue {
-    pub fn get_name(&self) -> &str {
-        match self {
-            StatementValue::VariableAssign(_, _) => "VariableAssign",
-        }
-    }
-}
-
-#[derive(Debug, Clone, EnumIs, PartialEq)]
 pub enum TypeValue<'base> {
-    #[allow(dead_code)]
-    Object(ObjectLocation),
-
     #[allow(dead_code)]
     PrimitiveType(PrimitiveType),
     
@@ -63,9 +40,6 @@ pub enum TypeValue<'base> {
     
     #[allow(dead_code)]
     InterfaceFunction(InterfaceFunctionDefinition<'base>),
-    
-    #[allow(dead_code)]
-    Statement(StatementValue),
 }
 
 impl<'base> AsRef<TypeValue<'base>> for TypeValue<'base> {
@@ -81,11 +55,9 @@ impl<'base> AsMut<TypeValue<'base>> for TypeValue<'base> {
 }
 
 impl TypeValue<'_> {
-    pub fn compare_skeleton(&self, context: &TirContext<'_>, other: &Self) -> bool {
+    pub fn compare_skeleton(&self, _: &TirContext<'_>, other: &Self) -> bool {
         match (self, other) {
             (TypeValue::PrimitiveType(left), TypeValue::PrimitiveType(right)) => Self::compare_primitive_types(left, right),
-            (TypeValue::Object(left), TypeValue::Object(right)) => Self::compare_primitive_value(left, right),
-            (TypeValue::PrimitiveType(left), TypeValue::Object(right)) => Self::compare_primitive_object(context, left, right),
             (TypeValue::Function(left_function), TypeValue::Function(right_function)) => Self::compare_functions(left_function, right_function),
             (TypeValue::Class(left_class), TypeValue::Class(right_class)) => Self::compare_classes(left_class, right_class),
             (TypeValue::Module, TypeValue::Module) => false,
@@ -96,12 +68,6 @@ impl TypeValue<'_> {
         }
     }
 
-    fn compare_primitive_object(context: &TirContext<'_>, primitive: &PrimitiveType, object_location: &ObjectLocation) -> bool {
-        if let Some(object) = context.objects.get_from_location(object_location.clone()) {
-           return *primitive == object.to_type();
-        }
-        false
-    }
 
     pub fn get_name(&self) -> &str {
         match self {
@@ -120,22 +86,16 @@ impl TypeValue<'_> {
                 PrimitiveType::Double => "Double",
                 PrimitiveType::Void => "Void",
             },
-            TypeValue::Object(_) => "PrimitiveValue",
             TypeValue::Function(function) => function.name.fragment(),
             TypeValue::Class(class) => class.name.fragment(),
             TypeValue::Module => "Module",
             TypeValue::Interface(interface) => interface.name.fragment(),
             TypeValue::InterfaceFunction(interface_function) => interface_function.name.fragment(),
-            TypeValue::Statement(statement) => statement.get_name(),
         }
     }
 
     fn compare_primitive_types(left: &PrimitiveType, right: &PrimitiveType) -> bool {
         std::ptr::eq(left, right)
-    }
-
-    fn compare_primitive_value(left: &ObjectLocation, right: &ObjectLocation) -> bool {
-        left == right
     }
 
     fn compare_classes(left: &ClassDefinition, right: &ClassDefinition) -> bool {
