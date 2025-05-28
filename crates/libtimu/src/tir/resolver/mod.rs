@@ -1,7 +1,5 @@
 use std::{borrow::Cow, fmt::Debug};
 
-use nom::combinator::Opt;
-
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
 use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, signature::{LocationTrait, SignaturePath}};
@@ -68,20 +66,19 @@ impl LocationTrait for AstSignatureLocation {
 }
 
 pub trait ResolveAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>>;
+    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>>;
     fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: TypeLocation) -> Result<(), TirError<'base>>;
     fn name(&self) -> Cow<'base, str>;
 
     fn build_full_name(&self, context: &TirContext<'_>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> String {
         let module = module_ref.upgrade(context).unwrap();
-        
-        let mut full_name = String::new();
-        if let Some(parent_location) = parent {
-            full_name.push_str(&parent_location.get().to_string());
-            full_name.push('.');
+        match parent {
+            Some(parent) if parent != TypeLocation::UNDEFINED => {
+                let parent_signature = context.types.get_from_location(parent).unwrap();
+                format!("{}.{}.{}", module.path, parent_signature.value.get_name(), self.name())
+            },
+            _ => format!("{}.{}", module.path, self.name()),
         }
-        full_name.push_str(self.name().as_ref());
-        full_name
     }
 }
 
@@ -196,11 +193,10 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'bas
         simplelog::debug!(" - Finishing all functions");
         for function in functions.iter() {
             // create a new signature path
-            let module_object = context.modules.get(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-            let signature_path = SignaturePath::owned(format!("{}.{}", module_object.path, function.name()));
+            let full_name = function.build_full_name(context, &module, None);
     
             //add the signature to the context with full path
-            let location = context.types.location(signature_path.get_raw_path()).unwrap();
+            let location = context.types.location(full_name.as_str()).unwrap();
             function.finish(context, &module, location)?;
         }
     }
@@ -305,7 +301,7 @@ mod tests {
 
     #[test]
     fn found_type() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class a {} func test(a: a): a {} ")?;
+        let ast = process_code(vec!["source".into()], "class a {} func test(variable: a): a {} ")?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }

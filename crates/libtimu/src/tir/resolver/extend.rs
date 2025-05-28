@@ -25,16 +25,16 @@ pub struct ExtendDefinition<'base> {
 }
 
 impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, _: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, _: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
         let mut extend_fields = IndexMap::<Cow<'_, str>, TypeLocation>::default();
         let mut extend_fields_for_track = IndexMap::<Cow<'_, str>, TypeLocation>::default();
 
-        let class_location = get_object_location_or_resolve(context, &self.name, module)?;
+        let class_location = get_object_location_or_resolve(context, &self.name, module_ref)?;
 
-        self.resolve_fields(context, module, &mut extend_fields, &mut extend_fields_for_track, class_location.clone())?;
-        self.resolve_interfaces(context, module, &extend_fields, &mut extend_fields_for_track)?;
+        self.resolve_fields(context, module_ref, &mut extend_fields, &mut extend_fields_for_track, class_location.clone())?;
+        self.resolve_interfaces(context, module_ref, &extend_fields, &mut extend_fields_for_track)?;
 
         let class_binding = context.types.get_mut_from_location(class_location.clone());
         let class = match class_binding {

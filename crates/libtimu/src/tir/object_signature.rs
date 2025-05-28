@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use strum_macros::EnumIs;
 
-use super::{resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}, ObjectLocation}, TirContext};
+use super::{resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}}, TirContext};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PrimitiveType {

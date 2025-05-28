@@ -169,7 +169,7 @@ where
 }
 
 
-
+/*
 #[derive(Debug)]
 pub struct Holder<K: AsRef<str> + Borrow<str> + Hash + Eq + Clone, T: Debug + PartialEq + AsRef<T> + AsMut<T>, L: LocationTrait> {
     locations: IndexMap<K, usize>,
@@ -247,7 +247,7 @@ where
         self.locations.get(name).map(|index| (*index).into())
     }
 }
-
+*/
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum SignaturePathType {

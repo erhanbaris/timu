@@ -12,27 +12,8 @@ fn main() -> Result<(), ()> {
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
         let ast = process_code(vec!["source".into()], r#"
-interface ITest {
-    func test(a: string): string;
-    a: TestClass;
-}
-
-extend TestClass: ITest {
-    func test(a: string): string {
-        
-    }
-    a: TestClass;
-}
-
-class TestClass {
-    func init(this): string {
-        this.test("erhanbaris");
-        this.a.test("baris");
-        abc(abc("erhan"));
-    }
-}
-
-func abc(a:string): TestClass {
+func abc(a:string): string {
+    abc(abc("erhan"));
 }
 "#)?;
     

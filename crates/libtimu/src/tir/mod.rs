@@ -45,13 +45,13 @@ fn build_primitive_types(context: &mut TirContext<'_>) {
 }
 
 impl<'base> ResolveAst<'base> for FileStatementAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         match self {
-            FileStatementAst::Class(class_definition_ast) => class_definition_ast.resolve(context, module, parent),
-            FileStatementAst::Function(function_definition_ast) => function_definition_ast.resolve(context, module, parent),
-            FileStatementAst::Interface(interface_definition_ast) => interface_definition_ast.resolve(context, module, parent),
-            FileStatementAst::Extend(extend_definition_ast) => extend_definition_ast.resolve(context, module, parent),
-            FileStatementAst::Use(use_ast) => use_ast.resolve(context, module, parent),
+            FileStatementAst::Class(class_definition_ast) => class_definition_ast.resolve(context, module_ref, parent),
+            FileStatementAst::Function(function_definition_ast) => function_definition_ast.resolve(context, module_ref, parent),
+            FileStatementAst::Interface(interface_definition_ast) => interface_definition_ast.resolve(context, module_ref, parent),
+            FileStatementAst::Extend(extend_definition_ast) => extend_definition_ast.resolve(context, module_ref, parent),
+            FileStatementAst::Use(use_ast) => use_ast.resolve(context, module_ref, parent),
         }
     }
 

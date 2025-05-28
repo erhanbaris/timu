@@ -51,15 +51,13 @@ impl<'base> BodyStatementAst<'base> {
     pub fn resolve_function_call(context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>, function_call: &FunctionCallAst<'base>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving function call: <u><b>{}(..)</b></u>", function_call.paths.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."));
         let module_object = module.upgrade(context).unwrap();
-
         let parent_location = parent.clone().unwrap();
         let parent_object = context.types.get_from_location(parent_location);
         
-        let (function, function_parent) = match parent_object.map(|signature| (signature.value.as_ref(), signature.extra.clone())) {
+        let (parent_function, function_parent) = match parent_object.map(|signature| (signature.value.as_ref(), signature.extra.clone())) {
             Some((TypeValue::Function(function), function_parent)) => (function, function_parent),
             _ => panic!("Parent object is not a function or is missing, {:?}", parent_object),
         };
-
 
         let mut callee_object_location = function_parent.clone().expect("Parent object is missing, but this is a bug");
         for (index, path) in function_call.paths.iter().enumerate() {
@@ -68,7 +66,7 @@ impl<'base> BodyStatementAst<'base> {
                 "this" => continue, // 'this' is handled by the parent object
                 path => {
                     if index == 0 {
-                        if let Some(argument) = function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
+                        if let Some(argument) = parent_function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
                             callee_object_location = argument.field_type.clone();
 
                         } else if let Some(data) = module_object.object_signatures.get(path) {
@@ -115,10 +113,12 @@ impl<'base> BodyStatementAst<'base> {
         }
 
         let callee_object = context.types.get_from_location(callee_object_location.clone()).expect("Compiler bug");
+
         let callee = match callee_object.value.as_ref() {
             TypeValue::Function(function) => function,
             _ => panic!("Expected a function signature, but got {:?}", callee_object.value)
         };
+        let return_type = callee.return_type.clone();
 
         /* Validate parameters */
         if callee.arguments.len() != arguments.len() {
@@ -138,7 +138,7 @@ impl<'base> BodyStatementAst<'base> {
             }
         }
 
-        Ok(TypeLocation::UNDEFINED)
+        Ok(return_type)
     }
 }
 
@@ -310,4 +310,82 @@ class TestClass {
         crate::tir::build(vec![ast.into()]).unwrap_err();
     }
 
+    #[test]
+    #[should_panic]
+    fn func_call_9() {
+        let ast = process_code(vec!["source".into()], r#"
+class TestClass {
+    func init(this): string {
+        this.abc();
+        abc();
+    }
+
+    func abc(): string {
+    }
+}
+
+func abc(): string {
+}
+"#).unwrap();
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+    }
+
+    #[test]
+    #[should_panic]
+    fn func_call_10() {
+        let ast = process_code(vec!["source".into()], r#"
+interface ITest {
+    func test(a: string): string;
+    a: TestClass;
+}
+
+extend TestClass: ITest {
+    func test(a: string): string {
+        
+    }
+    a: TestClass;
+}
+
+class TestClass {
+    func init(this): string {
+        this.test("erhanbaris");
+        this.a.test("baris");
+        abc(abc("erhan"));
+    }
+}
+
+func abc(a:string): TestClass {
+}
+"#).unwrap();
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+    }
+
+    #[test]
+    fn func_call_11() {
+        let ast = process_code(vec!["source".into()], r#"
+interface ITest {
+    func test(a: string): string;
+    a: TestClass;
+}
+
+extend TestClass: ITest {
+    func test(a: string): string {
+        
+    }
+    a: TestClass;
+}
+
+class TestClass {
+    func init(this): string {
+        this.test("erhanbaris");
+        this.a.test("baris");
+        abc(abc("erhan"));
+    }
+}
+
+func abc(a:string): string {
+}
+"#).unwrap();
+        crate::tir::build(vec![ast.into()]).unwrap();
+    }
 }

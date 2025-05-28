@@ -22,7 +22,6 @@ pub struct FunctionDefinition<'base> {
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgument<'base>>,
     pub return_type: TypeLocation,
-    pub body: Vec<TypeLocation>,
     pub signature_path: SignaturePath<'base>,
 }
 
@@ -34,16 +33,12 @@ pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>)
 }
 
 impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {    
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
-        simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.name.fragment());
-        let full_name = match &self.location {
-            FunctionDefinitionLocationAst::Module => Cow::Borrowed(*self.name.fragment()),
-            FunctionDefinitionLocationAst::Class(class) => Cow::Owned(format!("{}.{}", class.fragment(), self.name.fragment())),
-        };
-        
-        let (signature_path, signature_location) = context.reserve_object_location(full_name.clone(), module, self.name.to_range(), self.name.extra.file.clone())?;
+    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+        simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.build_full_name(context, module_ref, parent.clone()));
+        let full_name = self.build_full_name(context, module_ref, parent.clone());
+        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), module_ref, self.name.to_range(), self.name.extra.file.clone())?;
 
-        let definition = self.build_definition(context, module, parent.clone(), signature_path.clone())?;
+        let definition = self.build_definition(context, module_ref, parent.clone(), signature_path.clone())?;
 
         let signature = TypeSignature::new(
             TypeValue::Function (definition),
@@ -68,7 +63,18 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
      }
     
     fn name(&self) -> Cow<'base, str> {
-        Cow::Borrowed(*self.name.fragment())
+        match &self.location {
+            FunctionDefinitionLocationAst::Module => (*self.name.fragment()).into(),
+            FunctionDefinitionLocationAst::Class(class) => format!("{}::{}", class.fragment(), self.name.fragment()).into(),
+        }
+    }
+
+    fn build_full_name(&self, context: &TirContext<'_>, module_ref: &ModuleRef<'base>, _: Option<TypeLocation>) -> String {
+        let module = module_ref.upgrade(context).unwrap();
+        match &self.location {
+            FunctionDefinitionLocationAst::Module => format!("{}.{}", module.path, self.name.fragment()),
+            FunctionDefinitionLocationAst::Class(class) => format!("{}.{}::{}", module.path, class.fragment(), self.name.fragment()),
+        }
     }
 }
 
@@ -133,7 +139,6 @@ impl<'base> FunctionDefinitionAst<'base> {
             arguments,
             return_type,
             signature_path,
-            body: Vec::new(),
         })
     }
 

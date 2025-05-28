@@ -33,11 +33,8 @@ impl<'base> TirContext<'base> {
         self.ast_signatures.add_signature(SignaturePath::cow(key), signature)
     }
 
-    pub fn reserve_object_location(&mut self, object_name: Cow<'base, str>, module: &ModuleRef<'base>, position: Range<usize>, source: Rc<SourceFile<'base>>) -> Result<(SignaturePath<'base>, TypeLocation), TirError<'base>> {
+    pub fn reserve_object_location(&mut self, object_name: Cow<'base, str>, signature_path: SignaturePath<'base>, module: &ModuleRef<'base>, position: Range<usize>, source: Rc<SourceFile<'base>>) -> Result<(SignaturePath<'base>, TypeLocation), TirError<'base>> {
         let module = self.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-
-        // create a new signature path
-        let signature_path = SignaturePath::owned(format!("{}.{}", module.path, object_name));
 
         //add the signature to the context with full path
         let signature_location = self.types.reserve(signature_path.clone(), object_name.clone(), source.clone(), position.clone())

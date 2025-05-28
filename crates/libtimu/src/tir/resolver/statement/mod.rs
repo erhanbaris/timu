@@ -28,9 +28,9 @@ pub struct ClassFunctionSignature<'base> {
 }
 
 impl<'base> ResolveAst<'base> for BodyStatementAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         match self {
-            BodyStatementAst::FunctionCall(function_call) => Self::resolve_function_call(context, module, parent, function_call),
+            BodyStatementAst::FunctionCall(function_call) => Self::resolve_function_call(context, module_ref, parent, function_call),
             _ => panic!("Unsupported BodyStatementAst variant: {:?}", self),
         }
     }

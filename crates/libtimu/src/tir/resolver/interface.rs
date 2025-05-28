@@ -26,14 +26,15 @@ pub struct InterfaceFunctionDefinition<'base> {
 }
 
 impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.fragment());
 
-        let (signature_path, signature_location) = context.reserve_object_location(Cow::Borrowed(self.name.fragment()), module, self.name.to_range(), self.name.extra.file.clone())?;
+        let full_name = self.build_full_name(context, module_ref, parent.clone());
+        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), module_ref, self.name.to_range(), self.name.extra.file.clone())?;
 
         let mut fields = IndexMap::<Cow<'_, str>, TypeLocation>::default();
         
-        Self::resolve_interface(context, self, &mut fields, module, parent)?;
+        Self::resolve_interface(context, self, &mut fields, module_ref, parent)?;
 
         let signature = TypeSignature::new(TypeValue::Interface(InterfaceDefinition {
             name: self.name.clone(),
