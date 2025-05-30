@@ -2,7 +2,7 @@ use core::panic;
 use std::borrow::Cow;
 
 use crate::{
-    ast::{BodyStatementAst, PrimitiveValue}, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, signature::SignaturePath, TirError}
+    ast::{BodyStatementAst, PrimitiveValue}, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::TypeValue, scope::ScopeLocation, signature::SignaturePath, TirError}
 };
 
 use super::{ResolveAst, TypeLocation};
@@ -28,14 +28,14 @@ pub struct ClassFunctionSignature<'base> {
 }
 
 impl<'base> ResolveAst<'base> for BodyStatementAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
         match self {
-            BodyStatementAst::FunctionCall(function_call) => Self::resolve_function_call(context, module_ref, parent, function_call),
+            BodyStatementAst::FunctionCall(function_call) => Self::resolve_function_call(context, scope_location, function_call),
             _ => panic!("Unsupported BodyStatementAst variant: {:?}", self),
         }
     }
     
-    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: TypeLocation) -> Result<(), TirError<'base>> {
+    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError<'base>> {
         Ok(())
     }
     
@@ -96,13 +96,13 @@ mod tests {
         let main_module = context.modules.iter().find(|(name, _)| *name == "main").unwrap();
         let lib_module = context.modules.iter().find(|(name, _)| *name == "lib").unwrap();
 
-        main_module.1.object_signatures.get("main").unwrap();
+        main_module.1.types.get("main").unwrap();
 
         assert!(main_module.1.ast_imported_modules.get("testclass1").is_none());
         assert!(main_module.1.ast_imported_modules.get("test").is_some());
-        assert!(main_module.1.object_signatures.get("testclass1").is_none());
+        assert!(main_module.1.types.get("testclass1").is_none());
 
-        lib_module.1.object_signatures.get("testclass1").unwrap();
+        lib_module.1.types.get("testclass1").unwrap();
 
         Ok(())
     }

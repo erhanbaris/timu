@@ -14,7 +14,7 @@ pub struct Module<'base> {
     pub file: Rc<SourceFile<'base>>,
     pub ast_signatures: IndexMap<SignaturePath<'base>, AstSignatureLocation>,
     pub ast_imported_modules: IndexMap<Cow<'base, str>, AstSignatureLocation>,
-    pub object_signatures: IndexMap<SignaturePath<'base>, TypeLocation>,
+    pub types: IndexMap<SignaturePath<'base>, TypeLocation>,
     pub ast: Option<Rc<FileAst<'base>>>,
     pub modules: IndexMap<Cow<'base, str>, ModuleRef<'base>>,
 }
@@ -27,7 +27,7 @@ impl<'base> Module<'base> {
             file,
             ast_signatures: IndexMap::new(),
             ast_imported_modules: IndexMap::new(),
-            object_signatures: IndexMap::new(),
+            types: IndexMap::new(),
             ast: Some(ast),
             modules: IndexMap::new(),
         }
@@ -40,7 +40,7 @@ impl<'base> Module<'base> {
             file,
             ast_imported_modules: IndexMap::new(),
             ast_signatures: IndexMap::new(),
-            object_signatures: IndexMap::new(),
+            types: IndexMap::new(),
             ast: None,
             modules: IndexMap::new(),
         }

@@ -5,7 +5,7 @@ use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::file::SourceFile;
 
-use super::resolver::statement::FunctionCallError;
+use super::{resolver::statement::FunctionCallError, scope::ScopeError};
 
 #[derive(Debug, EnumDiscriminants, EnumProperty)]
 pub enum TirError<'base> {
@@ -46,7 +46,10 @@ pub enum TirError<'base> {
     ThisArgumentMustBeFirst { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
     
     #[strum(props(code=13))]
-    FunctionCall(Box<FunctionCallError<'base>>),
+    FunctionCall(Box<FunctionCallError<'base>>),  
+
+    #[strum(props(code=14))]
+    Scope(Box<ScopeError<'base>>),
 }
 
 pub struct ErrorReport<'base> {
@@ -98,6 +101,7 @@ impl Display for TirError<'_> {
                 source: _,
             } => write!(f, "Import not found: {}", module),
             TirError::FunctionCall(error) => write!(f, "{}", error),
+            TirError::Scope(error) => write!(f, "{}", error),
             TirError::ModuleAlreadyDefined {
                 source: _,
             } => write!(f, "Module already defined"),
@@ -213,6 +217,7 @@ impl<'base> TirError<'base> {
                 source,
             } => (position.clone(), format!("{}", self), source.clone()),
             TirError::FunctionCall(_) => unimplemented!("Please use get_errors() for FunctionCallError"),
+            TirError::Scope(_) => unimplemented!("Please use get_errors() for ScopeError"),
             TirError::ModuleAlreadyDefined {
                 source,
             } => (0..0, format!("{}", self), source.clone()),

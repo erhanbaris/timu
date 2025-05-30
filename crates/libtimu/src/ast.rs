@@ -200,10 +200,40 @@ pub struct FunctionDefinitionAst<'base> {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum FunctionCallType<'base> {
+    This(Vec<Span<'base>>),
+    Direct(Vec<Span<'base>>),
+}
+
+#[derive(Debug, PartialEq)]
 pub struct FunctionCallAst<'base> {
     pub call_span: Span<'base>,
     pub paths: Vec<Span<'base>>,
     pub arguments: Vec<ExpressionAst<'base>>,
+}
+
+impl FunctionCallType<'_> {
+    pub fn is_this(&self) -> bool {
+        matches!(self, FunctionCallType::This(_))
+    }
+
+    pub fn is_direct(&self) -> bool {
+        matches!(self, FunctionCallType::Direct(_))
+    }
+
+    pub fn call(&self) -> String {
+        match self {
+            FunctionCallType::This(path) => format!("this.{}", path.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join(".")),
+            FunctionCallType::Direct(path) => path.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."),
+        }
+    }
+
+    pub fn get_path(&self) -> &Vec<Span<'_>> {
+        match self {
+            FunctionCallType::This(path) => path,
+            FunctionCallType::Direct(path) => path,
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -1,11 +1,12 @@
 use std::rc::Rc;
 
-use ast_signature::{AstSignatureValue, build_module};
+use ast_signature::{build_module, AstSignatureValue};
 pub use context::TirContext;
 pub use error::TirError;
 use module::{Module, ModuleRef};
 pub use object_signature::{PrimitiveType, TypeValue};
 use resolver::{build_file, AstSignatureLocation, ObjectLocation, ResolveAst, TypeLocation};
+use scope::ScopeLocation;
 use signature::{Signature, SignatureHolder, SignaturePath};
 
 use crate::{ast::{FileAst, FileStatementAst}, file::SourceFile};
@@ -45,23 +46,23 @@ fn build_primitive_types(context: &mut TirContext<'_>) {
 }
 
 impl<'base> ResolveAst<'base> for FileStatementAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
         match self {
-            FileStatementAst::Class(class_definition_ast) => class_definition_ast.resolve(context, module_ref, parent),
-            FileStatementAst::Function(function_definition_ast) => function_definition_ast.resolve(context, module_ref, parent),
-            FileStatementAst::Interface(interface_definition_ast) => interface_definition_ast.resolve(context, module_ref, parent),
-            FileStatementAst::Extend(extend_definition_ast) => extend_definition_ast.resolve(context, module_ref, parent),
-            FileStatementAst::Use(use_ast) => use_ast.resolve(context, module_ref, parent),
+            FileStatementAst::Class(class_definition_ast) => class_definition_ast.resolve(context, scope_location),
+            FileStatementAst::Function(function_definition_ast) => function_definition_ast.resolve(context, scope_location),
+            FileStatementAst::Interface(interface_definition_ast) => interface_definition_ast.resolve(context, scope_location),
+            FileStatementAst::Extend(extend_definition_ast) => extend_definition_ast.resolve(context, scope_location),
+            FileStatementAst::Use(use_ast) => use_ast.resolve(context, scope_location),
         }
     }
 
-    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: TypeLocation) -> Result<(), TirError<'base>> {
+    fn finish(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<(), TirError<'base>> {
         match self {
-            FileStatementAst::Class(class_definition_ast) => class_definition_ast.finish(context, module, location),
-            FileStatementAst::Function(function_definition_ast) => function_definition_ast.finish(context, module, location),
-            FileStatementAst::Interface(interface_definition_ast) => interface_definition_ast.finish(context, module, location),
-            FileStatementAst::Extend(extend_definition_ast) => extend_definition_ast.finish(context, module, location),
-            FileStatementAst::Use(use_ast) => use_ast.finish(context, module, location),
+            FileStatementAst::Class(class_definition_ast) => class_definition_ast.finish(context, scope_location),
+            FileStatementAst::Function(function_definition_ast) => function_definition_ast.finish(context, scope_location),
+            FileStatementAst::Interface(interface_definition_ast) => interface_definition_ast.finish(context, scope_location),
+            FileStatementAst::Extend(extend_definition_ast) => extend_definition_ast.finish(context, scope_location),
+            FileStatementAst::Use(use_ast) => use_ast.finish(context, scope_location),
         }
     }
 
@@ -77,7 +78,11 @@ impl<'base> ResolveAst<'base> for FileStatementAst<'base> {
 }
 
 pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError<'_>> {
-    let mut context = TirContext::default();
+    let mut context: TirContext<'_> = TirContext::default();
+
+    /*simplelog::debug!("Adding base module");
+    let base_module = Module::phantom("<root>".into(), "<root>".into(), Rc::new(SourceFile::new(vec!["<memory>".into()], "")));
+    build_module_signature(&mut context, base_module)?;*/
     build_primitive_types(&mut context);
 
     for ast in files.into_iter() {
@@ -113,7 +118,7 @@ mod tests {
             name: "test1".into(),
             path: "test1".into(),
             ast_imported_modules: Default::default(),
-            object_signatures: Default::default(),
+            types: Default::default(),
             ast_signatures: Default::default(),
             file: source_file.clone(),
             modules: Default::default(),
@@ -127,7 +132,7 @@ mod tests {
             name: "test2".into(),
             path: "test1.test2".into(),
             ast_imported_modules: Default::default(),
-            object_signatures: Default::default(),
+            types: Default::default(),
             file: source_file.clone(),
             ast_signatures: Default::default(),
             modules: Default::default(),
@@ -141,7 +146,7 @@ mod tests {
             name: "test3".into(),
             path: "test1.test2.test3".into(),
             ast_imported_modules: Default::default(),
-            object_signatures: Default::default(),
+            types: Default::default(),
             file: source_file.clone(),
             ast_signatures: Default::default(),
             modules: Default::default(),

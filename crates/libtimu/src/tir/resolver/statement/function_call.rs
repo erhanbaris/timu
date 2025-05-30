@@ -1,7 +1,7 @@
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst}, nom_tools::{Span, ToRange}, tir::{error::{CustomError, ErrorReport}, module::ModuleRef, resolver::{statement::try_resolve_primitive, TypeLocation}, TirContext, TirError, TypeSignature, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst}, nom_tools::{Span, ToRange}, tir::{error::{CustomError, ErrorReport}, resolver::{statement::try_resolve_primitive, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeSignature, TypeValue}};
 
 #[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError<'base> {
@@ -48,18 +48,22 @@ impl CustomError for FunctionCallError<'_> {
 }
 
 impl<'base> BodyStatementAst<'base> {
-    pub fn resolve_function_call(context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>, function_call: &FunctionCallAst<'base>) -> Result<TypeLocation, TirError<'base>> {
+    pub fn resolve_function_call(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving function call: <u><b>{}(..)</b></u>", function_call.paths.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."));
-        let module_object = module.upgrade(context).unwrap();
-        let parent_location = parent.clone().unwrap();
+        let (module_ref, parent) = {
+            let scope = context.get_scope(scope_location).unwrap();
+            (scope.module_ref.clone(), scope.parent_type)
+        };
+        let module_object = module_ref.upgrade(context).unwrap();
+        let parent_location = parent.unwrap();
         let parent_object = context.types.get_from_location(parent_location);
         
-        let (parent_function, function_parent) = match parent_object.map(|signature| (signature.value.as_ref(), signature.extra.clone())) {
+        let (parent_function, function_parent) = match parent_object.map(|signature| (signature.value.as_ref(), signature.extra)) {
             Some((TypeValue::Function(function), function_parent)) => (function, function_parent),
             _ => panic!("Parent object is not a function or is missing, {:?}", parent_object),
         };
 
-        let mut callee_object_location = function_parent.clone().expect("Parent object is missing, but this is a bug");
+        let mut callee_object_location = function_parent.expect("Parent object is missing, but this is a bug");
         for (index, path) in function_call.paths.iter().enumerate() {
 
             match *path.fragment() {
@@ -67,26 +71,26 @@ impl<'base> BodyStatementAst<'base> {
                 path => {
                     if index == 0 {
                         if let Some(argument) = parent_function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
-                            callee_object_location = argument.field_type.clone();
+                            callee_object_location = argument.field_type;
 
-                        } else if let Some(data) = module_object.object_signatures.get(path) {
-                            callee_object_location = data.clone();
+                        } else if let Some(data) = module_object.types.get(path) {
+                            callee_object_location = *data;
 
                         } else {
                             panic!("Function argument or object not found: {}", path);
                         }
                     } else {
-                        match context.types.get_from_location(callee_object_location.clone()).map(|signature| signature.value.as_ref()) {
+                        match context.types.get_from_location(callee_object_location).map(|signature| signature.value.as_ref()) {
                             Some(TypeValue::Class(class)) => {
                                 if let Some(field) = class.fields.get(path) {
-                                    callee_object_location = field.clone();
+                                    callee_object_location = *field;
                                 } else {
                                     panic!("Field not found in class: {}", path);
                                 }
                             },
                             Some(TypeValue::Function(function)) => {
                                 if let Some(argument) = function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
-                                    callee_object_location = argument.field_type.clone();
+                                    callee_object_location = argument.field_type;
                                 } else {
                                     panic!("Function argument not found: {}", path);
                                 }
@@ -98,11 +102,10 @@ impl<'base> BodyStatementAst<'base> {
             }
         }
 
-        
         let mut arguments = Vec::new();
         for argument in function_call.arguments.iter() {
             let argument_location = match argument {
-                ExpressionAst::FunctionCall(func_call) => Self::resolve_function_call(context, module, parent.clone(), func_call)?,
+                ExpressionAst::FunctionCall(func_call) => Self::resolve_function_call(context, scope_location, func_call)?,
                 ExpressionAst::Primitive { span, value } => try_resolve_primitive(context, value, span)?,
                 _ => {
                     return Err(FunctionCallError::UnsupportedArgumentType(function_call.call_span.clone()).into());
@@ -112,13 +115,13 @@ impl<'base> BodyStatementAst<'base> {
             arguments.push(argument_location);
         }
 
-        let callee_object = context.types.get_from_location(callee_object_location.clone()).expect("Compiler bug");
+        let callee_object = context.types.get_from_location(callee_object_location).expect("Compiler bug");
 
         let callee = match callee_object.value.as_ref() {
             TypeValue::Function(function) => function,
             _ => panic!("Expected a function signature, but got {:?}", callee_object.value)
         };
-        let return_type = callee.return_type.clone();
+        let return_type = callee.return_type;
 
         /* Validate parameters */
         if callee.arguments.len() != arguments.len() {
@@ -130,9 +133,9 @@ impl<'base> BodyStatementAst<'base> {
         }
 
         for (callee_arg, call_arg) in callee.arguments.iter().zip(arguments.iter()) {
-            let callee_argument_signature = context.types.get_from_location(callee_arg.field_type.clone()).unwrap();
+            let callee_argument_signature = context.types.get_from_location(callee_arg.field_type).unwrap();
         
-            let call_argument_signature = context.types.get_from_location(call_arg.clone()).unwrap();
+            let call_argument_signature = context.types.get_from_location(*call_arg).unwrap();
             if !callee_argument_signature.value.compare_skeleton(context, &call_argument_signature.value) {
                 panic!("Argument type mismatch: expected {:?}, got {:?}", callee_argument_signature.value, call_argument_signature.value);
             }

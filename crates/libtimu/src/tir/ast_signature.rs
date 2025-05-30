@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    context::TirContext, module::{Module, ModuleRef}, resolver::{AstSignatureLocation, TypeLocation, ResolveAst}, signature::{Signature, SignaturePath}, AstSignature, TirError
+    context::TirContext, module::{Module, ModuleRef}, resolver::{AstSignatureLocation, ResolveAst, TypeLocation}, scope::ScopeLocation, signature::{Signature, SignaturePath}, AstSignature, TirError
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,17 +34,17 @@ impl<'base> AsMut<AstSignatureValue<'base>> for AstSignatureValue<'base> {
 }
 
 impl<'base> ResolveAst<'base> for AstSignatureValue<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
         match self {
-            AstSignatureValue::Module(target_module) => target_module.resolve(context, target_module, parent),
-            AstSignatureValue::Class(class) => class.resolve(context, module_ref, parent),
-            AstSignatureValue::Function(function) => function.resolve(context, module_ref, parent),
-            AstSignatureValue::Interface(interface) => interface.resolve(context, module_ref, parent),
-            AstSignatureValue::Extend(extend) => extend.resolve(context, module_ref, parent),
+            AstSignatureValue::Module(target_module) => target_module.resolve(context, scope_location),
+            AstSignatureValue::Class(class) => class.resolve(context, scope_location),
+            AstSignatureValue::Function(function) => function.resolve(context, scope_location),
+            AstSignatureValue::Interface(interface) => interface.resolve(context, scope_location),
+            AstSignatureValue::Extend(extend) => extend.resolve(context, scope_location),
         }
     }
 
-    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: TypeLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError<'base>> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         match self {
@@ -100,7 +100,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             path: ast.file.path().join(".").into(),
             ast_imported_modules: IndexMap::new(),
             ast_signatures: IndexMap::new(),
-            object_signatures: IndexMap::new(),
+            types: IndexMap::new(),
             ast: Some(ast.clone()),
             modules: Default::default(),
         };

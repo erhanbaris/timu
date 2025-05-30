@@ -3,10 +3,10 @@ use std::borrow::Cow;
 use crate::{
     ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, signature::{SignatureInfo, SignaturePath}, TypeSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature},
 };
 
-use super::{build_type_name, try_resolve_signature, ResolveAst, TypeLocation};
+use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, TypeLocation};
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
@@ -27,18 +27,23 @@ pub struct FunctionDefinition<'base> {
 
 pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>) -> Result<TypeLocation, TirError<'base>> {
     match parent {
-        Some(parent) => Ok(parent.clone()),
+        Some(parent) => Ok(*parent),
         None => Err(TirError::ThisNeedToDefineInClass { position: this.to_range(), source: this.extra.file.clone() }),
     }
 }
 
 impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {    
-    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
-        simplelog::debug!("Resolving function: <u><b>{}</b></u>", self.build_full_name(context, module_ref, parent.clone()));
-        let full_name = self.build_full_name(context, module_ref, parent.clone());
-        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), module_ref, self.name.to_range(), self.name.extra.file.clone())?;
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
+        let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
+        simplelog::debug!("Resolving function: <u><b>{}</b></u>", full_name.as_str());
 
-        let definition = self.build_definition(context, module_ref, parent.clone(), signature_path.clone())?;
+        let (module_ref, parent) = {
+            let scope = context.get_scope(scope_location).expect("Scope not found, it is a bug");
+            (scope.module_ref.clone(), scope.parent_type)
+        };
+        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.extra.file.clone())?;
+
+        let definition = self.build_definition(context, &module_ref, parent, signature_path.clone())?;
 
         let signature = TypeSignature::new(
             TypeValue::Function (definition),
@@ -51,12 +56,19 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
         Ok(signature_location)
     }
     
-    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, function_location: TypeLocation) -> Result<(), TirError<'base>> {
-
+    fn finish(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<(), TirError<'base>> {        
         /* Parse body */
         for statement in self.body.statements.iter() {
-            let location = statement.resolve(context, module, Some(function_location.clone()))?;
-            statement.finish(context, module, location)?;
+
+            let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
+            let full_name = format!("{}.{}", module_ref.as_cow(), statement.name());
+            let child_scope_location = context.create_child_scope(full_name.clone().into(), scope_location, None);
+
+            let location = statement.resolve(context, child_scope_location)?;
+            context.get_mut_scope(child_scope_location)
+                .expect("Child scope not found, it is a bug")
+                .set_current_type(location);
+            statement.finish(context, scope_location)?;
         }
 
         Ok(())
@@ -69,8 +81,15 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
         }
     }
 
-    fn build_full_name(&self, context: &TirContext<'_>, module_ref: &ModuleRef<'base>, _: Option<TypeLocation>) -> String {
-        let module = module_ref.upgrade(context).unwrap();
+    fn build_full_name<'a>(&self, context: &TirContext<'_>, locater: BuildFullNameLocater<'a, 'base>, _: Option<TypeLocation>) -> String {
+        let module = match locater {
+            BuildFullNameLocater::Scope(scope_location) => {
+                let module_ref = context.get_scope(scope_location).expect("Scope not found").module_ref.clone();
+                module_ref.upgrade(context).unwrap()
+            },
+            BuildFullNameLocater::Module(module_ref) => module_ref.upgrade(context).unwrap(),
+        };
+        
         match &self.location {
             FunctionDefinitionLocationAst::Module => format!("{}.{}", module.path, self.name.fragment()),
             FunctionDefinitionLocationAst::Class(class) => format!("{}.{}::{}", module.path, class.fragment(), self.name.fragment()),
@@ -175,7 +194,6 @@ mod tests {
 
     #[test]
     fn valid_types() -> Result<(), ()> {
-        
         let source_1 = process_code(vec!["lib".into()], " class testclass1 {} ")?;
         let source_2 = process_code(vec!["main".into()],
             r#"use lib.testclass1 as test;
@@ -188,13 +206,13 @@ mod tests {
         let main_module = context.modules.iter().find(|(name, _)| *name == "main").unwrap();
         let lib_module = context.modules.iter().find(|(name, _)| *name == "lib").unwrap();
 
-        main_module.1.object_signatures.get("main").unwrap();
+        main_module.1.types.get("main").unwrap();
 
         assert!(main_module.1.ast_imported_modules.get("testclass1").is_none());
         assert!(main_module.1.ast_imported_modules.get("test").is_some());
-        assert!(main_module.1.object_signatures.get("testclass1").is_none());
+        assert!(main_module.1.types.get("testclass1").is_none());
 
-        lib_module.1.object_signatures.get("testclass1").unwrap();
+        lib_module.1.types.get("testclass1").unwrap();
 
         Ok(())
     }

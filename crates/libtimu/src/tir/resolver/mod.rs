@@ -1,8 +1,10 @@
 use std::{borrow::Cow, fmt::Debug};
 
+use simplelog::debug;
+
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
-use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, signature::{LocationTrait, SignaturePath}};
+use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, scope::ScopeLocation, signature::{LocationTrait, SignaturePath}};
 
 pub mod class;
 pub mod extend;
@@ -12,7 +14,7 @@ pub mod module;
 pub mod module_use;
 pub mod statement;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct TypeLocation(#[allow(dead_code)]pub usize);
 
 impl TypeLocation {
@@ -65,13 +67,25 @@ impl LocationTrait for AstSignatureLocation {
     }
 }
 
+pub enum BuildFullNameLocater<'a, 'base> {
+    Scope(ScopeLocation),
+    Module(&'a ModuleRef<'base>),
+}
+
 pub trait ResolveAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>>;
-    fn finish(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, location: TypeLocation) -> Result<(), TirError<'base>>;
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>>;
+    fn finish(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<(), TirError<'base>>;
     fn name(&self) -> Cow<'base, str>;
 
-    fn build_full_name(&self, context: &TirContext<'_>, module_ref: &ModuleRef<'base>, parent: Option<TypeLocation>) -> String {
-        let module = module_ref.upgrade(context).unwrap();
+    fn build_full_name<'a>(&self, context: &TirContext<'_>, locater: BuildFullNameLocater<'a, 'base>, parent: Option<TypeLocation>) -> String {
+        let module = match locater {
+            BuildFullNameLocater::Scope(scope_location) => {
+                let module_ref = context.get_scope(scope_location).expect("Scope not found").module_ref.clone();
+                module_ref.upgrade(context).unwrap()
+            },
+            BuildFullNameLocater::Module(module_ref) => module_ref.upgrade(context).unwrap(),
+        };
+
         match parent {
             Some(parent) if parent != TypeLocation::UNDEFINED => {
                 let parent_signature = context.types.get_from_location(parent).unwrap();
@@ -108,103 +122,83 @@ pub fn build_signature_path<'base>(context: &TirContext<'base>, name: &str, modu
     SignaturePath::owned(format!("{}.{}", module.path, name))
 }
 
-pub fn build_file<'base>(context: &mut TirContext<'base>, module: ModuleRef<'base>) -> Result<(), TirError<'base>> {
-    simplelog::debug!("<on-red>Building file: {:?}</>", module.as_ref());
+pub fn build_file<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>) -> Result<(), TirError<'base>> {
+    simplelog::debug!("<on-red>Building file: {:?}</>", module_ref.as_ref());
     
-    if let Some(ast) = context.modules.get(module.as_ref()).and_then(|module| module.ast.clone()) {
+    if let Some(ast) = context.modules.get(module_ref.as_ref()).and_then(|module| module.ast.clone()) {
         let uses = ast.statements.iter().filter(|statement| statement.is_use()).collect::<Vec<_>>();
         let interfaces = ast.statements.iter().filter(|statement| statement.is_interface()).collect::<Vec<_>>();
         let functions = ast.statements.iter().filter(|statement| statement.is_function()).collect::<Vec<_>>();
         let classes = ast.statements.iter().filter(|statement| statement.is_class()).collect::<Vec<_>>();
         let extends = ast.statements.iter().filter(|statement| statement.is_extend()).collect::<Vec<_>>();
 
-        let mut uses_locations = Vec::new();
-        let mut interfaces_locations = Vec::new();
-        let mut functions_locations = Vec::new();
-        let mut classes_locations = Vec::new();
-        let mut extends_locations = Vec::new();
-
+        /* Resolving */
         simplelog::debug!(" - Resolving all uses");
-        for use_item in uses.iter() {
-            uses_locations.push((use_item, use_item.resolve(context, &module, None)?));
-        }
+        execute_vector_resolve(context, module_ref.clone(), &uses)?;
 
         simplelog::debug!(" - Resolving all interfaces");
-        for interface in interfaces.iter() {
-            if module.upgrade(context).unwrap().object_signatures.get(interface.name().as_ref()).is_none() {
-                interfaces_locations.push((interface, interface.resolve(context, &module, None)?));
-            }
-        }
+        execute_vector_resolve(context, module_ref.clone(), &interfaces)?;
 
         simplelog::debug!(" - Resolving all extends");
-        for extend in extends.iter() {
-            if module.upgrade(context).unwrap().object_signatures.get(extend.name().as_ref()).is_none() {
-                extends_locations.push((extend, extend.resolve(context, &module, None)?));
-            }
-        }
+        execute_vector_resolve(context, module_ref.clone(), &extends)?;
 
         simplelog::debug!(" - Resolving all classes");
-        for class in classes.iter() {
-            if module.upgrade(context).unwrap().object_signatures.get(class.name().as_ref()).is_none() {
-                classes_locations.push((class, class.resolve(context, &module, None)?));
-            }
-        }
+        execute_vector_resolve(context, module_ref.clone(), &classes)?;
 
         simplelog::debug!(" - Resolving all functions");
-        for function in functions.iter() {
-            if module.upgrade(context).unwrap().object_signatures.get(function.name().as_ref()).is_none() {
-                functions_locations.push((function, function.resolve(context, &module, None)?));
-            }
-        }
+        execute_vector_resolve(context, module_ref.clone(), &functions)?;
         
         /* Finish */
-        simplelog::debug!(" - Finishing all uses");
-        for use_item in uses.iter() {
-            use_item.finish(context, &module, TypeLocation::UNDEFINED)?;
-        }
+        simplelog::debug!(" - Resolving all uses");
+        execute_vector_finish(context, module_ref.clone(), uses)?;
 
         simplelog::debug!(" - Finishing all interfaces");
-        for interface in interfaces.iter() {
-            // create a new signature path
-            let module_object = context.modules.get(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-            let signature_path = SignaturePath::owned(format!("{}.{}", module_object.path, interface.name()));
-    
-            //add the signature to the context with full path
-            let location = context.types.location(signature_path.get_raw_path()).unwrap();
-            interface.finish(context, &module, location)?;
-        }
+        execute_vector_finish(context, module_ref.clone(), interfaces)?;
 
         simplelog::debug!(" - Finishing all extends");
-        for extend in extends.iter() {
-            extend.finish(context, &module, TypeLocation::UNDEFINED)?;
-        }
+        execute_vector_finish(context, module_ref.clone(), extends)?;
 
         simplelog::debug!(" - Finishing all classes");
-        for class in classes.iter() {
-            // create a new signature path
-            let module_object = context.modules.get(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
-            let signature_path = SignaturePath::owned(format!("{}.{}", module_object.path, class.name()));
-    
-            //add the signature to the context with full path
-            let location = context.types.location(signature_path.get_raw_path()).unwrap();
-            class.finish(context, &module, location)?;
-        }
+        execute_vector_finish(context, module_ref.clone(), classes)?;
 
         simplelog::debug!(" - Finishing all functions");
-        for function in functions.iter() {
-            // create a new signature path
-            let full_name = function.build_full_name(context, &module, None);
-    
-            //add the signature to the context with full path
-            let location = context.types.location(full_name.as_str()).unwrap();
-            function.finish(context, &module, location)?;
-        }
+        execute_vector_finish(context, module_ref.clone(), functions)?;
     }
 
     Ok(())
 }
 
-fn find_module<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Option<ModuleRef<'base>> {
+fn execute_vector_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, asts: &Vec<&T>) -> Result<(), TirError<'base>> {
+    for item in asts.iter() {
+        execute_resolve(context, module_ref.clone(), item)?;
+    }
+    Ok(())
+}
+
+fn execute_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, ast: &&T) -> Result<(), TirError<'base>> {
+    if module_ref.upgrade(context).unwrap().types.get(ast.name().as_ref()).is_none() {
+        let type_name = format!("{}.{}", module_ref.as_ref(), ast.name());
+        let scope_location = context.create_scope(type_name.into(), module_ref.clone());
+        ast.resolve(context, scope_location)?;
+    }
+    Ok(())
+}
+
+fn execute_vector_finish<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, asts: Vec<&T>) -> Result<(), TirError<'base>> {
+    for item in asts.into_iter() {
+        execute_finish(context, module_ref.clone(), item)?;
+    }
+    Ok(())
+}
+
+fn execute_finish<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, ast: &T) -> Result<(), TirError<'base>> {
+    let type_name = format!("{}.{}", module_ref.as_ref(), ast.name());
+    let scope_location = context.types_scope[type_name.as_str()];
+    ast.finish(context, scope_location)?;
+    Ok(())
+}
+
+fn find_module<'base, K: AsRef<str> + ?Sized>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: &K) -> Option<ModuleRef<'base>> {
     let mut parts = key.as_ref().split('.').peekable();
     let module_name = parts.next()?;
     let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
@@ -240,11 +234,13 @@ fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<
     try_resolve_signature(context, &found_module, signature_name)
 }
 
-pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError<'base>> {
-    let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
+pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError<'base>> {
+    let module = context.modules.get_mut(module_ref.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module_ref.as_ref()));
+    debug!("Searching <on-blue>{}</> in: <on-red>{}</> module", key.as_ref(), module.path.as_ref());
     
-    if let Some(location) = module.object_signatures.get(key.as_ref()) {
-        return Ok(Some(location.clone()));
+    if let Some(location) = module.types.get(key.as_ref()) {
+        debug!("Found <on-blue>{}</> in: <on-red>{}</> module", key.as_ref(), module.path.as_ref());
+        return Ok(Some(*location));
     }
 
     let signature_location = match module.ast_imported_modules.get(key.as_ref()) {
@@ -265,11 +261,15 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         None => return Ok(None),
     };
 
-    if let Some(location) = signature.extra.as_ref().unwrap().upgrade(context).unwrap().object_signatures.get(signature.value.name().as_ref()) {
-        return Ok(Some(location.clone()));
+    let module = signature.extra.as_ref().unwrap().upgrade(context).unwrap();
+    debug!("Module: <on-red>{}</>, Type values: <on-blue>{:?}</>", module.path.as_ref(), module.types.values());
+
+    if let Some(location) = module.types.get(signature.value.name().as_ref()) {
+        debug!("Found <on-blue>{}</> in: <on-red>{}</> module", key.as_ref(), module.path.as_ref());
+        return Ok(Some(*location));
     }
 
-    Ok(Some(context.resolve_from_location(signature_location)?))
+    Ok(Some(context.resolve_from_location(signature_location, &module.get_ref())?))
 }
 
 pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: SignaturePath<'base>) -> Option<AstSignatureLocation> {

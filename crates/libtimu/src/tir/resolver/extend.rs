@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use crate::{
     ast::{ExtendDefinitionAst, ExtendDefinitionFieldAst},
     nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{get_object_location_or_resolve, try_resolve_signature}, TypeSignature, TirError},
+    tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{get_object_location_or_resolve, try_resolve_signature}, scope::ScopeLocation, TirError, TypeSignature},
 };
 
 use super::{build_type_name, ResolveAst, TypeLocation};
@@ -25,18 +25,19 @@ pub struct ExtendDefinition<'base> {
 }
 
 impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, _: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
         let mut extend_fields = IndexMap::<Cow<'_, str>, TypeLocation>::default();
         let mut extend_fields_for_track = IndexMap::<Cow<'_, str>, TypeLocation>::default();
 
-        let class_location = get_object_location_or_resolve(context, &self.name, module_ref)?;
+        let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
+        let class_location = get_object_location_or_resolve(context, &self.name, &module_ref)?;
 
-        self.resolve_fields(context, module_ref, &mut extend_fields, &mut extend_fields_for_track, class_location.clone())?;
-        self.resolve_interfaces(context, module_ref, &extend_fields, &mut extend_fields_for_track)?;
+        self.resolve_fields(context, scope_location, &module_ref, &mut extend_fields, &mut extend_fields_for_track, class_location)?;
+        self.resolve_interfaces(context, &module_ref, &extend_fields, &mut extend_fields_for_track)?;
 
-        let class_binding = context.types.get_mut_from_location(class_location.clone());
+        let class_binding = context.types.get_mut_from_location(class_location);
         let class = match class_binding {
             Some(signature) => match signature.value.as_mut() {
                 TypeValue::Class(class) => class,
@@ -48,7 +49,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         /* Validate */
         if !extend_fields_for_track.is_empty() {
             let first_item = extend_fields_for_track.first().unwrap();
-            let signature = context.types.get_from_location(first_item.1.clone()).unwrap();
+            let signature = context.types.get_from_location(*first_item.1).unwrap();
             return Err(TirError::extra_field_in_interface(signature.position.clone(), signature.file.clone()));
         }
 
@@ -63,7 +64,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         Ok(TypeLocation::UNDEFINED)
     }
     
-    fn finish(&self, _: &mut TirContext<'base>, _: &ModuleRef<'base>, _: TypeLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError<'base>> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         let name = self.name.names.first().unwrap().fragment();
@@ -78,12 +79,12 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
 }
 
 impl<'base> ExtendDefinitionAst<'base> {
-    fn resolve_fields(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &mut IndexMap<Cow<'base, str>, TypeLocation>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>, class_location: TypeLocation) -> Result<(), TirError<'base>> {
+    fn resolve_fields(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &mut IndexMap<Cow<'base, str>, TypeLocation>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>, _: TypeLocation) -> Result<(), TirError<'base>> {
         for field in self.fields.iter() {
             match field {
                 ExtendDefinitionFieldAst::Function(function) => {
-                    let signature = function.resolve(context, module, Some(class_location.clone()))?;
-                    extend_fields.insert((*function.name.fragment()).into(), signature.clone())
+                    let signature = function.resolve(context, scope_location)?;
+                    extend_fields.insert((*function.name.fragment()).into(), signature)
                         .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
                     extend_fields_for_track.insert((*function.name.fragment()).into(), signature);
                 }
@@ -93,7 +94,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                     }
 
                     let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
-                    extend_fields.insert((*field.name.fragment()).into(), field_type.clone())
+                    extend_fields.insert((*field.name.fragment()).into(), field_type)
                         .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
                     extend_fields_for_track.insert((*field.name.fragment()).into(), field_type);
                 }
@@ -131,12 +132,12 @@ impl<'base> ExtendDefinitionAst<'base> {
                 };
 
                 // Check if the field type is the same
-                let defined_field_type = match context.types.get_from_location(extend_field.clone()) {
+                let defined_field_type = match context.types.get_from_location(*extend_field) {
                     Some(field_type) => field_type,
                     None => return Err(TirError::type_not_found(interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone())),
                 };
 
-                let interface_field_type = match context.types.get_from_location(interface_field.1.clone()) {
+                let interface_field_type = match context.types.get_from_location(*interface_field.1) {
                     Some(field_type) => field_type,
                     None => return Err(TirError::type_not_found(interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone())),
                 };
@@ -202,8 +203,8 @@ class TestClass { }
         let testclass = context.types.get("source.TestClass").unwrap();
         if let TypeValue::Class(class) = testclass.value.as_ref() {
             assert_eq!(class.fields.len(), 2);
-            let field1 = context.types.get_from_location(class.fields["test"].clone()).unwrap();
-            let field2 = context.types.get_from_location(class.fields["a"].clone()).unwrap();
+            let field1 = context.types.get_from_location(class.fields["test"]).unwrap();
+            let field2 = context.types.get_from_location(class.fields["a"]).unwrap();
 
             if let TypeValue::Function(function) = field1.value.as_ref() {
                 assert_eq!(*function.name.fragment(), "test");

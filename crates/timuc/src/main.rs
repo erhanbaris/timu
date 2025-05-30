@@ -11,12 +11,13 @@ fn main() -> Result<(), ()> {
         .set_thread_level(LevelFilter::Off)
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
-        let ast = process_code(vec!["source".into()], r#"
-func abc(a:string): string {
-    abc(abc("erhan"));
-}
-"#)?;
-    
-    process_ast(vec![ast.into()])?;
+      
+    let source = process_code(vec!["main".into()],r#"
+    interface Myinterface {
+        a: ?Myinterface;
+        func test(a: Myinterface): Myinterface;
+    }
+    "#,)?;
+    process_ast(vec![source.into()])?;
     Ok(())
 }

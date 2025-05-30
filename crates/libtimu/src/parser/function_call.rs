@@ -17,9 +17,12 @@ use super::TimuParserError;
 
 impl FunctionCallAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
+        //let (input, this) = opt(tag("this")).parse(input)?;
+        
         let (input, (call_span, paths)) = consumed(terminated(
             separated_list1(char('.'), ident()),
             peek(cleanup(char('('))))).parse(input)?;
+        
         let (input, arguments) =
             map(delimited(char('('), cleanup(separated_list0(char(','), ExpressionAst::parse)), context("Missing ')'", cut(char(')')))), |items| {
                 items
@@ -64,6 +67,18 @@ impl Display for FunctionCallAst<'_> {
             }
             write!(f, "{}", path)?;
         }
+        /*
+                match &self.path {
+            FunctionCallType::This(paths) => {
+                if paths.is_empty() {
+                    "this".to_string()
+                } else {
+                    format!("this.{}", paths.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."))
+                }
+            }
+            FunctionCallType::Direct(paths) => paths.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."),
+        };
+         */
         write!(f, "(")?;
         for (i, arg) in self.arguments.iter().enumerate() {
             if i > 0 {
