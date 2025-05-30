@@ -1,4 +1,7 @@
 # timu
+
+[![codecov](https://codecov.io/gh/erhanbaris/timu/graph/badge.svg?token=Q8RBT56K07)](https://codecov.io/gh/erhanbaris/timu)
+
 This is the language for what I would like to work on in the future. It will have many missing features but will add them when needed. My goal is to design a programming language that can solve many problems at compile time. 
 
 ### General design
