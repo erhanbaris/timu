@@ -208,7 +208,8 @@ pub enum FunctionCallType<'base> {
 #[derive(Debug, PartialEq)]
 pub struct FunctionCallAst<'base> {
     pub call_span: Span<'base>,
-    pub paths: Vec<Span<'base>>,
+    pub path: FunctionCallType<'base>,
+    //pub paths: Vec<Span<'base>>,
     pub arguments: Vec<ExpressionAst<'base>>,
 }
 

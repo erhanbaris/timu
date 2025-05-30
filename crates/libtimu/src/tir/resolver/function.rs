@@ -1,12 +1,13 @@
 use std::borrow::Cow;
 
+use strum::EnumProperty;
+use strum_macros::{EnumDiscriminants, EnumProperty};
+
 use crate::{
-    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst},
-    nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature},
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, error::{CustomError, ErrorReport}, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
 };
 
-use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, TypeLocation};
+use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
@@ -28,7 +29,7 @@ pub struct FunctionDefinition<'base> {
 pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>) -> Result<TypeLocation, TirError<'base>> {
     match parent {
         Some(parent) => Ok(*parent),
-        None => Err(TirError::ThisNeedToDefineInClass { position: this.to_range(), source: this.extra.file.clone() }),
+        None => Err(FunctionResolveError::ThisNeedToDefineInClass(this.clone()).into()),
     }
 }
 
@@ -37,19 +38,19 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", full_name.as_str());
 
-        let (module_ref, parent) = {
+        let (module_ref, parent_type, parent_scope,) = {
             let scope = context.get_scope(scope_location).expect("Scope not found, it is a bug");
-            (scope.module_ref.clone(), scope.parent_type)
+            (scope.module_ref.clone(), scope.parent_type, scope.parent_scope)
         };
         let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.extra.file.clone())?;
 
-        let definition = self.build_definition(context, &module_ref, parent, signature_path.clone())?;
+        let definition = self.build_definition(context, scope_location, parent_scope, &module_ref, parent_type, signature_path.clone())?;
 
         let signature = TypeSignature::new(
             TypeValue::Function (definition),
             self.name.extra.file.clone(),
             self.name.to_range(),
-            parent,
+            parent_type,
         );
         
         context.publish_object_location(signature_path, signature);
@@ -59,15 +60,7 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
     fn finish(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<(), TirError<'base>> {        
         /* Parse body */
         for statement in self.body.statements.iter() {
-
-            let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
-            let full_name = format!("{}.{}", module_ref.as_cow(), statement.name());
-            let child_scope_location = context.create_child_scope(full_name.clone().into(), scope_location, None);
-
-            let location = statement.resolve(context, child_scope_location)?;
-            context.get_mut_scope(child_scope_location)
-                .expect("Child scope not found, it is a bug")
-                .set_current_type(location);
+            statement.resolve(context, scope_location)?;
             statement.finish(context, scope_location)?;
         }
 
@@ -98,7 +91,7 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
 }
 
 impl<'base> FunctionDefinitionAst<'base> {
-    fn build_definition(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, parent: Option<TypeLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError<'base>> {
+    fn build_definition(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation, parent_scope: Option<ScopeLocation>, module: &ModuleRef<'base>, parent_type: Option<TypeLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError<'base>> {
         let mut arguments = vec![];
         let return_type = get_object_location_or_resolve(context, &self.return_type, module)?;
 
@@ -106,12 +99,21 @@ impl<'base> FunctionDefinitionAst<'base> {
         for (index, argument) in self.arguments.iter().enumerate() {
             let (argument_name, range, file) = match argument {
                 FunctionArgumentAst::This(this) => {
+                    let parent_type = match parent_type {
+                        Some(parent_type) => parent_type,
+                        None => return Err(FunctionResolveError::ThisNeedToDefineInClass(this.clone()).into())
+                    };
+
+                    let parent_scope = context.get_mut_scope(parent_scope.unwrap()).unwrap();
+
+                    parent_scope.add_variable(this.clone(), parent_type)
+                        .map_err(|_| TirError::already_defined(this.to_range(), this.extra.file.clone()))?;
 
                     if index != 0 {
-                        return Err(TirError::this_argument_must_be_first(this.to_range(), this.extra.file.clone()));
+                        return Err(FunctionResolveError::ThisNeedToDefineInClass(this.clone()).into());
                     }
                     
-                    match context.types.get_signature_from_location(unwrap_for_this(&parent, this)?).unwrap() {
+                    match context.types.get_signature_from_location(unwrap_for_this(&Some(parent_type), this)?).unwrap() {
                         SignatureInfo::Reserved(reservation) => {
                             let reservation = reservation.clone();
                             (reservation.name, reservation.position, reservation.file)
@@ -121,12 +123,19 @@ impl<'base> FunctionDefinitionAst<'base> {
                         }
                     }
                 },
-                FunctionArgumentAst::Argument { name, .. } => (Cow::Borrowed(*name.fragment()), name.to_range(), name.extra.file.clone())
+                FunctionArgumentAst::Argument { name, field_type } => {
+                    let field_type = get_object_location_or_resolve(context, field_type, module)?;
+                    let scope = context.get_mut_scope(scope_location).unwrap();
+
+                    scope.add_variable(name.clone(), field_type)
+                        .map_err(|_| TirError::already_defined(name.to_range(), name.extra.file.clone()))?;
+                    (Cow::Borrowed(*name.fragment()), name.to_range(), name.extra.file.clone())
+                }
             };
             
             let type_name = match argument {
                 FunctionArgumentAst::This(this) => {
-                    match context.types.get_signature_from_location(unwrap_for_this(&parent, this)?).unwrap() {
+                    match context.types.get_signature_from_location(unwrap_for_this(&parent_type, this)?).unwrap() {
                         SignatureInfo::Reserved(reservation) => reservation.name.clone(),
                         SignatureInfo::Value(value) => Cow::Owned(value.value.get_name().to_string())
                     }
@@ -161,6 +170,47 @@ impl<'base> FunctionDefinitionAst<'base> {
         })
     }
 
+}
+
+#[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
+pub enum FunctionResolveError<'base> {
+    #[error("'this' needs to be first argument in function definition")]
+    #[strum(props(code=1))]
+    ThisArgumentMustBeFirst(Span<'base>),
+
+    #[error("'this' need to define in class function")]
+    #[strum(props(code=2))]
+    ThisNeedToDefineInClass(Span<'base>),
+}
+
+
+impl<'base> From<FunctionResolveError<'base>> for TirError<'base> {
+    fn from(value: FunctionResolveError<'base>) -> Self {
+        ResolverError::FunctionResolve(Box::new(value)).into()
+    }
+}
+
+impl CustomError for FunctionResolveError<'_> {
+    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport<'_>> {
+        match self {
+            FunctionResolveError::ThisArgumentMustBeFirst(span) => vec![ErrorReport {
+                position: span.to_range(),
+                message: format!("{}", self),
+                file: span.extra.file.clone(),
+                error_code: self.build_error_code(parent_error_code),
+            }],
+            FunctionResolveError::ThisNeedToDefineInClass(span) => vec![ErrorReport {
+                position: span.to_range(),
+                message: format!("{}", self),
+                file: span.extra.file.clone(),
+                error_code: self.build_error_code(parent_error_code),
+            }],
+        }
+    }
+    
+    fn get_error_code(&self) -> i64 {
+        self.get_int("code").unwrap()
+    }
 }
 
 #[cfg(test)]

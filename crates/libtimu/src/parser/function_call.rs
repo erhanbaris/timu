@@ -1,14 +1,15 @@
 use std::fmt::{Display, Formatter};
 
+use nom::bytes::complete::tag;
 use nom::character::complete::char;
-use nom::combinator::{consumed, cut, map, peek};
+use nom::combinator::{consumed, cut, map, opt, peek};
 use nom::error::context;
 use nom::multi::{separated_list0, separated_list1};
 use nom::sequence::terminated;
 use nom::{IResult, Parser, sequence::delimited};
 
 use crate::ast::{
-    BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallPathAst
+    BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallPathAst, FunctionCallType
 };
 use crate::nom_tools::{Span, cleanup};
 use crate::parser::ident;
@@ -17,7 +18,13 @@ use super::TimuParserError;
 
 impl FunctionCallAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
-        //let (input, this) = opt(tag("this")).parse(input)?;
+        let (input, this) = match opt(tag("this")).parse(input)? {
+            (input, Some(this)) => {
+                let (input, _) = opt(char('.')).parse(input)?;
+                (input, Some(this))
+            },
+            (input, None) => (input, None),
+        };
         
         let (input, (call_span, paths)) = consumed(terminated(
             separated_list1(char('.'), ident()),
@@ -28,11 +35,16 @@ impl FunctionCallAst<'_> {
                 items
             })
             .parse(input)?;
+
         Ok((
             input,
             FunctionCallAst {
                 call_span,
-                paths,
+                path: match this {
+                    Some(_) => FunctionCallType::This(paths),
+                    None => FunctionCallType::Direct(paths),
+                },
+                //paths,
                 arguments,
             },
         ))
@@ -61,14 +73,14 @@ impl FunctionCallAst<'_> {
 
 impl Display for FunctionCallAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for (i, path) in self.paths.iter().enumerate() {
+        /*for (i, path) in self.paths.iter().enumerate() {
             if i > 0 {
                 write!(f, ".")?;
             }
             write!(f, "{}", path)?;
-        }
-        /*
-                match &self.path {
+        }*/
+        
+        let call_path = match &self.path {
             FunctionCallType::This(paths) => {
                 if paths.is_empty() {
                     "this".to_string()
@@ -78,7 +90,7 @@ impl Display for FunctionCallAst<'_> {
             }
             FunctionCallType::Direct(paths) => paths.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."),
         };
-         */
+        write!(f, "{}", call_path)?;
         write!(f, "(")?;
         for (i, arg) in self.arguments.iter().enumerate() {
             if i > 0 {

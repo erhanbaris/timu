@@ -13,10 +13,28 @@ fn main() -> Result<(), ()> {
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
       
     let source = process_code(vec!["main".into()],r#"
-    interface Myinterface {
-        a: ?Myinterface;
-        func test(a: Myinterface): Myinterface;
+interface ITest {
+    func test(a: string): string;
+    a: TestClass;
+}
+
+extend TestClass: ITest {
+    func test(a: string): string {
+        
     }
+    a: TestClass;
+}
+
+class TestClass {
+    func init(this): string {
+        this.test("erhanbaris");
+        this.a.test("baris");
+        abc();
+    }
+}
+
+func abc(): TestClass {
+}
     "#,)?;
     process_ast(vec![source.into()])?;
     Ok(())

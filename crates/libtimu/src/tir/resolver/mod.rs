@@ -1,10 +1,14 @@
 use std::{borrow::Cow, fmt::Debug};
 
+use function::FunctionResolveError;
 use simplelog::debug;
+use statement::FunctionCallError;
+use strum::EnumProperty;
+use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
-use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, scope::ScopeLocation, signature::{LocationTrait, SignaturePath}};
+use super::{ast_signature::AstSignatureValue, context::TirContext, error::{CustomError, TirError}, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
 
 pub mod class;
 pub mod extend;
@@ -294,6 +298,44 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
         false => try_resolve_direct_signature(context, module, key)
     }
 }
+
+
+#[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
+pub enum ResolverError<'base> {
+    #[error("{0}")]
+    #[strum(props(code=1))]
+    FunctionCall(Box<FunctionCallError<'base>>),  
+
+    #[error("{0}")]
+    #[strum(props(code=2))]
+    Scope(Box<ScopeError<'base>>),
+
+    #[error("{0}")]
+    #[strum(props(code=3))]
+    FunctionResolve(Box<FunctionResolveError<'base>>),
+}
+
+
+impl<'base> From<ResolverError<'base>> for TirError<'base> {
+    fn from(value: ResolverError<'base>) -> Self {
+        TirError::ResolverError(Box::new(value))
+    }
+}
+
+impl CustomError for ResolverError<'_> {
+    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport<'_>> {
+        match self {
+            ResolverError::FunctionCall(error) => error.get_errors(&self.build_error_code(parent_error_code)),
+            ResolverError::Scope(error) => error.get_errors(&self.build_error_code(parent_error_code)),
+            ResolverError::FunctionResolve(error) => error.get_errors(&self.build_error_code(parent_error_code)),
+        }
+    }
+    
+    fn get_error_code(&self) -> i64 {
+        self.get_int("code").unwrap()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

@@ -6,7 +6,7 @@ use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::nom_tools::{Span, ToRange};
 
-use super::{error::CustomError, module::ModuleRef, resolver::TypeLocation, signature::LocationTrait, TirContext, TirError};
+use super::{error::CustomError, module::ModuleRef, resolver::{ResolverError, TypeLocation}, signature::LocationTrait, TirContext, TirError};
 
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -31,7 +31,7 @@ impl LocationTrait for ScopeLocation {
 #[derive(Debug, Clone)]
 pub struct Scope<'base> {
     pub module_ref: ModuleRef<'base>,
-    pub variables: IndexMap<Cow<'base, str>, TypeLocation>,
+    variables: IndexMap<Cow<'base, str>, TypeLocation>,
     pub parent_scope: Option<ScopeLocation>,
     pub parent_type: Option<TypeLocation>,
     pub current_type: TypeLocation,
@@ -39,9 +39,9 @@ pub struct Scope<'base> {
 }
 
 impl<'base> Scope<'base> {
-    pub fn new(module: ModuleRef<'base>, parent_scope: Option<ScopeLocation>,  parent_type: Option<TypeLocation>, location: ScopeLocation) -> Self {
+    pub fn new(module_ref: ModuleRef<'base>, parent_scope: Option<ScopeLocation>,  parent_type: Option<TypeLocation>, location: ScopeLocation) -> Self {
         Self {
-            module_ref: module,
+            module_ref,
             variables: IndexMap::new(),
             parent_scope,
             parent_type,
@@ -55,20 +55,20 @@ impl<'base> Scope<'base> {
             return Some(*variable);
         }
 
-        if let Some(parent_scope) = self.parent_scope.and_then(|parent_location| context.get_scope(parent_location)) {
-            return parent_scope.get_variable(context, name);
+        if let Some(type_location) = self.parent_scope.and_then(|parent_location| context.get_scope(parent_location)).and_then(|parent_scope| parent_scope.get_variable(context, name.as_ref())) {
+            return Some(type_location);
         }
 
-        /*let module = self.module.upgrade(context).unwrap();
+        let module = self.module_ref.upgrade(context).unwrap();
         if let Some(type_location) = module.types.get(name.as_ref()) {
-            return Some(type_location.clone());
+            return Some(*type_location);
         }
 
         if let Some(module_ref) = module.modules.get(name.as_ref()) {
             if let Some(type_location) = module.types.get(module_ref.0.as_ref()) {
-                return Some(type_location.clone());
+                return Some(*type_location);
             }
-        }*/
+        }
         
         None
     }
@@ -77,13 +77,10 @@ impl<'base> Scope<'base> {
         if self.variables.contains_key(*name.fragment()) {
             Err(ScopeError::VariableAlreadyDefined(name).into())
         } else {
+            simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>", name.fragment(), location);
             self.variables.insert((*name.fragment()).into(), location);
             Ok(())
         }
-    }
-
-    pub fn reset(&mut self) {
-        self.variables.clear();
     }
 
     pub fn set_current_type(&mut self, type_location: TypeLocation) {
@@ -100,7 +97,7 @@ pub enum ScopeError<'base> {
 
 impl<'base> From<ScopeError<'base>> for TirError<'base> {
     fn from(value: ScopeError<'base>) -> Self {
-        TirError::Scope(Box::new(value))
+        ResolverError::Scope(Box::new(value)).into()
     }
 }
 

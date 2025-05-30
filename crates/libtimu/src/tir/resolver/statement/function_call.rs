@@ -1,7 +1,7 @@
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst}, nom_tools::{Span, ToRange}, tir::{error::{CustomError, ErrorReport}, resolver::{statement::try_resolve_primitive, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeSignature, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::{Span, ToRange}, tir::{error::{CustomError, ErrorReport}, resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeSignature, TypeValue}};
 
 #[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError<'base> {
@@ -20,7 +20,7 @@ pub enum FunctionCallError<'base> {
 
 impl<'base> From<FunctionCallError<'base>> for TirError<'base> {
     fn from(value: FunctionCallError<'base>) -> Self {
-        TirError::FunctionCall(Box::new(value))
+        ResolverError::FunctionCall(Box::new(value)).into()
     }
 }
 
@@ -49,55 +49,42 @@ impl CustomError for FunctionCallError<'_> {
 
 impl<'base> BodyStatementAst<'base> {
     pub fn resolve_function_call(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>) -> Result<TypeLocation, TirError<'base>> {
-        simplelog::debug!("Resolving function call: <u><b>{}(..)</b></u>", function_call.paths.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."));
-        let (module_ref, parent) = {
-            let scope = context.get_scope(scope_location).unwrap();
-            (scope.module_ref.clone(), scope.parent_type)
-        };
-        let module_object = module_ref.upgrade(context).unwrap();
-        let parent_location = parent.unwrap();
-        let parent_object = context.types.get_from_location(parent_location);
-        
-        let (parent_function, function_parent) = match parent_object.map(|signature| (signature.value.as_ref(), signature.extra)) {
-            Some((TypeValue::Function(function), function_parent)) => (function, function_parent),
-            _ => panic!("Parent object is not a function or is missing, {:?}", parent_object),
+        simplelog::debug!("Resolving function call: <u><b>{}(..)</b></u>", function_call.path.call());
+        let (scope, paths, mut callee_object_location) = match &function_call.path {
+            FunctionCallType::Direct(paths) => (context.get_scope(scope_location).unwrap(), paths, TypeLocation::UNDEFINED),
+            FunctionCallType::This(paths) => {
+                let scope =  context.get_scope(scope_location).unwrap();
+                let parent_scope = context.get_scope(scope.parent_scope.unwrap()).expect("Parent scope not found, but this is a bug");
+                (parent_scope, paths, parent_scope.current_type)
+            }
         };
 
-        let mut callee_object_location = function_parent.expect("Parent object is missing, but this is a bug");
-        for (index, path) in function_call.paths.iter().enumerate() {
+        for (index, path) in paths.iter().enumerate() {
+            let path = *path.fragment();
 
-            match *path.fragment() {
-                "this" => continue, // 'this' is handled by the parent object
-                path => {
-                    if index == 0 {
-                        if let Some(argument) = parent_function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
-                            callee_object_location = argument.field_type;
-
-                        } else if let Some(data) = module_object.types.get(path) {
-                            callee_object_location = *data;
-
+            if index == 0 {
+                if let Some(argument) = scope.get_variable(context, path) {
+                    callee_object_location = argument
+                } else {
+                    panic!("Function argument or object not found: '{}'", path);
+                }
+            } else {
+                match context.types.get_from_location(callee_object_location).map(|signature| signature.value.as_ref()) {
+                    Some(TypeValue::Class(class)) => {
+                        if let Some(field) = class.fields.get(path) {
+                            callee_object_location = *field;
                         } else {
-                            panic!("Function argument or object not found: {}", path);
+                            panic!("Field not found in class: {}", path);
                         }
-                    } else {
-                        match context.types.get_from_location(callee_object_location).map(|signature| signature.value.as_ref()) {
-                            Some(TypeValue::Class(class)) => {
-                                if let Some(field) = class.fields.get(path) {
-                                    callee_object_location = *field;
-                                } else {
-                                    panic!("Field not found in class: {}", path);
-                                }
-                            },
-                            Some(TypeValue::Function(function)) => {
-                                if let Some(argument) = function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
-                                    callee_object_location = argument.field_type;
-                                } else {
-                                    panic!("Function argument not found: {}", path);
-                                }
-                            },
-                            _ => panic!("Object location is not a class or function, but this is a bug"),
+                    },
+                    Some(TypeValue::Function(function)) => {
+                        if let Some(argument) = function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
+                            callee_object_location = argument.field_type;
+                        } else {
+                            panic!("Function argument not found: {}", path);
                         }
-                    }
+                    },
+                    value => panic!("Object location is not a class or function, but this is a bug, '{path}, {:?}", value),
                 }
             }
         }
@@ -387,6 +374,16 @@ class TestClass {
 }
 
 func abc(a:string): string {
+}
+"#).unwrap();
+        crate::tir::build(vec![ast.into()]).unwrap();
+    }
+
+    #[test]
+    fn func_call_12() {
+        let ast = process_code(vec!["source".into()], r#"
+func abc(a:string): string {
+    abc(abc("erhan"));
 }
 "#).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap();

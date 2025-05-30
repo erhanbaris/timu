@@ -41,22 +41,18 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
             match field {
                 ClassDefinitionFieldAst::Field(field) => {
                     let field_type = get_object_location_or_resolve(context, &field.field_type, &module_ref)?;
-                    fields.insert((*field.name.fragment()).into(), field_type)
-                        .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
+
+                    fields.insert((*field.name.fragment()).into(), field_type).map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
+                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(field.name.clone(), field_type).unwrap();
                 }
                 ClassDefinitionFieldAst::Function(function) => {
                     let type_name = function.build_full_name(context, BuildFullNameLocater::Module(&module_ref), None);
 
                     let child_scope_location = context.create_child_scope(type_name.into(), scope_location, None);
-                    context
-                        .get_mut_scope(child_scope_location)
-                        .expect("Child scope not found, it is a bug")
-                        .set_current_type(TypeLocation::UNDEFINED);
-
-                    let signature = function.resolve(context, child_scope_location)?;
-                    fields.insert((*function.name.fragment()).into(), signature)
-                        .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
-                    function_signatures.push((signature, function));
+                    let type_location = function.resolve(context, child_scope_location)?;
+                    fields.insert((*function.name.fragment()).into(), type_location).map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
+                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(function.name.clone(), type_location).unwrap();
+                    function_signatures.push((type_location, function));
                 }
             };
         }
@@ -138,7 +134,7 @@ mod tests {
     #[test]
     fn call_interface_function() -> Result<(), ()> {
         let ast = process_code(vec!["source".into()], r#"
-        interface ITest {
+interface ITest {
     func test(): string;
     a: TestClass;
 }

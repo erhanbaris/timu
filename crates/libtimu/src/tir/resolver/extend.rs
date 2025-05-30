@@ -28,14 +28,25 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
-        let mut extend_fields = IndexMap::<Cow<'_, str>, TypeLocation>::default();
+        let mut extend_fields = IndexMap::<Cow<'_, str>, (Span<'base>, TypeLocation)>::default();
         let mut extend_fields_for_track = IndexMap::<Cow<'_, str>, TypeLocation>::default();
 
         let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
         let class_location = get_object_location_or_resolve(context, &self.name, &module_ref)?;
 
-        self.resolve_fields(context, scope_location, &module_ref, &mut extend_fields, &mut extend_fields_for_track, class_location)?;
+        let class_name = context.types.get_from_location(class_location).unwrap().value.get_name();
+        let class_name = format!("{}.{}", module_ref.as_ref(), class_name);
+        let class_scope = *context.types_scope.get(class_name.as_str()).unwrap();
+
+        self.resolve_fields(context, class_name.as_str(), class_scope, &module_ref, &mut extend_fields, &mut extend_fields_for_track, class_location)?;
         self.resolve_interfaces(context, &module_ref, &extend_fields, &mut extend_fields_for_track)?;
+
+        /* Validate */
+        if !extend_fields_for_track.is_empty() {
+            let first_item = extend_fields_for_track.first().unwrap();
+            let signature = context.types.get_from_location(*first_item.1).unwrap();
+            return Err(TirError::extra_field_in_interface(signature.position.clone(), signature.file.clone()));
+        }
 
         let class_binding = context.types.get_mut_from_location(class_location);
         let class = match class_binding {
@@ -46,19 +57,18 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
             None => return Err(TirError::type_not_found(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
         };
 
-        /* Validate */
-        if !extend_fields_for_track.is_empty() {
-            let first_item = extend_fields_for_track.first().unwrap();
-            let signature = context.types.get_from_location(*first_item.1).unwrap();
-            return Err(TirError::extra_field_in_interface(signature.position.clone(), signature.file.clone()));
-        }
-
-        for (key, value) in extend_fields.into_iter() {
-            if class.fields.contains_key(&key) {
+        for (key, (_, value)) in extend_fields.iter() {
+            if class.fields.contains_key(key) {
                 return Err(TirError::already_defined(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone()));
             }
 
-            class.fields.insert(key, value);
+            class.fields.insert(key.clone(), *value);
+        }
+
+
+        let class_scope = context.get_mut_scope(class_scope).expect("Scope not found, it is a bug");
+        for (_, (span, value)) in extend_fields.into_iter() {
+            let _ = class_scope.add_variable(span.clone(), value);
         }
         
         Ok(TypeLocation::UNDEFINED)
@@ -79,14 +89,17 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
 }
 
 impl<'base> ExtendDefinitionAst<'base> {
-    fn resolve_fields(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &mut IndexMap<Cow<'base, str>, TypeLocation>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>, _: TypeLocation) -> Result<(), TirError<'base>> {
+    #[allow(clippy::too_many_arguments)]
+    fn resolve_fields(&self, context: &mut TirContext<'base>, class_name: &str, class_scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &mut IndexMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>, _: TypeLocation) -> Result<(), TirError<'base>> {
         for field in self.fields.iter() {
             match field {
                 ExtendDefinitionFieldAst::Function(function) => {
-                    let signature = function.resolve(context, scope_location)?;
-                    extend_fields.insert((*function.name.fragment()).into(), signature)
+                    let full_name = format!("{}::{}", class_name, function.name()); 
+                    let child_scope_location = context.create_child_scope(full_name.into(), class_scope_location, None);
+                    let class_type_location = function.resolve(context, child_scope_location)?;
+                    extend_fields.insert((*function.name.fragment()).into(), (function.name.clone(), class_type_location))
                         .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
-                    extend_fields_for_track.insert((*function.name.fragment()).into(), signature);
+                    extend_fields_for_track.insert((*function.name.fragment()).into(), class_type_location);
                 }
                 ExtendDefinitionFieldAst::Field(field) => {
                     if field.is_public.is_some() {
@@ -94,7 +107,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                     }
 
                     let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
-                    extend_fields.insert((*field.name.fragment()).into(), field_type)
+                    extend_fields.insert((*field.name.fragment()).into(), (field.name.clone(), field_type))
                         .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
                     extend_fields_for_track.insert((*field.name.fragment()).into(), field_type);
                 }
@@ -104,7 +117,7 @@ impl<'base> ExtendDefinitionAst<'base> {
         Ok(())
     }
     
-    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &IndexMap<Cow<'base, str>, TypeLocation>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>) -> Result<(), TirError<'base>> {
+    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &IndexMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>) -> Result<(), TirError<'base>> {
         for interface_ast in self.base_interfaces.iter() {
             // Find the inferface signature
             let type_name = build_type_name(interface_ast);
@@ -124,7 +137,7 @@ impl<'base> ExtendDefinitionAst<'base> {
             };
 
             for interface_field in interface.fields.iter() {
-                let extend_field = match extend_fields.get(interface_field.0) {
+                let (_, extend_field) = match extend_fields.get(interface_field.0) {
                     Some(defined_field) => defined_field,
 
                     // Field not defined in the extend

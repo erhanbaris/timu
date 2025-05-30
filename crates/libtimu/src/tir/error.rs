@@ -5,7 +5,7 @@ use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::file::SourceFile;
 
-use super::{resolver::statement::FunctionCallError, scope::ScopeError};
+use super::resolver::ResolverError;
 
 #[derive(Debug, EnumDiscriminants, EnumProperty)]
 pub enum TirError<'base> {
@@ -38,18 +38,9 @@ pub enum TirError<'base> {
     
     #[strum(props(code=10))]
     ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
-    
-    #[strum(props(code=11))]
-    ThisNeedToDefineInClass { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
-    
-    #[strum(props(code=12))]
-    ThisArgumentMustBeFirst { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
-    
-    #[strum(props(code=13))]
-    FunctionCall(Box<FunctionCallError<'base>>),  
 
-    #[strum(props(code=14))]
-    Scope(Box<ScopeError<'base>>),
+    #[strum(props(code=11))]
+    ResolverError(Box<ResolverError<'base>>),
 }
 
 pub struct ErrorReport<'base> {
@@ -74,7 +65,7 @@ pub trait CustomError {
 impl CustomError for TirError<'_> {
     fn get_errors(&self, parent_error_code: &str) -> Vec<ErrorReport<'_>> {
         match self {
-            TirError::FunctionCall(error) => error.get_errors(&self.build_error_code(parent_error_code)),
+            TirError::ResolverError(error) => error.get_errors(&self.build_error_code(parent_error_code)),
             _ => {
                 let error = self.get_error();
                 vec![ErrorReport {
@@ -100,8 +91,7 @@ impl Display for TirError<'_> {
                 position: _,
                 source: _,
             } => write!(f, "Import not found: {}", module),
-            TirError::FunctionCall(error) => write!(f, "{}", error),
-            TirError::Scope(error) => write!(f, "{}", error),
+            TirError::ResolverError(error) => write!(f, "{}", error),
             TirError::ModuleAlreadyDefined {
                 source: _,
             } => write!(f, "Module already defined"),
@@ -137,14 +127,6 @@ impl Display for TirError<'_> {
                 source: _,
                 position: _,
             } => write!(f, "Extra field in interface"),
-            TirError::ThisNeedToDefineInClass {
-                source: _,
-                position: _,
-            } => write!(f, "This need to define in class"),
-            TirError::ThisArgumentMustBeFirst {
-                source: _,
-                position: _,
-            } => write!(f, "This need to define in class"),
         }
     }
 }
@@ -201,13 +183,6 @@ impl<'base> TirError<'base> {
         }
     }
 
-    pub fn this_argument_must_be_first(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
-        TirError::ThisArgumentMustBeFirst {
-            position,
-            source,
-        }
-    }
-
     #[allow(dead_code)]
     pub fn get_error(&self) -> (Range<usize>, String, Rc<SourceFile<'_>>) {
         match self {
@@ -216,8 +191,7 @@ impl<'base> TirError<'base> {
                 position,
                 source,
             } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::FunctionCall(_) => unimplemented!("Please use get_errors() for FunctionCallError"),
-            TirError::Scope(_) => unimplemented!("Please use get_errors() for ScopeError"),
+            TirError::ResolverError(_) => unimplemented!("Please use get_errors() for ScopeError"),
             TirError::ModuleAlreadyDefined {
                 source,
             } => (0..0, format!("{}", self), source.clone()),
@@ -250,14 +224,6 @@ impl<'base> TirError<'base> {
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),
             TirError::ExtraFieldInInterface {
-                source,
-                position,
-            } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::ThisNeedToDefineInClass {
-                source,
-                position,
-            } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::ThisArgumentMustBeFirst {
                 source,
                 position,
             } => (position.clone(), format!("{}", self), source.clone()),

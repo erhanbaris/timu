@@ -13,7 +13,7 @@ use crate::{ast::{FileAst, FileStatementAst}, file::SourceFile};
 
 mod ast_signature;
 mod context;
-mod error;
+pub mod error;
 mod module;
 mod object_signature;
 mod resolver;
