@@ -44,7 +44,6 @@ impl FunctionCallAst<'_> {
                     Some(_) => FunctionCallType::This(paths),
                     None => FunctionCallType::Direct(paths),
                 },
-                //paths,
                 arguments,
             },
         ))
@@ -133,6 +132,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(state.file.code(), state);

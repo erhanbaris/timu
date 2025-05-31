@@ -8,13 +8,14 @@ use nom::error::context;
 use nom::multi::many0;
 use nom::{IResult, Parser, sequence::delimited};
 
-use crate::ast::{ClassDefinitionFieldAst, FieldAst, FunctionDefinitionAst};
+use crate::ast::{AstIndex, ClassDefinitionFieldAst, FieldAst, FunctionDefinitionAst};
 use crate::{ast::{ClassDefinitionAst, FileStatementAst}, nom_tools::{cleanup, Span}};
 
 use super::{expected_ident, TimuParserError};
 
 impl ClassDefinitionAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
+        let index = AstIndex(input.extra.indexer.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
         let (input, _) = cleanup(tag("class")).parse(input)?;
         let (input, name) = expected_ident("Missing class name", input)?;
         let (input, _) = context("Class's opening '{' missing", cut(peek(cleanup(char('{'))))).parse(input)?;
@@ -35,6 +36,7 @@ impl ClassDefinitionAst<'_> {
             FileStatementAst::Class(ClassDefinitionAst {
                 name,
                 fields,
+                index
             }.into()),
         ))
     }

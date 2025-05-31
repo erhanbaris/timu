@@ -1,9 +1,7 @@
 use std::{borrow::Cow, rc::Rc};
 
-use indexmap::IndexMap;
-
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::TypeValue, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::TypeValue, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{TypeLocation, ResolveAst};
@@ -19,19 +17,20 @@ pub struct ClassArgument<'base> {
 #[allow(dead_code)]
 pub struct ClassDefinition<'base> {
     pub name: Span<'base>,
-    pub fields: IndexMap<Cow<'base, str>, TypeLocation>,
+    pub fields: TimuHashMap<Cow<'base, str>, TypeLocation>,
     pub extends:Vec<TypeNameAst<'base>>,
 }
 
 impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
+        context.add_ast_scope(self.index, scope_location);
 
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
         let module_ref = context.get_scope(scope_location).expect("Scope not found").module_ref.clone();
 
         let (signature_path, class_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.extra.file.clone())?;
-        let mut fields = IndexMap::<Cow<'_, str>, TypeLocation>::default();
+        let mut fields = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
 
         context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").set_current_type(class_location);
 
@@ -42,7 +41,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
                 ClassDefinitionFieldAst::Field(field) => {
                     let field_type = get_object_location_or_resolve(context, &field.field_type, &module_ref)?;
 
-                    fields.insert((*field.name.fragment()).into(), field_type).map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
+                    fields.validate_insert((*field.name.fragment()).into(), field_type, &field.name)?;
                     context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(field.name.clone(), field_type).unwrap();
                 }
                 ClassDefinitionFieldAst::Function(function) => {
@@ -50,7 +49,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
 
                     let child_scope_location = context.create_child_scope(type_name.into(), scope_location, None);
                     let type_location = function.resolve(context, child_scope_location)?;
-                    fields.insert((*function.name.fragment()).into(), type_location).map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
+                    fields.validate_insert((*function.name.fragment()).into(), type_location, &function.name)?;
                     context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(function.name.clone(), type_location).unwrap();
                     function_signatures.push((type_location, function));
                 }
@@ -60,7 +59,6 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
         let class_signature = TypeSignature::new(TypeValue::Class(ClassDefinition {
             name: self.name.clone(),
             fields,
-            
             extends: Default::default(),
         }), self.name.extra.file.clone(), self.name.to_range(), None);
 

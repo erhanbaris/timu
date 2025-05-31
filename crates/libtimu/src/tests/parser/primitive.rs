@@ -35,6 +35,7 @@ fn parse_primitive_test<'base>(#[case] code: &'base str, #[case] expected: Primi
 
     let state = State {
         file: source_file.clone(),
+        indexer: Default::default(),
     };
 
     let input = Span::new_extra(code, state);
@@ -51,6 +52,7 @@ fn invalid_primitive_test<'base>(#[case] code: &'base str, #[case] expected: &'b
 
     let state = State {
         file: source_file.clone(),
+        indexer: Default::default(),
     };
 
     let input = Span::new_extra(code, state);

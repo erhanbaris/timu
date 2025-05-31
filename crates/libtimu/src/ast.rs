@@ -6,6 +6,9 @@ use crate::{
     parser::splited_path::SplitedPath, tir::PrimitiveType,
 };
 
+#[derive(PartialEq, Debug, Copy, Clone, Eq, PartialOrd, Ord, Hash)]
+pub struct AstIndex(pub usize);
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum PrimitiveValue<'base> {
     String(Cow<'base, str>),
@@ -113,6 +116,7 @@ impl<'base> UseAst<'base> {
 pub struct ClassDefinitionAst<'base> {
     pub name: Span<'base>,
     pub fields: Vec<ClassDefinitionFieldAst<'base>>,
+    pub index: AstIndex,
 }
 
 #[derive(Debug, PartialEq)]
@@ -197,6 +201,7 @@ pub struct FunctionDefinitionAst<'base> {
     pub return_type: TypeNameAst<'base>,
     pub body: BodyAst<'base>,
     pub location: FunctionDefinitionLocationAst<'base>,
+    pub index: AstIndex,
 }
 
 #[derive(Debug, PartialEq)]

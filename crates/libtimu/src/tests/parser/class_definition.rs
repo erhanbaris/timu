@@ -43,6 +43,7 @@ fn custom_class_test<'base>(#[case] code: &'base str, #[case] expected: &'base s
 
     let state = State {
         file: source_file.clone(),
+        indexer: Default::default(),
     };
 
     let (_, response) = crate::parser::parse(state).unwrap();

@@ -1,11 +1,7 @@
 use std::borrow::Cow;
 
-use indexmap::IndexMap;
-
 use crate::{
-    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst},
-    nom_tools::{Span, ToRange},
-    tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature},
+    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
@@ -14,7 +10,7 @@ use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
 #[allow(dead_code)]
 pub struct InterfaceDefinition<'base> {
     pub name: Span<'base>,
-    pub fields: IndexMap<Cow<'base, str>, TypeLocation>,
+    pub fields: TimuHashMap<Cow<'base, str>, TypeLocation>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,7 +32,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), parent);
         let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.extra.file.clone())?;
 
-        let mut fields = IndexMap::<Cow<'_, str>, TypeLocation>::default();
+        let mut fields = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
         
         Self::resolve_interface(context, self, &mut fields, &module_ref, parent)?;
 
@@ -57,7 +53,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
 }
 
 impl<'base> InterfaceDefinitionAst<'base> {
-    fn resolve_interface(context: &mut TirContext<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut IndexMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<(), TirError<'base>>  {
+    fn resolve_interface(context: &mut TirContext<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<(), TirError<'base>>  {
         let interface_path = build_signature_path(context, &interface.name, module);
 
         // Check if the interface is already defined
@@ -73,8 +69,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
             match field {
                 InterfaceDefinitionFieldAst::Function(function) => {
                     let signature = interface.resolve_function(context, module, function, parent)?;
-                    fields.insert((*function.name.fragment()).into(), signature)
-                        .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
+                    fields.validate_insert((*function.name.fragment()).into(), signature, &function.name)?;
                 }
                 InterfaceDefinitionFieldAst::Field(field) => {
                     if field.is_public.is_some() {
@@ -82,8 +77,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                     }
 
                     let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
-                    fields.insert((*field.name.fragment()).into(), field_type)
-                        .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
+                    fields.validate_insert((*field.name.fragment()).into(), field_type, &field.name)?;
                 }
             };
         }
@@ -123,7 +117,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
 
     fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, interface_function: &InterfaceFunctionDefinitionAst<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving interface function: <u><b>{}</b></u>", self.name.fragment());
-                
+      
         let full_name: Cow<'base, str> = Cow::Owned(format!("{}::{}", self.name.fragment(), interface_function.name.fragment()));
         
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
@@ -150,7 +144,8 @@ impl<'base> InterfaceDefinitionAst<'base> {
                 },
                 FunctionArgumentAst::Argument { field_type, .. } => build_type_name(field_type),
             };
-                        let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
+
+            let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
                 Some(field_type) => field_type,
                 None => return Err(TirError::type_not_found(range, file))
             };

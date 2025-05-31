@@ -108,6 +108,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(code, state);
@@ -124,6 +125,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(code, state);
@@ -147,6 +149,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(code, state);
@@ -168,6 +171,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(code, state);
@@ -195,6 +199,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(code, state);
@@ -210,6 +215,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(code, state);

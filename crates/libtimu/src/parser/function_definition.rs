@@ -10,7 +10,7 @@ use nom::{IResult, Parser, sequence::delimited};
 use nom_language::error::{VerboseError, VerboseErrorKind};
 
 use crate::ast::{
-    BodyAst, ClassDefinitionFieldAst, ExtendDefinitionFieldAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst, TypeNameAst
+    AstIndex, BodyAst, ClassDefinitionFieldAst, ExtendDefinitionFieldAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst, TypeNameAst
 };
 use crate::nom_tools::{Span, cleanup};
 use crate::parser::{expected_ident, ident, is_public};
@@ -43,6 +43,7 @@ impl<'base> FunctionDefinitionAst<'base> {
     pub fn parse(
         input: Span<'base>,
     ) -> IResult<Span<'base>, FunctionDefinitionAst<'base>, TimuParserError<'base>> {
+        let index = AstIndex(input.extra.indexer.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
         let (input, is_public) = is_public(input)?;
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
@@ -66,7 +67,8 @@ impl<'base> FunctionDefinitionAst<'base> {
                 arguments,
                 body,
                 return_type,
-                location: FunctionDefinitionLocationAst::Module
+                location: FunctionDefinitionLocationAst::Module,
+                index
             },
         ))
     }

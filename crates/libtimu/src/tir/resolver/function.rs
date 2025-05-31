@@ -4,7 +4,7 @@ use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{
-    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, ToRange}, tir::{context::TirContext, error::{CustomError, ErrorReport}, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, ToRange}, tir::{context::{AstNameInfo, TirContext}, error::{CustomError, ErrorReport}, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
 };
 
 use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
@@ -37,6 +37,8 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", full_name.as_str());
+        context.add_ast_scope(self.index, scope_location);
+        context.add_ast_name(self.index, AstNameInfo::new(self.name(), full_name.clone().into()));
 
         let (module_ref, parent_type, parent_scope,) = {
             let scope = context.get_scope(scope_location).expect("Scope not found, it is a bug");
@@ -105,9 +107,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                     };
 
                     let parent_scope = context.get_mut_scope(parent_scope.unwrap()).unwrap();
-
-                    parent_scope.add_variable(this.clone(), parent_type)
-                        .map_err(|_| TirError::already_defined(this.to_range(), this.extra.file.clone()))?;
+                    parent_scope.add_variable(this.clone(), parent_type)?;
 
                     if index != 0 {
                         return Err(FunctionResolveError::ThisNeedToDefineInClass(this.clone()).into());
@@ -127,8 +127,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                     let field_type = get_object_location_or_resolve(context, field_type, module)?;
                     let scope = context.get_mut_scope(scope_location).unwrap();
 
-                    scope.add_variable(name.clone(), field_type)
-                        .map_err(|_| TirError::already_defined(name.to_range(), name.extra.file.clone()))?;
+                    scope.add_variable(name.clone(), field_type)?;
                     (Cow::Borrowed(*name.fragment()), name.to_range(), name.extra.file.clone())
                 }
             };

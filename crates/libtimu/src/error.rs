@@ -71,6 +71,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let response = parser::parse(state).finish();

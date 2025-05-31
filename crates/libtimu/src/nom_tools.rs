@@ -6,6 +6,7 @@ use nom::sequence::{preceded, terminated};
 use nom::{Parser, sequence::delimited};
 use nom_locate::LocatedSpan;
 use std::rc::Rc;
+use std::sync::atomic::AtomicUsize;
 
 use crate::file::SourceFile;
 use crate::parser::TimuParserError;
@@ -13,6 +14,7 @@ use crate::parser::TimuParserError;
 #[derive(Clone, Debug)]
 pub struct State<'base> {
     pub file: Rc<SourceFile<'base>>,
+    pub indexer: Rc<AtomicUsize>
 }
 
 pub type Span<'base, T = &'base str> = LocatedSpan<T, State<'base>>;

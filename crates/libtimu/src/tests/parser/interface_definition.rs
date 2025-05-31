@@ -31,6 +31,7 @@ fn custom_interface_test<'base>(#[case] code: &'base str, #[case] expected: &'ba
 
     let state = State {
         file: source_file.clone(),
+        indexer: Default::default(),
     };
 
     let (_, response) = crate::parser::parse(state).finish().unwrap();

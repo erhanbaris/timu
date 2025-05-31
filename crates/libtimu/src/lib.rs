@@ -16,6 +16,7 @@ pub mod parser;
 pub mod error;
 pub mod nom_tools;
 pub mod tir;
+pub mod map;
 
 #[cfg(test)]
 mod tests;
@@ -25,6 +26,7 @@ pub fn process_code<'base>(path: Vec<Cow<'base, str>>, code: &'base str) -> Resu
     let file = Rc::new(SourceFile::new(path, code));
     let state = State {
         file,
+        indexer: Default::default(),
     };
 
     let response = parser::parse(state).finish();

@@ -79,6 +79,7 @@ use bar1.bar2.bar3;"#)]
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let (_, response) = crate::parser::parse(state).finish().unwrap();

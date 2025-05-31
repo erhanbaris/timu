@@ -74,13 +74,11 @@ impl<'base> Scope<'base> {
     }
 
     pub fn add_variable(&mut self, name: Span<'base>, location: TypeLocation) -> Result<(), TirError<'base>> {
-        if self.variables.contains_key(*name.fragment()) {
-            Err(ScopeError::VariableAlreadyDefined(name).into())
-        } else {
-            simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>", name.fragment(), location);
-            self.variables.insert((*name.fragment()).into(), location);
-            Ok(())
+        simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>", name.fragment(), location);
+        if self.variables.insert((*name.fragment()).into(), location).is_some() {
+            return Err(TirError::already_defined(name.to_range(), name.extra.file.clone()));
         }
+        Ok(())
     }
 
     pub fn set_current_type(&mut self, type_location: TypeLocation) {

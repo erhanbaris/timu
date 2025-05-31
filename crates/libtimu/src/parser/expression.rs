@@ -252,7 +252,8 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
-        };
+        indexer: Default::default(),
+    };
 
         let input = Span::new_extra(state.file.code(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
@@ -271,6 +272,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(state.file.code(), state);
@@ -296,6 +298,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(state.file.code(), state);

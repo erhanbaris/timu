@@ -18,19 +18,21 @@ interface ITest {
     a: TestClass;
 }
 
+class TestClass {
+    func init(this): string {
+        this.test("erhan");
+        this.test("baris");
+        this.test("timucin");
+        this.a.test("baris");
+        abc();
+    }
+}
+
 extend TestClass: ITest {
     func test(a: string): string {
         
     }
     a: TestClass;
-}
-
-class TestClass {
-    func init(this): string {
-        this.test("erhanbaris");
-        this.a.test("baris");
-        abc();
-    }
 }
 
 func abc(): TestClass {

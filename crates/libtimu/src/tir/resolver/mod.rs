@@ -174,12 +174,12 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<
 
 fn execute_vector_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, asts: &Vec<&T>) -> Result<(), TirError<'base>> {
     for item in asts.iter() {
-        execute_resolve(context, module_ref.clone(), item)?;
+        execute_resolve(context, module_ref.clone(), *item)?;
     }
     Ok(())
 }
 
-fn execute_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, ast: &&T) -> Result<(), TirError<'base>> {
+fn execute_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, ast: &T) -> Result<(), TirError<'base>> {
     if module_ref.upgrade(context).unwrap().types.get(ast.name().as_ref()).is_none() {
         let type_name = format!("{}.{}", module_ref.as_ref(), ast.name());
         let scope_location = context.create_scope(type_name.into(), module_ref.clone());

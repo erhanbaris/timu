@@ -25,6 +25,7 @@ fn custom_variable_test<'base>(#[case] code: &'base str, #[case] expected: &'bas
 
     let state = State {
         file: source_file.clone(),
+        indexer: Default::default(),
     };
 
     let input = Span::new_extra(code, state);

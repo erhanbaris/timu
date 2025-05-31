@@ -111,6 +111,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let (_, response) = crate::parser::parse(state).finish().unwrap();
@@ -125,6 +126,7 @@ mod tests {
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let error = crate::parser::parse(state).finish().unwrap_err();

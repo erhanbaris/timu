@@ -1,11 +1,7 @@
 use std::{borrow::Cow, rc::Rc};
 
-use indexmap::IndexMap;
-
 use crate::{
-    ast::{ExtendDefinitionAst, ExtendDefinitionFieldAst},
-    nom_tools::{Span, ToRange},
-    tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{get_object_location_or_resolve, try_resolve_signature}, scope::ScopeLocation, TirError, TypeSignature},
+    ast::{ExtendDefinitionAst, ExtendDefinitionFieldAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{get_object_location_or_resolve, try_resolve_signature}, scope::ScopeLocation, TirError, TypeSignature}
 };
 
 use super::{build_type_name, ResolveAst, TypeLocation};
@@ -21,15 +17,15 @@ pub struct ExtendArgument<'base> {
 #[allow(dead_code)]
 pub struct ExtendDefinition<'base> {
     pub name: Span<'base>,
-    pub fields: IndexMap<Cow<'base, str>, TypeLocation>,
+    pub fields: TimuHashMap<Cow<'base, str>, TypeLocation>,
 }
 
 impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
-        let mut extend_fields = IndexMap::<Cow<'_, str>, (Span<'base>, TypeLocation)>::default();
-        let mut extend_fields_for_track = IndexMap::<Cow<'_, str>, TypeLocation>::default();
+        let mut extend_fields = TimuHashMap::<Cow<'_, str>, (Span<'base>, TypeLocation)>::default();
+        let mut extend_fields_for_track = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
 
         let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
         let class_location = get_object_location_or_resolve(context, &self.name, &module_ref)?;
@@ -58,17 +54,13 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         };
 
         for (key, (_, value)) in extend_fields.iter() {
-            if class.fields.contains_key(key) {
-                return Err(TirError::already_defined(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone()));
-            }
-
-            class.fields.insert(key.clone(), *value);
+            class.fields.validate_insert(key.clone(), *value, self.name.names.first().unwrap())?;
         }
 
 
         let class_scope = context.get_mut_scope(class_scope).expect("Scope not found, it is a bug");
         for (_, (span, value)) in extend_fields.into_iter() {
-            let _ = class_scope.add_variable(span.clone(), value);
+            class_scope.add_variable(span.clone(), value)?;
         }
         
         Ok(TypeLocation::UNDEFINED)
@@ -90,15 +82,14 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
 
 impl<'base> ExtendDefinitionAst<'base> {
     #[allow(clippy::too_many_arguments)]
-    fn resolve_fields(&self, context: &mut TirContext<'base>, class_name: &str, class_scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &mut IndexMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>, _: TypeLocation) -> Result<(), TirError<'base>> {
+    fn resolve_fields(&self, context: &mut TirContext<'base>, class_name: &str, class_scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &mut TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, _: TypeLocation) -> Result<(), TirError<'base>> {
         for field in self.fields.iter() {
             match field {
                 ExtendDefinitionFieldAst::Function(function) => {
                     let full_name = format!("{}::{}", class_name, function.name()); 
                     let child_scope_location = context.create_child_scope(full_name.into(), class_scope_location, None);
                     let class_type_location = function.resolve(context, child_scope_location)?;
-                    extend_fields.insert((*function.name.fragment()).into(), (function.name.clone(), class_type_location))
-                        .map_or(Ok(()), |_| Err(TirError::already_defined(function.name.to_range(), function.name.extra.file.clone())))?;
+                    extend_fields.validate_insert((*function.name.fragment()).into(), (function.name.clone(), class_type_location), &function.name)?;
                     extend_fields_for_track.insert((*function.name.fragment()).into(), class_type_location);
                 }
                 ExtendDefinitionFieldAst::Field(field) => {
@@ -107,8 +98,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                     }
 
                     let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
-                    extend_fields.insert((*field.name.fragment()).into(), (field.name.clone(), field_type))
-                        .map_or(Ok(()), |_| Err(TirError::already_defined(field.name.to_range(), field.name.extra.file.clone())))?;
+                    extend_fields.validate_insert((*field.name.fragment()).into(), (field.name.clone(), field_type), &field.name)?;
                     extend_fields_for_track.insert((*field.name.fragment()).into(), field_type);
                 }
             };
@@ -117,7 +107,7 @@ impl<'base> ExtendDefinitionAst<'base> {
         Ok(())
     }
     
-    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &IndexMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>) -> Result<(), TirError<'base>> {
+    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut TimuHashMap<Cow<'base, str>, TypeLocation>) -> Result<(), TirError<'base>> {
         for interface_ast in self.base_interfaces.iter() {
             // Find the inferface signature
             let type_name = build_type_name(interface_ast);
@@ -159,7 +149,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                     return Err(TirError::types_do_not_match(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone()));
                 }
 
-                extend_fields_for_track.swap_remove(interface_field.0);
+                extend_fields_for_track.remove(interface_field.0);
             }
         }
 
@@ -216,8 +206,8 @@ class TestClass { }
         let testclass = context.types.get("source.TestClass").unwrap();
         if let TypeValue::Class(class) = testclass.value.as_ref() {
             assert_eq!(class.fields.len(), 2);
-            let field1 = context.types.get_from_location(class.fields["test"]).unwrap();
-            let field2 = context.types.get_from_location(class.fields["a"]).unwrap();
+            let field1 = context.types.get_from_location(*class.fields.get("test").unwrap()).unwrap();
+            let field2 = context.types.get_from_location(*class.fields.get("a").unwrap()).unwrap();
 
             if let TypeValue::Function(function) = field1.value.as_ref() {
                 assert_eq!(*function.name.fragment(), "test");

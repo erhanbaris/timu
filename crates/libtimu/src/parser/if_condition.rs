@@ -99,6 +99,7 @@ else if false {}
 
         let state = State {
             file: source_file.clone(),
+            indexer: Default::default(),
         };
 
         let input = Span::new_extra(state.file.code(), state);
