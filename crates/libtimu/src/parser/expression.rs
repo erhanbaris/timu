@@ -231,8 +231,6 @@ impl Display for ExpressionOperatorType {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use rstest::rstest;
 
     use crate::{ast::ExpressionAst, file::SourceFile, nom_tools::{Span, State}};
@@ -248,14 +246,14 @@ mod tests {
     #[case("  \r\n\t  1 \r\n\t/\r\n\t 2  \r\n\t", "(1 / 2)")]
     #[case("2*2/ 2 * 22 - 2 - ( 5 - 1) + 3", "((((((2 * 2) / 2) * 22) - 2) - (5 - 1)) + 3)")]
     fn binary_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+        let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
         let state = State {
             file: source_file.clone(),
         indexer: Default::default(),
     };
 
-        let input = Span::new_extra(state.file.code(), state);
+        let input = Span::new_extra(source_file.code().as_str(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }
@@ -268,14 +266,14 @@ mod tests {
     #[case("!call(10)", "!call(10)")]
     #[case("!call(10) - 20", "(!call(10) - 20)")]
     fn not_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+        let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
         let state = State {
             file: source_file.clone(),
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(state.file.code(), state);
+        let input = Span::new_extra(source_file.code().as_str(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }
@@ -294,14 +292,14 @@ mod tests {
     #[case("20 % 10 != 10 || 30 <= 20", "(((20 % 10) != 10) || (30 <= 20))")]
     #[case("20 ^ 10 | 30", "(20 ^ (10 | 30))")]
     fn general_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+        let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
         let state = State {
             file: source_file.clone(),
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(state.file.code(), state);
+        let input = Span::new_extra(source_file.code().as_str(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }

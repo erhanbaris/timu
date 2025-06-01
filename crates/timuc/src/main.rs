@@ -1,4 +1,4 @@
-use libtimu::{process_ast, process_code};
+use libtimu::{file::SourceFile, nom_tools::State, process_ast, process_code};
 use log::LevelFilter;
 use simplelog::{ColorChoice, CombinedLogger, ConfigBuilder, LevelPadding, TermLogger, TerminalMode, ThreadLogMode};
 
@@ -11,8 +11,8 @@ fn main() -> Result<(), ()> {
         .set_thread_level(LevelFilter::Off)
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
-      
-    let source = process_code(vec!["main".into()],r#"
+
+    let code = r#"
 interface ITest {
     func test(a: string): string;
     a: TestClass;
@@ -37,7 +37,14 @@ extend TestClass: ITest {
 
 func abc(): TestClass {
 }
-    "#,)?;
+    "#;
+    let file = SourceFile::new(vec!["main".into()], code.to_string());
+    let state = State {
+        file,
+        indexer: Default::default(),
+    };
+
+    let source = process_code(&state)?;
     process_ast(vec![source.into()])?;
     Ok(())
 }

@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::nom_tools::{Span, ToRange};
+use crate::nom_tools::{Span, SpanInfo, ToRange};
 
 use super::{error::CustomError, module::ModuleRef, resolver::{ResolverError, TypeLocation}, signature::LocationTrait, TirContext, TirError};
 
@@ -73,7 +73,7 @@ impl<'base> Scope<'base> {
         None
     }
 
-    pub fn add_variable(&mut self, name: Span<'base>, location: TypeLocation) -> Result<(), TirError<'base>> {
+    pub fn add_variable(&mut self, name: Span<'base>, location: TypeLocation) -> Result<(), TirError> {
         simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>", name.fragment(), location);
         if self.variables.insert((*name.fragment()).into(), location).is_some() {
             return Err(TirError::already_defined(name.to_range(), name.extra.file.clone()));
@@ -87,26 +87,26 @@ impl<'base> Scope<'base> {
 }
 
 #[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
-pub enum ScopeError<'base> {
-    #[error("Variable already defined: {0}")]
+pub enum ScopeError {
+    #[error("Variable already defined")]
     #[strum(props(code=1))]
-    VariableAlreadyDefined(Span<'base>),
+    VariableAlreadyDefined(SpanInfo),
 }
 
-impl<'base> From<ScopeError<'base>> for TirError<'base> {
-    fn from(value: ScopeError<'base>) -> Self {
+impl From<ScopeError> for TirError {
+    fn from(value: ScopeError) -> Self {
         ResolverError::Scope(Box::new(value)).into()
     }
 }
 
-impl CustomError for ScopeError<'_> {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport<'_>> {
+impl CustomError for ScopeError {
+    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport> {
         match self {
             ScopeError::VariableAlreadyDefined(span) => {
                 vec![crate::tir::error::ErrorReport {
-                    position: span.to_range(),
+                    position: span.position.clone(),
                     message: format!("{}", self),
-                    file: span.extra.file.clone(),
+                    file: span.file.clone(),
                     error_code: self.build_error_code(parent_error_code),
                 }]
             }

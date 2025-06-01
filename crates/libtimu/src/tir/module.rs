@@ -11,7 +11,7 @@ pub struct Module<'base> {
     #[allow(dead_code)]
     pub name: Cow<'base, str>,
     pub path: Cow<'base, str>,
-    pub file: Rc<SourceFile<'base>>,
+    pub file: SourceFile,
     pub ast_signatures: IndexMap<SignaturePath<'base>, AstSignatureLocation>,
     pub ast_imported_modules: IndexMap<Cow<'base, str>, AstSignatureLocation>,
     pub types: IndexMap<SignaturePath<'base>, TypeLocation>,
@@ -20,7 +20,7 @@ pub struct Module<'base> {
 }
 
 impl<'base> Module<'base> {
-    pub fn new(name: Cow<'base, str>, path: Cow<'base, str>, file: Rc<SourceFile<'base>>, ast: Rc<FileAst<'base>>) -> Self {
+    pub fn new(name: Cow<'base, str>, path: Cow<'base, str>, file: SourceFile, ast: Rc<FileAst<'base>>) -> Self {
         Self {
             name,
             path,
@@ -33,7 +33,7 @@ impl<'base> Module<'base> {
         }
     }
 
-    pub fn phantom(name: Cow<'base, str>, path: Cow<'base, str>, file: Rc<SourceFile<'base>>) -> Self {
+    pub fn phantom(name: Cow<'base, str>, path: Cow<'base, str>, file: SourceFile) -> Self {
         Self {
             name,
             path,
@@ -57,10 +57,10 @@ impl<'base> Module<'base> {
     
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ModuleRef<'base>(pub Cow<'base, str>, Rc<SourceFile<'base>>);
+pub struct ModuleRef<'base>(pub Cow<'base, str>, SourceFile);
 
 impl<'base> ModuleRef<'base> {
-    pub fn new(path: Cow<'base, str>, file: Rc<SourceFile<'base>>) -> Self {
+    pub fn new(path: Cow<'base, str>, file: SourceFile) -> Self {
         ModuleRef(path, file)
     }
 
@@ -68,7 +68,7 @@ impl<'base> ModuleRef<'base> {
         context.modules.get(self.0.as_ref())
     }
 
-    pub fn file(&self) -> Rc<SourceFile<'base>> {
+    pub fn file(&self) -> SourceFile {
         self.1.clone()
     }
 

@@ -43,8 +43,6 @@ impl Display for RefAst<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use rstest::rstest;
 
     use crate::{ast::RefAst, file::SourceFile, nom_tools::{Span, State}};
@@ -55,14 +53,14 @@ mod tests {
     #[case(" & a ", "&a")]
     #[case("&a . b  ", "&a.b")]
     fn reference_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+        let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
         let state = State {
             file: source_file.clone(),
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(state.file.code(), state);
+        let input = Span::new_extra(source_file.code().as_str(), state);
         let (_, response) = RefAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }

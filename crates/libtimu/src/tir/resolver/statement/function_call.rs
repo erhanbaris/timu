@@ -1,36 +1,36 @@
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::{Span, ToRange}, tir::{error::{CustomError, ErrorReport}, resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeSignature, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::SpanInfo, tir::{error::{CustomError, ErrorReport}, resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
 #[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
-pub enum FunctionCallError<'base> {
-    #[error("Unsupported argument type in function call: {0}")]
+pub enum FunctionCallError {
+    #[error("Unsupported argument type in function call")]
     #[strum(props(code=1))]
-    UnsupportedArgumentType(Span<'base>),
+    UnsupportedArgumentType(SpanInfo),
 
     #[error("Function call argument count mismatch: expected {expected}, got {got}")]
     #[strum(props(code=2))]
     FunctionCallArgumentCountMismatch {
         expected: usize,
-        expected_source: TypeSignature<'base>,
+        expected_source: SpanInfo,
         got: usize,
     },
 }
 
-impl<'base> From<FunctionCallError<'base>> for TirError<'base> {
-    fn from(value: FunctionCallError<'base>) -> Self {
+impl From<FunctionCallError> for TirError {
+    fn from(value: FunctionCallError) -> Self {
         ResolverError::FunctionCall(Box::new(value)).into()
     }
 }
 
-impl CustomError for FunctionCallError<'_> {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport<'_>> {
+impl CustomError for FunctionCallError {
+    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport> {
         match self {
             FunctionCallError::UnsupportedArgumentType(span) => vec![ErrorReport {
-                position: span.to_range(), // Placeholder, should be replaced with actual position
+                position: span.position.clone(), // Placeholder, should be replaced with actual position
                 message: format!("{}", self),
-                file: span.extra.file.clone(),
+                file: span.file.clone(),
                 error_code: self.get_int("code").unwrap().to_string(),
             }],
             FunctionCallError::FunctionCallArgumentCountMismatch { expected_source, .. } => vec![ErrorReport {
@@ -48,7 +48,7 @@ impl CustomError for FunctionCallError<'_> {
 }
 
 impl<'base> BodyStatementAst<'base> {
-    pub fn resolve_function_call(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>) -> Result<TypeLocation, TirError<'base>> {
+    pub fn resolve_function_call(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>) -> Result<TypeLocation, TirError> {
         simplelog::debug!("Resolving function call: <u><b>{}(..)</b></u>", function_call.path.call());
         let (scope, paths, mut callee_object_location) = match &function_call.path {
             FunctionCallType::Direct(paths) => (context.get_scope(scope_location).unwrap(), paths, TypeLocation::UNDEFINED),
@@ -95,7 +95,7 @@ impl<'base> BodyStatementAst<'base> {
                 ExpressionAst::FunctionCall(func_call) => Self::resolve_function_call(context, scope_location, func_call)?,
                 ExpressionAst::Primitive { span, value } => try_resolve_primitive(context, value, span)?,
                 _ => {
-                    return Err(FunctionCallError::UnsupportedArgumentType(function_call.call_span.clone()).into());
+                    return Err(FunctionCallError::UnsupportedArgumentType(function_call.call_span.clone().into()).into());
                 }
             };
 
@@ -115,7 +115,7 @@ impl<'base> BodyStatementAst<'base> {
             return Err(FunctionCallError::FunctionCallArgumentCountMismatch {
                 expected: callee.arguments.len(),
                 got: arguments.len(),
-                expected_source: callee_object.clone() 
+                expected_source: SpanInfo::new(callee_object.position.clone(), callee_object.file.clone()) 
             }.into());
         }
 
@@ -134,11 +134,11 @@ impl<'base> BodyStatementAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::process_code;
+    use crate::{file::SourceFile, nom_tools::State, process_code};
 
     #[test]
     fn func_call_1() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
     func init(this): string {
@@ -148,14 +148,15 @@ class TestClass {
 
 func abc(): string {
 }
-"#)?;
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn func_call_2() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
     func init(this): string {
@@ -169,14 +170,15 @@ class TestClass {
 
 func abc(): string {
 }
-"#)?;
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn func_call_3() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
     func init(this): string {
@@ -186,10 +188,11 @@ class TestClass {
     func abc(a: string): string {
     }
 }
-"#)?;
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap();
 
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
         class TestClass {
             func init(this): string {
@@ -198,14 +201,15 @@ class TestClass {
             func abc(a: string, b: string): string {
             }
         }
-        "#)?;
+        "#.to_string()));
+        let ast = process_code(&state).unwrap();
                 crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn func_call_4() {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
     func init(this): string {
@@ -215,13 +219,14 @@ class TestClass {
     func abc(a: string): string {
     }
 }
-"#).unwrap();
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap_err();
     }
 
     #[test]
     fn func_call_5() {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
     func init(this): string {
@@ -231,14 +236,15 @@ class TestClass {
     func abc(): string {
     }
 }
-"#).unwrap();
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap_err();
     }
 
     #[test]
     #[should_panic]
     fn func_call_6() {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
     func init(this): string {
@@ -248,13 +254,14 @@ class TestClass {
     func abc(): string {
     }
 }
-"#).unwrap();
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap_err();
     }
 
     #[test]
     fn func_call_7() {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 interface ITest {
     func test(a: string): string;
@@ -279,14 +286,15 @@ class TestClass {
 func abc(): TestClass {
 }
 
-"#).unwrap();
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn func_call_8() {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
     func init(this): string {
@@ -296,14 +304,15 @@ class TestClass {
     func abc(a: i32): string {
     }
 }
-"#).unwrap();
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap_err();
     }
 
     #[test]
     #[should_panic]
     fn func_call_9() {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 class TestClass {
     func init(this): string {
         this.abc();
@@ -316,14 +325,15 @@ class TestClass {
 
 func abc(): string {
 }
-"#).unwrap();
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap_err();
     }
 
     #[test]
     #[should_panic]
     fn func_call_10() {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest {
     func test(a: string): string;
     a: TestClass;
@@ -346,13 +356,14 @@ class TestClass {
 
 func abc(a:string): TestClass {
 }
-"#).unwrap();
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap_err();
     }
 
     #[test]
     fn func_call_11() {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest {
     func test(a: string): string;
     a: TestClass;
@@ -375,17 +386,19 @@ class TestClass {
 
 func abc(a:string): string {
 }
-"#).unwrap();
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap();
     }
 
     #[test]
     fn func_call_12() {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 func abc(a:string): string {
     abc(abc("erhan"));
 }
-"#).unwrap();
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap();
     }
 }

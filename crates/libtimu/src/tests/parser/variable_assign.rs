@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use pretty_assertions::assert_eq;
 use rstest::*;
 
@@ -21,7 +19,7 @@ use crate::{file::SourceFile, nom_tools::State};
 #[case("a = -1.2;", "a = -1.2;")]
 #[case("a = b(-1.2);", "a = b(-1.2);")]
 fn custom_variable_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-    let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+    let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
     let state = State {
         file: source_file.clone(),

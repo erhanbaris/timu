@@ -21,7 +21,7 @@ pub struct ExtendDefinition<'base> {
 }
 
 impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
         let mut extend_fields = TimuHashMap::<Cow<'_, str>, (Span<'base>, TypeLocation)>::default();
@@ -66,7 +66,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         Ok(TypeLocation::UNDEFINED)
     }
     
-    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         let name = self.name.names.first().unwrap().fragment();
@@ -82,7 +82,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
 
 impl<'base> ExtendDefinitionAst<'base> {
     #[allow(clippy::too_many_arguments)]
-    fn resolve_fields(&self, context: &mut TirContext<'base>, class_name: &str, class_scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &mut TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, _: TypeLocation) -> Result<(), TirError<'base>> {
+    fn resolve_fields(&self, context: &mut TirContext<'base>, class_name: &str, class_scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &mut TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, _: TypeLocation) -> Result<(), TirError> {
         for field in self.fields.iter() {
             match field {
                 ExtendDefinitionFieldAst::Function(function) => {
@@ -107,7 +107,7 @@ impl<'base> ExtendDefinitionAst<'base> {
         Ok(())
     }
     
-    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut TimuHashMap<Cow<'base, str>, TypeLocation>) -> Result<(), TirError<'base>> {
+    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut TimuHashMap<Cow<'base, str>, TypeLocation>) -> Result<(), TirError> {
         for interface_ast in self.base_interfaces.iter() {
             // Find the inferface signature
             let type_name = build_type_name(interface_ast);
@@ -159,48 +159,52 @@ impl<'base> ExtendDefinitionAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{process_code, tir::object_signature::TypeValue};
+    use crate::{file::SourceFile, nom_tools::State, process_code, tir::object_signature::TypeValue};
 
     #[test]
     fn empty_interface() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest {}
 extend TestClass: ITest {}
 class TestClass {}
-    "#)?;
+    "#.to_string()));    
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn dublicate_field_1() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { a: TestClass; }
 extend TestClass: ITest { a: TestClass; }
 class TestClass { a: TestClass; }
-    "#)?;
+    "#.to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn dublicate_field_2() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(): TestClass { } }
 class TestClass { func test(): TestClass { } }
-    "#)?;
+    "#.to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn extended_fields() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; a: TestClass; }
 extend TestClass: ITest { func test(): TestClass { } a: TestClass; }
 class TestClass { }
-    "#)?;
+    "#.to_string()));
+        let ast = process_code(&state)?;
         let context = crate::tir::build(vec![ast.into()]).unwrap();
 
         let testclass = context.types.get("source.TestClass").unwrap();
@@ -229,41 +233,44 @@ class TestClass { }
 
     #[test]
     fn missing_definition() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; a: TestClass; }
 extend TestClass: ITest { func test(): TestClass { } }
 class TestClass { }
-    "#)?;
+    "#.to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn interface_and_extend_informations_different_1() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(a: TestClass): TestClass { } }
 class TestClass { }
-    "#)?;
+    "#.to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn interface_and_extend_informations_different_2() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(): TmpClass { } }
 class TestClass { }
 class TmpClass { }
-    "#)?;
+    "#.to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn multiple_interface_validation_1() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 interface Interface2 { func world(): TestClass; }
 
@@ -271,69 +278,74 @@ extend TestClass: Interface1 { func hello(): TestClass { } }
 extend TestClass: Interface2 { func world(): TestClass { } }
 
 class TestClass { }
-    "#)?;
+    "#.to_string()));    
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn multiple_interface_validation_2() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 interface Interface2 { func world(): TestClass; }
 
 extend TestClass: Interface1, Interface2 { func hello(): TestClass { } func world(): TestClass { } }
 
 class TestClass { }
-    "#)?;
+    "#.to_string()));    
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn multiple_interface_missing_field() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 interface Interface2 { func world(): TestClass; }
 
 extend TestClass: Interface1, Interface2 { func hello(): TestClass { } }
 
 class TestClass { }
-    "#)?;
+    "#.to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn multiple_interface_validation_3() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface2 { func world(): TestClass; }
 interface Interface1: Interface2 { func hello(): TestClass; }
 
 extend TestClass: Interface1 { func hello(): TestClass { } func world(): TestClass { } }
 
 class TestClass { }
-    "#)?;
+    "#.to_string()));    
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn multiple_interface_validation_4() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 
 extend TestClass: Interface1 { func hello(): TestClass { } func world(): TestClass { } }
 
 class TestClass { }
-    "#)?;
+    "#.to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn multiple_interface_validation_5() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface3 { func test(): TestClass; }
 interface Interface2 { func world(): TestClass; }
 interface Interface1: Interface2, Interface3 { func hello(): TestClass; }
@@ -341,14 +353,15 @@ interface Interface1: Interface2, Interface3 { func hello(): TestClass; }
 extend TestClass: Interface1 { func hello(): TestClass { } func world(): TestClass { } func test(): TestClass { } }
 
 class TestClass { }
-    "#)?;
+    "#.to_string()));    
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn multiple_interface_validation_6() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface3 { func test(): TestClass; }
 interface Interface2: Interface3 { func world(): TestClass; }
 interface Interface1: Interface2 { func hello(): TestClass; }
@@ -356,14 +369,15 @@ interface Interface1: Interface2 { func hello(): TestClass; }
 extend TestClass: Interface1 { func hello(): TestClass { } func world(): TestClass { } func test(): TestClass { } }
 
 class TestClass { }
-    "#)?;
+    "#.to_string()));    
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn multiple_interface_validation_7() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface3 { func test(): TestClass; }
 interface Interface2: Interface3 { func world(): TestClass; }
 interface Interface1: Interface2, Interface3 { func hello(): TestClass; }
@@ -371,7 +385,8 @@ interface Interface1: Interface2, Interface3 { func hello(): TestClass; }
 extend TestClass: Interface1 { func hello(): TestClass { } func world(): TestClass { } func test(): TestClass { } }
 
 class TestClass { }
-    "#)?;
+    "#.to_string()));    
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }

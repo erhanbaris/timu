@@ -58,8 +58,6 @@ impl Display for UseAst<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use nom::Finish;
     use rstest::rstest;
 
@@ -75,14 +73,14 @@ mod tests {
 use bar1.bar2.bar3;"#, r#"use foo1.foo2.foo3;
 use bar1.bar2.bar3;"#)]
     fn module_use_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+        let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
         let state = State {
             file: source_file.clone(),
             indexer: Default::default(),
         };
 
-        let (_, response) = crate::parser::parse(state).finish().unwrap();
+        let (_, response) = crate::parser::parse(&state).finish().unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }
 }

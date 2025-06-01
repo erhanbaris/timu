@@ -113,8 +113,6 @@ impl Display for FunctionCallPathAst<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use rstest::rstest;
 
     use crate::{ast::FunctionCallAst, file::SourceFile, nom_tools::{Span, State}};
@@ -128,14 +126,14 @@ mod tests {
     #[case("  a ( b ( ) ) ", "a(b())")]
     #[case("a(b(1,2,3,4,true,false,1.2,2.2, c()))", "a(b(1, 2, 3, 4, true, false, 1.2, 2.2, c()))")]
     fn function_call_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+        let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
         let state = State {
             file: source_file.clone(),
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(state.file.code(), state);
+        let input = Span::new_extra(source_file.code().as_str(), state);
         let (_, response) = FunctionCallAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }

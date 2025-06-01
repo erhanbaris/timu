@@ -5,19 +5,57 @@ use nom::combinator::cut;
 use nom::sequence::{preceded, terminated};
 use nom::{Parser, sequence::delimited};
 use nom_locate::LocatedSpan;
-use std::rc::Rc;
+use std::ops::Range;
 use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
 
 use crate::file::SourceFile;
 use crate::parser::TimuParserError;
 
 #[derive(Clone, Debug)]
-pub struct State<'base> {
-    pub file: Rc<SourceFile<'base>>,
-    pub indexer: Rc<AtomicUsize>
+pub struct State {
+    pub file: SourceFile,
+    pub indexer: Arc<AtomicUsize>
 }
 
-pub type Span<'base, T = &'base str> = LocatedSpan<T, State<'base>>;
+impl State {
+    pub fn new(file: SourceFile) -> Self {
+        Self {
+            file,
+            indexer: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+}
+
+pub type Span<'base, T = &'base str> = LocatedSpan<T, State>;
+
+#[derive(Clone, Debug)]
+pub struct SpanInfo {
+    pub position: Range<usize>,
+    pub file: SourceFile,
+}
+
+impl SpanInfo {
+    pub fn new(position: Range<usize>, file: SourceFile) -> Self {
+        Self { position, file }
+    }
+}
+
+impl From<Span<'_>> for SpanInfo {
+    fn from(span: Span<'_>) -> Self {
+        let position = span.to_range();
+        let file = span.extra.file.clone();
+        Self { position, file }
+    }
+}
+
+impl From<&Span<'_>> for SpanInfo {
+    fn from(span: &Span<'_>) -> Self {
+        let position = span.to_range();
+        let file = span.extra.file.clone();
+        Self { position, file }
+    }
+}
 
 pub trait ToRange {
     fn to_range(&self) -> std::ops::Range<usize>;

@@ -2,7 +2,7 @@ use core::panic;
 use std::borrow::Cow;
 
 use crate::{
-    ast::{BodyStatementAst, PrimitiveValue}, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::TypeValue, scope::ScopeLocation, signature::SignaturePath, TirError}
+    ast::{BodyStatementAst, PrimitiveValue}, nom_tools::{Span, ToRange}, tir::{context::TirContext, error::TypeNotFound, object_signature::TypeValue, scope::ScopeLocation, signature::SignaturePath, TirError}
 };
 
 use super::{ResolveAst, TypeLocation};
@@ -28,14 +28,14 @@ pub struct ClassFunctionSignature<'base> {
 }
 
 impl<'base> ResolveAst<'base> for BodyStatementAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         match self {
             BodyStatementAst::FunctionCall(function_call) => Self::resolve_function_call(context, scope_location, function_call),
             _ => panic!("Unsupported BodyStatementAst variant: {:?}", self),
         }
     }
     
-    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError<'base>> {
+    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError> {
         Ok(())
     }
     
@@ -44,37 +44,36 @@ impl<'base> ResolveAst<'base> for BodyStatementAst<'base> {
     }
 }
 
-pub fn try_resolve_primitive<'base>(context: &mut TirContext<'base>, primitive: &PrimitiveValue<'base>, span: &Span<'base>) -> Result<TypeLocation, TirError<'base>> {
+pub fn try_resolve_primitive<'base>(context: &mut TirContext<'base>, primitive: &PrimitiveValue<'base>, span: &Span<'base>) -> Result<TypeLocation, TirError> {
     let location = context.types.find_by_value(&TypeValue::PrimitiveType(primitive.to_type()));
     match location {
         Some(location) => Ok(location),
-        None => Err(TirError::TypeNotFound { source: span.extra.file.clone(), position: span.to_range() }),
+        None => Err(TirError::TypeNotFound(TypeNotFound { source: span.extra.file.clone(), position: span.to_range() }.into())),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{process_ast, process_code, tir::TirError};
+    use crate::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
 
     #[test]
     fn missing_type_1() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "func test(): a {} ")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "func test(): a {} ".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn dublicated_function_argument() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ".to_string()));
+        let ast = process_code(&state)?;
         let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
-        if let TirError::AlreadyDefined {
-            position,
-            source,
-        } = error
+        if let TirError::AlreadyDefined(error) = error
         {
-            assert_eq!(position, 27..28);
-            assert_eq!(source.path().join("/"), "source");
+            assert_eq!(error.position, 27..28);
+            assert_eq!(error.source.path().join("/"), "source");
         } else {
             panic!("Expected TirError::AlreadyDefined but got {:?}", error);
         }
@@ -84,11 +83,13 @@ mod tests {
     #[test]
     fn valid_types() -> Result<(), ()> {
         
-        let source_1 = process_code(vec!["lib".into()], " class testclass1 {} ")?;
-        let source_2 = process_code(vec!["main".into()],
+        let state_1 = State::new(SourceFile::new(vec!["lib".into()], " class testclass1 {} ".to_string()));
+        let state_2 = State::new(SourceFile::new(vec!["main".into()],
             r#"use lib.testclass1 as test;
-    func main(a: test): test {}"#,
-        )?;
+    func main(a: test): test {}"#.to_string()));
+        
+        let source_1 = process_code(&state_1)?;
+        let source_2 = process_code(&state_2)?;
 
         let context = process_ast(vec![source_2.into(), source_1.into()])?;
         assert_eq!(context.modules.len(), 2);
@@ -109,14 +110,16 @@ mod tests {
 
     #[test]
     fn missing_type_2() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "func test(a: a): test {}")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "func test(a: a): test {}".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn not_in_class() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "func test(this): test {}")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "func test(this): test {}".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }

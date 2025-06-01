@@ -5,7 +5,7 @@ use simplelog::{debug, error};
 
 use crate::{
     ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst},
-    nom_tools::ToRange,
+    nom_tools::ToRange, tir::error::ModuleAlreadyDefined,
 };
 
 use super::{
@@ -34,7 +34,7 @@ impl<'base> AsMut<AstSignatureValue<'base>> for AstSignatureValue<'base> {
 }
 
 impl<'base> ResolveAst<'base> for AstSignatureValue<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         match self {
             AstSignatureValue::Module(target_module) => target_module.resolve(context, scope_location),
             AstSignatureValue::Class(class) => class.resolve(context, scope_location),
@@ -44,7 +44,7 @@ impl<'base> ResolveAst<'base> for AstSignatureValue<'base> {
         }
     }
 
-    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         match self {
@@ -57,8 +57,8 @@ impl<'base> ResolveAst<'base> for AstSignatureValue<'base> {
     }
 }
 
-pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'base>>) -> Result<(), TirError<'base>> {
-    let module_path = ast.file.path().clone();
+pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'base>>) -> Result<(), TirError> {
+    let module_path = ast.file.path();
     let file = ast.file.clone();
     debug!("Building module: <u><b>{:?}</b></u>", module_path);
 
@@ -73,8 +73,8 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
 
             if is_module_missing {
                 let sub_module = match total_item == index + 1 {
-                    true => Module::new(name.clone(), full_module_path.clone().into(),file.clone(), ast.clone()),
-                    false => Module::phantom(name.clone(), full_module_path.clone().into(),file.clone()),
+                    true => Module::new(name.clone().into(), full_module_path.clone().into(),file.clone(), ast.clone()),
+                    false => Module::phantom(name.clone().into(), full_module_path.clone().into(),file.clone()),
                 };
 
 
@@ -95,7 +95,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
         }
     } else {
         let module = Module {
-            name: ast.file.path()[ast.file.path().len() - 1].clone().clone(),
+            name: ast.file.path()[ast.file.path().len() - 1].clone().into(),
             file: ast.file.clone(),
             path: ast.file.path().join(".").into(),
             ast_imported_modules: IndexMap::new(),
@@ -111,7 +111,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
     Ok(())
 }
 
-pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module: Module<'base>) -> Result<(), TirError<'base>> {
+pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module: Module<'base>) -> Result<(), TirError> {
     let module_name = module.path.to_string();
     let mut ast_signature: IndexMap<SignaturePath<'base>, AstSignatureLocation> = IndexMap::new();
 
@@ -183,16 +183,16 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
 
     context.add_ast_signature(module_name.clone().into(), signature).map_err(|item| {
         error!("Module already defined: {:?}", item);
-        TirError::ModuleAlreadyDefined {
+        TirError::ModuleAlreadyDefined(ModuleAlreadyDefined {
             source: module.file.clone(),
-        }
+        }.into())
     })?;
 
     context.modules.insert(module_name.into(), module);
     Ok(())
 }
 
-impl<'base> From<(Rc<FunctionDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>> {
+impl<'base> From<(Rc<FunctionDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<AstSignatureValue<'base>, ModuleRef<'base>> {
     fn from(value: (Rc<FunctionDefinitionAst<'base>>, ModuleRef<'base>)) -> Self {
         let (function, module) = value;
 
@@ -202,7 +202,7 @@ impl<'base> From<(Rc<FunctionDefinitionAst<'base>>, ModuleRef<'base>)> for Signa
     }
 }
 
-impl<'base> From<(Rc<ClassDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>> {
+impl<'base> From<(Rc<ClassDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<AstSignatureValue<'base>, ModuleRef<'base>> {
     fn from(value: (Rc<ClassDefinitionAst<'base>>, ModuleRef<'base>)) -> Self {
         let (class, module) = value;
 
@@ -212,7 +212,7 @@ impl<'base> From<(Rc<ClassDefinitionAst<'base>>, ModuleRef<'base>)> for Signatur
     }
 }
 
-impl<'base> From<(Rc<InterfaceDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>> {
+impl<'base> From<(Rc<InterfaceDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<AstSignatureValue<'base>, ModuleRef<'base>> {
     fn from(value: (Rc<InterfaceDefinitionAst<'base>>, ModuleRef<'base>)) -> Self {
         let (interface, module) = value;
 
@@ -223,7 +223,7 @@ impl<'base> From<(Rc<InterfaceDefinitionAst<'base>>, ModuleRef<'base>)> for Sign
 }
 
 
-impl<'base> From<(Rc<ExtendDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<'base, AstSignatureValue<'base>, ModuleRef<'base>> {
+impl<'base> From<(Rc<ExtendDefinitionAst<'base>>, ModuleRef<'base>)> for Signature<AstSignatureValue<'base>, ModuleRef<'base>> {
     fn from(value: (Rc<ExtendDefinitionAst<'base>>, ModuleRef<'base>)) -> Self {
         let (extend, module) = value;
 

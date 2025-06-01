@@ -26,7 +26,7 @@ impl<K: Hash + Eq, V> TimuHashMap<K, V> {
         self.map.insert(key, value)
     }
 
-    pub fn validate_insert<'base>(&mut self, key: K, value: V, span: &Span<'base>) -> Result<(), TirError<'base>> {
+    pub fn validate_insert<'base>(&mut self, key: K, value: V, span: &Span<'base>) -> Result<(), TirError> {
         match self.map.insert(key, value) {
             Some(_) => Err(TirError::already_defined(span.to_range(), span.extra.file.clone())),
             None => Ok(())

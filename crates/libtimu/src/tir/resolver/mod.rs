@@ -8,7 +8,7 @@ use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
-use super::{ast_signature::AstSignatureValue, context::TirContext, error::{CustomError, TirError}, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
+use super::{ast_signature::AstSignatureValue, context::TirContext, error::{CustomError, TirError, TypeNotFound}, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
 
 pub mod class;
 pub mod extend;
@@ -77,8 +77,8 @@ pub enum BuildFullNameLocater<'a, 'base> {
 }
 
 pub trait ResolveAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>>;
-    fn finish(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<(), TirError<'base>>;
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError>;
+    fn finish(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<(), TirError>;
     fn name(&self) -> Cow<'base, str>;
 
     fn build_full_name<'a>(&self, context: &TirContext<'_>, locater: BuildFullNameLocater<'a, 'base>, parent: Option<TypeLocation>) -> String {
@@ -104,15 +104,15 @@ fn build_type_name(type_name: &TypeNameAst) -> String {
     type_name.names.iter().map(|path| *path.fragment()).collect::<Vec<&str>>().join(".")
 }
 
-fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<TypeLocation, TirError<'base>> {
+fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<TypeLocation, TirError> {
     let type_name_str = build_type_name(type_name);
     let field_type = match try_resolve_signature(context, module, type_name_str.as_str())? {
         Some(field_type) => field_type,
         None => {
-            return Err(TirError::TypeNotFound {
+            return Err(TirError::TypeNotFound(TypeNotFound {
                 source: type_name.names.last().unwrap().extra.file.clone(),
                 position: type_name.to_range(),
-            });
+            }.into()));
         }
     };
 
@@ -126,7 +126,7 @@ pub fn build_signature_path<'base>(context: &TirContext<'base>, name: &str, modu
     SignaturePath::owned(format!("{}.{}", module.path, name))
 }
 
-pub fn build_file<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>) -> Result<(), TirError<'base>> {
+pub fn build_file<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>) -> Result<(), TirError> {
     simplelog::debug!("<on-red>Building file: {:?}</>", module_ref.as_ref());
     
     if let Some(ast) = context.modules.get(module_ref.as_ref()).and_then(|module| module.ast.clone()) {
@@ -172,14 +172,14 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<
     Ok(())
 }
 
-fn execute_vector_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, asts: &Vec<&T>) -> Result<(), TirError<'base>> {
+fn execute_vector_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, asts: &Vec<&T>) -> Result<(), TirError> {
     for item in asts.iter() {
         execute_resolve(context, module_ref.clone(), *item)?;
     }
     Ok(())
 }
 
-fn execute_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, ast: &T) -> Result<(), TirError<'base>> {
+fn execute_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, ast: &T) -> Result<(), TirError> {
     if module_ref.upgrade(context).unwrap().types.get(ast.name().as_ref()).is_none() {
         let type_name = format!("{}.{}", module_ref.as_ref(), ast.name());
         let scope_location = context.create_scope(type_name.into(), module_ref.clone());
@@ -188,14 +188,14 @@ fn execute_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>,
     Ok(())
 }
 
-fn execute_vector_finish<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, asts: Vec<&T>) -> Result<(), TirError<'base>> {
+fn execute_vector_finish<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, asts: Vec<&T>) -> Result<(), TirError> {
     for item in asts.into_iter() {
         execute_finish(context, module_ref.clone(), item)?;
     }
     Ok(())
 }
 
-fn execute_finish<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, ast: &T) -> Result<(), TirError<'base>> {
+fn execute_finish<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, ast: &T) -> Result<(), TirError> {
     let type_name = format!("{}.{}", module_ref.as_ref(), ast.name());
     let scope_location = context.types_scope[type_name.as_str()];
     ast.finish(context, scope_location)?;
@@ -221,7 +221,7 @@ fn find_module<'base, K: AsRef<str> + ?Sized>(context: &mut TirContext<'base>, m
 }
 
 
-fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError<'base>> {
+fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError> {
     // Check if the key is a module name
     let mut parts = key.as_ref().split('.').peekable();
     let module_name = match parts.next() {
@@ -238,7 +238,7 @@ fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<
     try_resolve_signature(context, &found_module, signature_name)
 }
 
-pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError<'base>> {
+pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError> {
     let module = context.modules.get_mut(module_ref.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module_ref.as_ref()));
     debug!("Searching <on-blue>{}</> in: <on-red>{}</> module", key.as_ref(), module.path.as_ref());
     
@@ -291,7 +291,7 @@ pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &Modul
 
 pub fn try_resolve_signature<'base, K: AsRef<str>>(
     context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K,
-) -> Result<Option<TypeLocation>, TirError<'base>> {
+) -> Result<Option<TypeLocation>, TirError> {
     // Check if the key has a module name
     match key.as_ref().contains('.') {
         true => try_resolve_moduled_signature(context, module, key),
@@ -301,29 +301,28 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
 
 
 #[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
-pub enum ResolverError<'base> {
+pub enum ResolverError {
     #[error("{0}")]
     #[strum(props(code=1))]
-    FunctionCall(Box<FunctionCallError<'base>>),  
+    FunctionCall(#[from] Box<FunctionCallError>),  
 
     #[error("{0}")]
     #[strum(props(code=2))]
-    Scope(Box<ScopeError<'base>>),
+    Scope(#[from] Box<ScopeError>),
 
     #[error("{0}")]
     #[strum(props(code=3))]
-    FunctionResolve(Box<FunctionResolveError<'base>>),
+    FunctionResolve(#[from] Box<FunctionResolveError>),
 }
 
-
-impl<'base> From<ResolverError<'base>> for TirError<'base> {
-    fn from(value: ResolverError<'base>) -> Self {
+impl From<ResolverError> for TirError {
+    fn from(value: ResolverError) -> Self {
         TirError::ResolverError(Box::new(value))
     }
 }
 
-impl CustomError for ResolverError<'_> {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport<'_>> {
+impl CustomError for ResolverError {
+    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport> {
         match self {
             ResolverError::FunctionCall(error) => error.get_errors(&self.build_error_code(parent_error_code)),
             ResolverError::Scope(error) => error.get_errors(&self.build_error_code(parent_error_code)),
@@ -339,23 +338,27 @@ impl CustomError for ResolverError<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{process_ast, process_code};
+    use crate::{file::SourceFile, nom_tools::State, process_ast, process_code};
 
     #[test]
     fn found_type() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class a {} func test(variable: a): a {} ")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(variable: a): a {} ".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn cross_reference1() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source1".into()], " class testclass1 {} ")?;
-        let ast_9 = process_code(
+        let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
+        let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use source1.testclass1;
-    func testfunction1(): testclass1 {}"#,
-        )?;
+    func testfunction1(): testclass1 {}"#.to_string(),
+        ));
+        
+        let ast_1 = process_code(&state_1)?;
+        let ast_9 = process_code(&state_9)?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
 
@@ -364,12 +367,14 @@ mod tests {
 
     #[test]
     fn cross_reference2() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source1".into()], " class testclass1 {} ")?;
-        let ast_9 = process_code(
+        let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
+        let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use source1;
-    func testfunction1(): source1.testclass1 {}"#,
-        )?;
+    func testfunction1(): source1.testclass1 {}"#.to_string()));
+
+        let ast_1 = process_code(&state_1)?;
+        let ast_9 = process_code(&state_9)?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
 
@@ -378,12 +383,13 @@ mod tests {
 
     #[test]
     fn cross_reference3() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["test1".into(), "source1".into()], " class testclass1 {} ")?;
-        let ast_9 = process_code(
+        let state_1 = State::new(SourceFile::new(vec!["test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
+        let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use test1;
-    func testfunction1(): test1.source1.testclass1 {}"#,
-        )?;
+    func testfunction1(): test1.source1.testclass1 {}"#.to_string()));
+        let ast_1 = process_code(&state_1)?;
+        let ast_9 = process_code(&state_9)?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
@@ -391,12 +397,13 @@ mod tests {
 
     #[test]
     fn cross_reference4() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
-        let ast_9 = process_code(
+        let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
+        let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use base1;
-    func testfunction1(): base1.test1.source1.testclass1 {}"#,
-        )?;
+    func testfunction1(): base1.test1.source1.testclass1 {}"#.to_string()));
+        let ast_1 = process_code(&state_1)?;
+        let ast_9 = process_code(&state_9)?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
@@ -404,12 +411,13 @@ mod tests {
 
     #[test]
     fn cross_reference5() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
-        let ast_9 = process_code(
+        let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
+        let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use base1.test1;
-    func testfunction1(): test1.source1.testclass1 {}"#,
-        )?;
+    func testfunction1(): test1.source1.testclass1 {}"#.to_string()));
+        let ast_1 = process_code(&state_1)?;
+        let ast_9 = process_code(&state_9)?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
@@ -417,12 +425,13 @@ mod tests {
 
     #[test]
     fn cross_reference6() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
-        let ast_9 = process_code(
+        let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
+        let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use base1.test1.source1;
-    func testfunction1(): source1.testclass1 {}"#,
-        )?;
+    func testfunction1(): source1.testclass1 {}"#.to_string()));
+        let ast_1 = process_code(&state_1)?;
+        let ast_9 = process_code(&state_9)?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
@@ -430,12 +439,13 @@ mod tests {
 
     #[test]
     fn import_alias1() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source1".into()], " class testclass1 {} ")?;
-        let ast_9 = process_code(
+        let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
+        let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use source1 as abc;
-    func testfunction1(): abc.testclass1 {}"#,
-        )?;
+    func testfunction1(): abc.testclass1 {}"#.to_string()));
+        let ast_1 = process_code(&state_1)?;
+        let ast_9 = process_code(&state_9)?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
@@ -443,12 +453,13 @@ mod tests {
 
     #[test]
     fn import_alias2() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
-        let ast_9 = process_code(
+        let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
+        let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use base1.test1.source1 as test;
-    func testfunction1(): test.testclass1 {}"#,
-        )?;
+    func testfunction1(): test.testclass1 {}"#.to_string()));
+        let ast_1 = process_code(&state_1)?;
+        let ast_9 = process_code(&state_9)?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())
@@ -456,12 +467,13 @@ mod tests {
 
     #[test]
     fn import_alias3() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ")?;
-        let ast_9 = process_code(
+        let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
+        let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use base1.test1.source1.testclass1 as test;
-func testfunction1(a: test): test {}"#,
-        )?;
+func testfunction1(a: test): test {}"#.to_string()));
+        let ast_1 = process_code(&state_1)?;
+        let ast_9 = process_code(&state_9)?;
 
         process_ast(vec![ast_1.into(), ast_9.into()])?;
         Ok(())

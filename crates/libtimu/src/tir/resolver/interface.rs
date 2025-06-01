@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::{
-    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, error::{InvalidType, TypeNotFound}, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
@@ -22,7 +22,7 @@ pub struct InterfaceFunctionDefinition<'base> {
 }
 
 impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.fragment());
 
         let (module_ref, parent) = { 
@@ -45,7 +45,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
         Ok(signature_location)
     }
     
-    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         Cow::Borrowed(*self.name.fragment())
@@ -53,7 +53,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
 }
 
 impl<'base> InterfaceDefinitionAst<'base> {
-    fn resolve_interface(context: &mut TirContext<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<(), TirError<'base>>  {
+    fn resolve_interface(context: &mut TirContext<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<(), TirError>  {
         let interface_path = build_signature_path(context, &interface.name, module);
 
         // Check if the interface is already defined
@@ -89,33 +89,33 @@ impl<'base> InterfaceDefinitionAst<'base> {
             let base_interface_location = match find_ast_signature(context, module, base_interface_name) {
                 Some(location) => location,
                 None => {
-                    return Err(TirError::TypeNotFound {
+                    return Err(TirError::TypeNotFound(TypeNotFound {
                         source: base_interface.names.last().unwrap().extra.file.clone(),
                         position: base_interface.to_range(),
-                    });
+                    }.into()));
                 }
             };
 
             let base_interface_signature = context.ast_signatures.get_from_location(base_interface_location)
-                .ok_or_else(|| TirError::TypeNotFound {
+                .ok_or_else(|| TirError::TypeNotFound(TypeNotFound {
                     source: base_interface.names.last().unwrap().extra.file.clone(),
                     position: base_interface.to_range(),
-                })?;
+                }.into()))?;
 
             if let AstSignatureValue::Interface(base_interface) = base_interface_signature.value.clone() {
                 Self::resolve_interface(context, &base_interface, fields, module, parent)?;
             } else {
-                return Err(TirError::InvalidType {
+                return Err(TirError::InvalidType(InvalidType {
                     source: base_interface.names.last().unwrap().extra.file.clone(),
                     position: base_interface.to_range(),
-                });
+                }.into()));
             }
         }
         
         Ok(())
     }
 
-    fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, interface_function: &InterfaceFunctionDefinitionAst<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, interface_function: &InterfaceFunctionDefinitionAst<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError> {
         simplelog::debug!("Resolving interface function: <u><b>{}</b></u>", self.name.fragment());
       
         let full_name: Cow<'base, str> = Cow::Owned(format!("{}::{}", self.name.fragment(), interface_function.name.fragment()));
@@ -184,73 +184,84 @@ impl<'base> InterfaceDefinitionAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::process_code;
+    use crate::{file::SourceFile, nom_tools::State, process_code};
 
     #[test]
     fn empty_interface() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
-    }"#)?;
+    }"#.to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn basic_interface() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         a: ?Myinterface;
         func test(a: Myinterface): Myinterface;
-    }"#)?;
+    }"#.to_string()));
+        let ast = process_code(&state)?;
+
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn missing_type_1() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         a: nope;
-    }"#)?;
+    }"#.to_string()));
+        let ast = process_code(&state)?;
+
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn missing_type_2() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         func test(a: nope): nope;
-    }"#)?;
+    }"#.to_string()));
+        let ast = process_code(&state)?;
+
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn dublicate_field_1() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         pub a: ?Myinterface;
         pub a: ?Myinterface;
-    }"#)?;
+    }"#.to_string()));
+        let ast = process_code(&state)?;
+
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn dublicate_field_2() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         func test(a: Myinterface): Myinterface;
         func test(a: Myinterface): Myinterface;
-    }"#)?;
+    }"#.to_string()));
+        let ast = process_code(&state)?;
+
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn cross_reference_test() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         a: ?Myinterface;
         func test(a: test): test;
@@ -258,7 +269,9 @@ mod tests {
     
     class test {
         func test(a: test): test {}
-    }"#)?;
+    }"#.to_string()));
+        let ast = process_code(&state)?;
+
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }

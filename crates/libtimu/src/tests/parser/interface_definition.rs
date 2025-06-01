@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use nom::Finish;
 use pretty_assertions::assert_eq;
 use rstest::*;
@@ -27,13 +25,13 @@ use crate::{file::SourceFile, nom_tools::State};
     "interface Myinterface {a: ?string.base;func init(): MyType;func init(): MyType;}"
 )]
 fn custom_interface_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-    let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+    let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
     let state = State {
         file: source_file.clone(),
         indexer: Default::default(),
     };
 
-    let (_, response) = crate::parser::parse(state).finish().unwrap();
+    let (_, response) = crate::parser::parse(&state).finish().unwrap();
     assert_eq!(response.statements[0].to_string(), expected, "{}", code);
 }

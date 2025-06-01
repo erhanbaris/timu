@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use nom_language::error::VerboseErrorKind;
 use pretty_assertions::assert_eq;
 use rstest::*;
@@ -31,7 +29,7 @@ erhan
 erhan
 ""#, PrimitiveValue::String("\n\"\nerhan\n".into()))]
 fn parse_primitive_test<'base>(#[case] code: &'base str, #[case] expected: PrimitiveValue) {
-    let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+    let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
     let state = State {
         file: source_file.clone(),
@@ -48,7 +46,7 @@ fn parse_primitive_test<'base>(#[case] code: &'base str, #[case] expected: Primi
 #[case("340282366920938463463374607431768211450", "Invalid number length")]
 #[case("340282366920938463463374607431768211455", "Invalid number length")]
 fn invalid_primitive_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-    let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+    let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
     let state = State {
         file: source_file.clone(),

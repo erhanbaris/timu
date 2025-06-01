@@ -4,7 +4,7 @@ use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{
-    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, ToRange}, tir::{context::{AstNameInfo, TirContext}, error::{CustomError, ErrorReport}, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::{AstNameInfo, TirContext}, error::{CustomError, ErrorReport}, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
 };
 
 use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
@@ -26,15 +26,15 @@ pub struct FunctionDefinition<'base> {
     pub signature_path: SignaturePath<'base>,
 }
 
-pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>) -> Result<TypeLocation, TirError<'base>> {
+pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>) -> Result<TypeLocation, TirError> {
     match parent {
         Some(parent) => Ok(*parent),
-        None => Err(FunctionResolveError::ThisNeedToDefineInClass(this.clone()).into()),
+        None => Err(FunctionResolveError::ThisNeedToDefineInClass(this.into()).into()),
     }
 }
 
 impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {    
-    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", full_name.as_str());
         context.add_ast_scope(self.index, scope_location);
@@ -59,7 +59,7 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
         Ok(signature_location)
     }
     
-    fn finish(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<(), TirError<'base>> {        
+    fn finish(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<(), TirError> {        
         /* Parse body */
         for statement in self.body.statements.iter() {
             statement.resolve(context, scope_location)?;
@@ -93,7 +93,7 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
 }
 
 impl<'base> FunctionDefinitionAst<'base> {
-    fn build_definition(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation, parent_scope: Option<ScopeLocation>, module: &ModuleRef<'base>, parent_type: Option<TypeLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError<'base>> {
+    fn build_definition(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation, parent_scope: Option<ScopeLocation>, module: &ModuleRef<'base>, parent_type: Option<TypeLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError> {
         let mut arguments = vec![];
         let return_type = get_object_location_or_resolve(context, &self.return_type, module)?;
 
@@ -103,14 +103,14 @@ impl<'base> FunctionDefinitionAst<'base> {
                 FunctionArgumentAst::This(this) => {
                     let parent_type = match parent_type {
                         Some(parent_type) => parent_type,
-                        None => return Err(FunctionResolveError::ThisNeedToDefineInClass(this.clone()).into())
+                        None => return Err(FunctionResolveError::ThisNeedToDefineInClass(this.into()).into())
                     };
 
                     let parent_scope = context.get_mut_scope(parent_scope.unwrap()).unwrap();
                     parent_scope.add_variable(this.clone(), parent_type)?;
 
                     if index != 0 {
-                        return Err(FunctionResolveError::ThisNeedToDefineInClass(this.clone()).into());
+                        return Err(FunctionResolveError::ThisNeedToDefineInClass(this.into()).into());
                     }
                     
                     match context.types.get_signature_from_location(unwrap_for_this(&Some(parent_type), this)?).unwrap() {
@@ -172,36 +172,35 @@ impl<'base> FunctionDefinitionAst<'base> {
 }
 
 #[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
-pub enum FunctionResolveError<'base> {
+pub enum FunctionResolveError {
     #[error("'this' needs to be first argument in function definition")]
     #[strum(props(code=1))]
-    ThisArgumentMustBeFirst(Span<'base>),
+    ThisArgumentMustBeFirst(SpanInfo),
 
     #[error("'this' need to define in class function")]
     #[strum(props(code=2))]
-    ThisNeedToDefineInClass(Span<'base>),
+    ThisNeedToDefineInClass(SpanInfo),
 }
 
-
-impl<'base> From<FunctionResolveError<'base>> for TirError<'base> {
-    fn from(value: FunctionResolveError<'base>) -> Self {
+impl From<FunctionResolveError> for TirError {
+    fn from(value: FunctionResolveError) -> Self {
         ResolverError::FunctionResolve(Box::new(value)).into()
     }
 }
 
-impl CustomError for FunctionResolveError<'_> {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport<'_>> {
+impl CustomError for FunctionResolveError {
+    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport> {
         match self {
             FunctionResolveError::ThisArgumentMustBeFirst(span) => vec![ErrorReport {
-                position: span.to_range(),
+                position: span.position.clone(),
                 message: format!("{}", self),
-                file: span.extra.file.clone(),
+                file: span.file.clone(),
                 error_code: self.build_error_code(parent_error_code),
             }],
             FunctionResolveError::ThisNeedToDefineInClass(span) => vec![ErrorReport {
-                position: span.to_range(),
+                position: span.position.clone(),
                 message: format!("{}", self),
-                file: span.extra.file.clone(),
+                file: span.file.clone(),
                 error_code: self.build_error_code(parent_error_code),
             }],
         }
@@ -214,27 +213,26 @@ impl CustomError for FunctionResolveError<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{process_ast, process_code, tir::TirError};
+    use crate::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
 
     #[test]
     fn missing_type_1() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "func test(): a {} ")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "func test(): a {} ".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn dublicated_function_argument() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ".to_string()));
+        let ast = process_code(&state)?;
         let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
-        if let TirError::AlreadyDefined {
-            position,
-            source,
-        } = error
+        if let TirError::AlreadyDefined(inner_error) = error
         {
-            assert_eq!(position, 27..28);
-            assert_eq!(source.path().join("/"), "source");
+            assert_eq!(inner_error.position, 27..28);
+            assert_eq!(inner_error.source.path().join("/"), "source");
         } else {
             panic!("Expected TirError::AlreadyDefined but got {:?}", error);
         }
@@ -243,11 +241,13 @@ mod tests {
 
     #[test]
     fn valid_types() -> Result<(), ()> {
-        let source_1 = process_code(vec!["lib".into()], " class testclass1 {} ")?;
-        let source_2 = process_code(vec!["main".into()],
+        let state_1 = State::new(SourceFile::new(vec!["lib".into()], " class testclass1 {} ".to_string()));
+        let state_2 = State::new(SourceFile::new(vec!["main".into()],
             r#"use lib.testclass1 as test;
-    func main(a: test): test {}"#,
-        )?;
+    func main(a: test): test {}"#.to_string()));
+        let source_1 = process_code(&state_1)?;
+        let source_2 = process_code(&state_2)?;
+
 
         let context = process_ast(vec![source_2.into(), source_1.into()])?;
         assert_eq!(context.modules.len(), 2);
@@ -268,14 +268,16 @@ mod tests {
 
     #[test]
     fn missing_type_2() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "func test(a: a): test {}")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "func test(a: a): test {}".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn not_in_class() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "func test(this): test {}")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "func test(this): test {}".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }

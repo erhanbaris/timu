@@ -78,8 +78,6 @@ impl Display for ExtendDefinitionAst<'_> {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use nom::Finish;
     use nom_language::error::VerboseErrorKind;
     use rstest::rstest;
@@ -107,14 +105,14 @@ mod tests {
         "extend Myclass: a {a: ?string.base;func init(): MyType {}func init(): MyType {}}"
     )]
     fn extend_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+        let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
         let state = State {
             file: source_file.clone(),
             indexer: Default::default(),
         };
 
-        let (_, response) = crate::parser::parse(state).finish().unwrap();
+        let (_, response) = crate::parser::parse(&state).finish().unwrap();
         assert_eq!(response.statements[0].to_string(), expected, "{}", code);
     }
 
@@ -122,14 +120,14 @@ mod tests {
     #[case("extend Myclass: a { pub a: string; }", "All extended fields already public")]
     #[case("extend Myclass: a { pub func init(): MyType {} }", "All extended functions already public")]
     fn alread_public<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+        let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
         let state = State {
             file: source_file.clone(),
             indexer: Default::default(),
         };
 
-        let error = crate::parser::parse(state).finish().unwrap_err();
+        let error = crate::parser::parse(&state).finish().unwrap_err();
         if let VerboseErrorKind::Context(ctx) = error.errors[0].1 {
             assert_eq!(ctx, expected, "{}", code);
         } else {

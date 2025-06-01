@@ -1,4 +1,4 @@
-use std::{borrow::Cow, error::Error, fmt::Display, ops::Range, rc::Rc};
+use std::ops::Range;
 
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
@@ -7,63 +7,116 @@ use crate::file::SourceFile;
 
 use super::resolver::ResolverError;
 
-#[derive(Debug, EnumDiscriminants, EnumProperty)]
-pub enum TirError<'base> {
+
+#[derive(Debug, thiserror::Error)]
+#[error("Import not found")]
+pub struct ImportNotFound { pub module: String, #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Module already defined")]
+pub struct AstModuleAlreadyDefined { pub position: Range<usize>, pub source: SourceFile }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Type not found")]
+pub struct TypeNotFound { #[allow(dead_code)] pub source: SourceFile, #[allow(dead_code)] pub position: Range<usize> }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Already defined")]
+pub struct AlreadyDefined { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Extra accessibility identifier")]
+pub struct ExtraAccessibilityIdentifier { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Invalid type")]
+pub struct InvalidType { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Interface field not defined")]
+pub struct InterfaceFieldNotDefined { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Types do not match")]
+pub struct TypesDoNotMatch { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Extra field in interface")]
+pub struct ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: SourceFile }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Module already defined")]
+pub struct ModuleAlreadyDefined { pub source: SourceFile }
+
+#[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
+pub enum TirError {
     #[strum(props(code=1))]
-    ImportNotFound { module: Cow<'base, str>, #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[error(transparent)]
+    ImportNotFound(Box<ImportNotFound>),
     
     #[strum(props(code=2))]
-    ModuleAlreadyDefined { source: Rc<SourceFile<'base>> },
+    #[error(transparent)]
+    ModuleAlreadyDefined(Box<ModuleAlreadyDefined>),
     
     #[strum(props(code=3))]
-    AstModuleAlreadyDefined { position: Range<usize>, source: Rc<SourceFile<'base>> },
+    #[error(transparent)]
+    AstModuleAlreadyDefined(Box<AstModuleAlreadyDefined>),
     
     #[strum(props(code=4))]
-    TypeNotFound { #[allow(dead_code)] source: Rc<SourceFile<'base>>, #[allow(dead_code)] position: Range<usize> },
+    #[error(transparent)]
+    TypeNotFound(Box<TypeNotFound>),
     
     #[strum(props(code=5))]
-    AlreadyDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[error(transparent)]
+    AlreadyDefined(Box<AlreadyDefined>),
     
     #[strum(props(code=6))]
-    ExtraAccessibilityIdentifier { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[error(transparent)]
+    ExtraAccessibilityIdentifier(Box<ExtraAccessibilityIdentifier>),
     
     #[strum(props(code=7))]
-    InvalidType { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[error(transparent)]
+    InvalidType(Box<InvalidType>),
     
     #[strum(props(code=8))]
-    InterfaceFieldNotDefined { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[error(transparent)]
+    InterfaceFieldNotDefined(Box<InterfaceFieldNotDefined>) ,
     
     #[strum(props(code=9))]
-    TypesDoNotMatch { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[error(transparent)]
+    TypesDoNotMatch(Box<TypesDoNotMatch>),
     
     #[strum(props(code=10))]
-    ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: Rc<SourceFile<'base>> },
+    #[error(transparent)]
+    ExtraFieldInInterface(Box<ExtraFieldInInterface>),
 
     #[strum(props(code=11))]
-    ResolverError(Box<ResolverError<'base>>),
+    #[error(transparent)]
+    ResolverError(#[from] Box<ResolverError>),
 }
 
-pub struct ErrorReport<'base> {
+#[derive(Debug)]
+pub struct ErrorReport {
     #[allow(dead_code)]
     pub position: Range<usize>,
     #[allow(dead_code)]
     pub message: String,
     #[allow(dead_code)]
-    pub file: Rc<SourceFile<'base>>,
+    pub file: SourceFile,
     #[allow(dead_code)]
     pub error_code: String,
 }
 
 pub trait CustomError {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<ErrorReport<'_>>;
+    fn get_errors(&self, parent_error_code: &str) -> Vec<ErrorReport>;
     fn get_error_code(&self) -> i64;
     fn build_error_code(&self, parent_error_code: &str) -> String {
         format!("{}-{}", parent_error_code, self.get_error_code())
     }
 }
 
-impl CustomError for TirError<'_> {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<ErrorReport<'_>> {
+impl CustomError for TirError {
+    fn get_errors(&self, parent_error_code: &str) -> Vec<ErrorReport> {
         match self {
             TirError::ResolverError(error) => error.get_errors(&self.build_error_code(parent_error_code)),
             _ => {
@@ -83,150 +136,70 @@ impl CustomError for TirError<'_> {
     }
 }
 
-impl Display for TirError<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TirError::ImportNotFound {
-                module,
-                position: _,
-                source: _,
-            } => write!(f, "Import not found: {}", module),
-            TirError::ResolverError(error) => write!(f, "{}", error),
-            TirError::ModuleAlreadyDefined {
-                source: _,
-            } => write!(f, "Module already defined"),
-            TirError::AstModuleAlreadyDefined {
-                position: _,
-                source: _,
-            } => write!(f, "Ast Module already defined"),
-            TirError::AlreadyDefined {
-                position: _,
-                source: _,
-            } => write!(f, "Already defined"),
-            TirError::TypeNotFound {
-                source: _,
-                position: _,
-            } => write!(f, "Type not found"),
-            TirError::ExtraAccessibilityIdentifier {
-                source: _,
-                position: _,
-            } => write!(f, "Extra accessibility identifier"),
-            TirError::InvalidType {
-                source: _,
-                position: _,
-            } => write!(f, "Invalid type"),
-            TirError::InterfaceFieldNotDefined {
-                source: _,
-                position: _,
-            } => write!(f, "Interface field not defined"),
-            TirError::TypesDoNotMatch {
-                source: _,
-                position: _,
-            } => write!(f, "Types do not match"),
-            TirError::ExtraFieldInInterface {
-                source: _,
-                position: _,
-            } => write!(f, "Extra field in interface"),
-        }
-    }
-}
-
-impl Error for TirError<'_> {}
-
-impl<'base> TirError<'base> {
-    pub fn already_defined(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
-        TirError::AlreadyDefined {
+impl TirError {
+    pub fn already_defined(position: Range<usize>, source: SourceFile) -> Self {
+        TirError::AlreadyDefined(AlreadyDefined {
             position,
             source,
-        }
+        }.into())
     }
 
-    pub fn interface_field_not_defined(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
-        TirError::InterfaceFieldNotDefined {
+    pub fn interface_field_not_defined(position: Range<usize>, source: SourceFile) -> Self {
+        TirError::InterfaceFieldNotDefined(InterfaceFieldNotDefined {
             position,
             source,
-        }
+        }.into())
     }
 
-    pub fn types_do_not_match(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
-        TirError::TypesDoNotMatch {
+    pub fn types_do_not_match(position: Range<usize>, source: SourceFile) -> Self {
+        TirError::TypesDoNotMatch(TypesDoNotMatch {
             position,
             source,
-        }
+        }.into())
     }
 
-    pub fn extra_accessibility_identifier(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
-        TirError::ExtraAccessibilityIdentifier {
+    pub fn extra_accessibility_identifier(position: Range<usize>, source: SourceFile) -> Self {
+        TirError::ExtraAccessibilityIdentifier(ExtraAccessibilityIdentifier {
             position,
             source,
-        }
+        }.into())
     }
 
-    pub fn extra_field_in_interface(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
-        TirError::ExtraFieldInInterface {
+    pub fn extra_field_in_interface(position: Range<usize>, source: SourceFile) -> Self {
+        TirError::ExtraFieldInInterface(ExtraFieldInInterface {
             position,
             source,
-        }
+        }.into())
     }
 
-    pub fn type_not_found(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
-        TirError::TypeNotFound {
+    pub fn type_not_found(position: Range<usize>, source: SourceFile) -> Self {
+        TirError::TypeNotFound(TypeNotFound {
             position,
             source,
-        }
+        }.into())
     }
 
-    pub fn invalid_type(position: Range<usize>, source: Rc<SourceFile<'base>>) -> Self {
-        TirError::InvalidType {
+    pub fn invalid_type(position: Range<usize>, source: SourceFile) -> Self {
+        TirError::InvalidType(InvalidType {
             position,
             source,
-        }
+        }.into())
     }
 
     #[allow(dead_code)]
-    pub fn get_error(&self) -> (Range<usize>, String, Rc<SourceFile<'_>>) {
+    pub fn get_error(&self) -> (Range<usize>, String, SourceFile) {
         match self {
-            TirError::ImportNotFound {
-                module: _,
-                position,
-                source,
-            } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::ImportNotFound(error) => (error.position.clone(), format!("{}", error), error.source.clone()),
             TirError::ResolverError(_) => unimplemented!("Please use get_errors() for ScopeError"),
-            TirError::ModuleAlreadyDefined {
-                source,
-            } => (0..0, format!("{}", self), source.clone()),
-            TirError::AstModuleAlreadyDefined {
-                position,
-                source,
-            } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::AlreadyDefined {
-                position,
-                source,
-            } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::TypeNotFound {
-                source,
-                position,
-            } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::ExtraAccessibilityIdentifier {
-                source,
-                position,
-            } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::InvalidType {
-                source,
-                position,
-            } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::InterfaceFieldNotDefined {
-                source,
-                position,
-            } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::TypesDoNotMatch {
-                source,
-                position,
-            } => (position.clone(), format!("{}", self), source.clone()),
-            TirError::ExtraFieldInInterface {
-                source,
-                position,
-            } => (position.clone(), format!("{}", self), source.clone()),
+            TirError::ModuleAlreadyDefined(error) => (0..0, format!("{}", error), error.source.clone()),
+            TirError::AstModuleAlreadyDefined(error) => (error.position.clone(), format!("{}", error), error.source.clone()),
+            TirError::AlreadyDefined(error) => (error.position.clone(), format!("{}", error), error.source.clone()),
+            TirError::TypeNotFound(error) => (error.position.clone(), format!("{}", error), error.source.clone()),
+            TirError::ExtraAccessibilityIdentifier(error) => (error.position.clone(), format!("{}", error), error.source.clone()),
+            TirError::InvalidType(error) => (error.position.clone(), format!("{}", error), error.source.clone()),
+            TirError::InterfaceFieldNotDefined(error) => (error.position.clone(), format!("{}", error), error.source.clone()),
+            TirError::TypesDoNotMatch(error) => (error.position.clone(), format!("{}", error), error.source.clone()),
+            TirError::ExtraFieldInInterface(error) => (error.position.clone(), format!("{}", error), error.source.clone()),
         }
     }
 }

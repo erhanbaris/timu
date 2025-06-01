@@ -1,4 +1,4 @@
-use std::{borrow::{Borrow, Cow}, fmt::Debug, hash::Hash, ops::Range, rc::Rc};
+use std::{borrow::{Borrow, Cow}, fmt::Debug, hash::Hash, ops::Range};
 
 use indexmap::IndexMap;
 use simplelog::debug;
@@ -10,21 +10,21 @@ pub trait LocationTrait: Debug + From<usize> + Clone {
 }
 
 #[derive(Debug, Clone)]
-pub struct Signature<'base, T: Debug + Clone + AsRef<T> + AsMut<T>, E: Debug + Clone> {
+pub struct Signature<T: Debug + Clone + AsRef<T> + AsMut<T>, E: Debug + Clone> {
     #[allow(dead_code)]
     pub value: T,
-    pub file: Rc<SourceFile<'base>>,
+    pub file: SourceFile,
     #[allow(dead_code)]
     pub position: Range<usize>,
     pub extra: Option<E>,
 }
 
-impl<'base, T, E> Signature<'base, T, E>
+impl<T, E> Signature<T, E>
 where
     T: Debug + Clone + AsRef<T> + AsMut<T>,
     E: Debug + Clone,
 {
-    pub fn new(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>, extra: Option<E>) -> Self {
+    pub fn new(value: T, file: SourceFile, position: Range<usize>, extra: Option<E>) -> Self {
         Self {
             value,
             file,
@@ -33,7 +33,7 @@ where
         }
     }
 
-    pub fn new_with_extra(value: T, file: Rc<SourceFile<'base>>, position: Range<usize>, extra: E) -> Self {
+    pub fn new_with_extra(value: T, file: SourceFile, position: Range<usize>, extra: E) -> Self {
         Self {
             value,
             file,
@@ -46,13 +46,13 @@ where
 #[derive(Debug)]
 pub enum SignatureInfo<'base, T: Debug + Clone + AsRef<T> + AsMut<T>, E: Debug + Clone = ()> {
     Reserved(SignatureReservation<'base>),
-    Value(Signature<'base, T, E>),
+    Value(Signature<T, E>),
 }
 
 #[derive(Debug, Clone)]
 pub struct SignatureReservation<'base> {
     pub name: Cow<'base, str>,
-    pub file: Rc<SourceFile<'base>>,
+    pub file: SourceFile,
     pub position: Range<usize>,
 }
 
@@ -95,12 +95,12 @@ where
         }
     }
 
-    pub fn reserve(&mut self, path: SignaturePath<'base>, name: Cow<'base, str>, file: Rc<SourceFile<'base>>, position: Range<usize>) -> Result<L, L> {
+    pub fn reserve(&mut self, path: SignaturePath<'base>, name: Cow<'base, str>, file: SourceFile, position: Range<usize>) -> Result<L, L> {
         debug!("Reserve signature: {}", name.as_ref());
         self.inner_add(path, SignatureInfo::Reserved(SignatureReservation { name, file, position }))
     }
 
-    pub fn update(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> L {
+    pub fn update(&mut self, name: SignaturePath<'base>, signature: Signature<T, E>) -> L {
         debug!("Update signature: {}", name.get_name());
         let index = self.locations.get(&name).unwrap_or_else(|| panic!("Signature not found, but this is a bug"));
         self.signatures[*index] = Some(SignatureInfo::Value(signature));
@@ -108,7 +108,7 @@ where
         
     }
 
-    pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<'base, T, E>) -> Result<L, L> {
+    pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<T, E>) -> Result<L, L> {
         debug!("Adding signature: <u><b>{}</b></u>", name.get_name());
         self.inner_add(name, SignatureInfo::Value(signature))
     }
@@ -125,21 +125,21 @@ where
         None
     }
 
-    pub fn get(&self, name: &str) -> Option<&Signature<'base, T, E>> {
+    pub fn get(&self, name: &str) -> Option<&Signature<T, E>> {
         match self.locations.get(name) {
             Some(index) => self.get_from_location((*index).into()),
             None => None,
         }
     }
 
-    pub fn get_from_location(&self, location: L) -> Option<&Signature<'base, T, E>> {
+    pub fn get_from_location(&self, location: L) -> Option<&Signature<T, E>> {
         match self.signatures.get(location.get()) {
             Some(Some(SignatureInfo::Value(signature))) => Some(signature),
             _ => None,
         }
     }
 
-    pub fn take_from_location(&mut self, location: L) -> Option<Signature<'base, T, E>> {
+    pub fn take_from_location(&mut self, location: L) -> Option<Signature<T, E>> {
         self.signatures.get(location.get())?;
 
         match self.signatures[location.get()].take() {
@@ -155,7 +155,7 @@ where
         }
     }
 
-    pub fn get_mut_from_location(&mut self, location: L) -> Option<&mut Signature<'base, T, E>> {
+    pub fn get_mut_from_location(&mut self, location: L) -> Option<&mut Signature<T, E>> {
         match self.signatures.get_mut(location.get()) {
             Some(Some(SignatureInfo::Value(signature))) => Some(signature),
             _ => None,
@@ -370,21 +370,25 @@ impl Borrow<str> for SignaturePath<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{process_code, tir::signature::SignaturePathType};
+    use crate::{file::SourceFile, nom_tools::State, process_code, tir::signature::SignaturePathType};
 
     use super::SignaturePath;
 
     #[test]
     fn signature_generation() -> Result<(), ()> {
-        let ast_1 = process_code(vec!["source".into()], " class testclass {} func testfunction(): testclass {} interface testinterface {}")?;
-        let ast_2 = process_code(vec!["lib".into()], "use source; use source.testclass; use source.testfunction; use source.testinterface;")?;
+        let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} func testfunction(): testclass {} interface testinterface {}".to_string()));
+        let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source; use source.testclass; use source.testfunction; use source.testinterface;".to_string()));
+        
+        let ast_1 = process_code(&state_1)?;
+        let ast_2 = process_code(&state_2)?;
         crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn dublicate_signatures() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], " class test {} func test(): void {} interface test {}")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], " class test {} func test(): void {} interface test {}".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }

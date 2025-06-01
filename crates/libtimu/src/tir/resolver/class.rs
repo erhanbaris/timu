@@ -22,7 +22,7 @@ pub struct ClassDefinition<'base> {
 }
 
 impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
         context.add_ast_scope(self.index, scope_location);
 
@@ -67,7 +67,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
         Ok(class_location)
     }
     
-    fn finish(&self, context: &mut TirContext<'base>, scope: ScopeLocation) -> Result<(), TirError<'base>> {
+    fn finish(&self, context: &mut TirContext<'base>, scope: ScopeLocation) -> Result<(), TirError> {
 
         for field in self.fields.iter() {
             if let ClassDefinitionFieldAst::Function(function) = field {
@@ -92,46 +92,51 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::process_code;
+    use crate::{file::SourceFile, nom_tools::State, process_code};
 
     #[test]
     fn missing_type() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class test { func test(a: a): a {} }")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "class test { func test(a: a): a {} }".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn recursive_type() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class test { a: test; func test(a: test): test {} }")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "class test { a: test; func test(a: test): test {} }".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn this_location_1() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class test { func test(this): test {} }")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "class test { func test(this): test {} }".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn this_location_2() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class test { func test(this, a: test): test {} }")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "class test { func test(this, a: test): test {} }".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
 
     #[test]
     fn this_location_3() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], "class test { func test(a: test, this): test {} }")?;
+        let state = State::new(SourceFile::new(vec!["source".into()], "class test { func test(a: test, this): test {} }".to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
         Ok(())
     }
 
     #[test]
     fn call_interface_function() -> Result<(), ()> {
-        let ast = process_code(vec!["source".into()], r#"
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest {
     func test(): string;
     a: TestClass;
@@ -150,7 +155,8 @@ class TestClass {
         this.a.test();
     }
 }
-    "#)?;
+    "#.to_string()));
+        let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }

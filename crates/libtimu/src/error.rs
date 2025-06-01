@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use nom_language::error::VerboseErrorKind;
 use crate::tir::error::CustomError;
@@ -10,12 +8,12 @@ use crate::{
     tir::{TirContext, TirError},
 };
 
-pub type ParseError<'base> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'base str, State<'base>>>;
-pub type ParseResult<'base> = Result<(nom_locate::LocatedSpan<&'base str, State<'base>>, FileAst<'base>), ParseError<'base>>;
+pub type ParseError<'base> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'base str, State>>;
+pub type ParseResult<'base> = Result<(nom_locate::LocatedSpan<&'base str, State>, FileAst<'base>), ParseError<'base>>;
 
-pub type TirResult<'base> = Result<TirContext<'base>, TirError<'base>>;
+pub type TirResult<'base> = Result<TirContext<'base>, TirError>;
 
-pub fn print_error(error_type: &str, error_message: &str, span_range: std::ops::Range<usize>, source_file: Rc<SourceFile<'_>>) {
+pub fn print_error(error_type: &str, error_message: &str, span_range: std::ops::Range<usize>, source_file: SourceFile) {
     let file_name = source_file.path().join("/");
     Report::build(ReportKind::Error, (file_name.as_str(), 12..12))
         .with_code(1)
@@ -32,6 +30,7 @@ pub fn handle_builder(result: TirResult<'_>) -> Result<TirContext<'_>, ()> {
         Ok(context) => Ok(context),
         Err(error) => {
             let errors = error.get_errors("01");
+
             let error = errors.first().unwrap();
             print_error("Definition issue", &error.message, error.position.clone(), error.file.clone());
             Err(())
@@ -56,8 +55,6 @@ pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, ()> {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use nom::Finish;
 
     use crate::{file::SourceFile, nom_tools::State, parser};
@@ -67,14 +64,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn error_test() {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], "interface Myinterface : erhan {"));
+        let source_file = SourceFile::new(vec!["<memory>".into()], "interface Myinterface : erhan {".to_string());
 
         let state = State {
             file: source_file.clone(),
             indexer: Default::default(),
         };
 
-        let response = parser::parse(state).finish();
+        let response = parser::parse(&state).finish();
         handle_parser(response).unwrap();
     }
 }

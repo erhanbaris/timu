@@ -1,8 +1,7 @@
-use std::{borrow::Cow, rc::Rc};
+use std::rc::Rc;
 
 use ast::FileAst;
 use error::{handle_builder, handle_parser};
-use file::SourceFile;
 use nom::Finish;
 use nom_tools::State;
 use tir::TirContext;
@@ -22,15 +21,9 @@ pub mod map;
 mod tests;
 
 #[allow(clippy::result_unit_err)]
-pub fn process_code<'base>(path: Vec<Cow<'base, str>>, code: &'base str) -> Result<FileAst<'base>, ()> {
-    let file = Rc::new(SourceFile::new(path, code));
-    let state = State {
-        file,
-        indexer: Default::default(),
-    };
-
+pub fn process_code<'base>(state: &'base State) -> Result<FileAst<'base>, ()> {
     let response = parser::parse(state).finish();
-    handle_parser(response)
+    Ok(handle_parser(response).unwrap())
 }
 
 #[allow(clippy::result_unit_err)]

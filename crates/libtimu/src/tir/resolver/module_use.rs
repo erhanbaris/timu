@@ -2,13 +2,13 @@ use std::borrow::Cow;
 
 use crate::{
     ast::UseAst,
-    tir::{context::TirContext, scope::ScopeLocation, TirError},
+    tir::{context::TirContext, error::{AstModuleAlreadyDefined, ImportNotFound}, scope::ScopeLocation, TirError},
 };
 
 use super::{ResolveAst, TypeLocation};
 
 impl<'base> ResolveAst<'base> for UseAst<'base> {
-    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
+    fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         if let Some(signature_location) = context.get_ast_location(&self.import.text) {
             let name = match &self.alias {
                 Some(alias) => std::borrow::Cow::Borrowed(*alias.fragment()),
@@ -18,23 +18,23 @@ impl<'base> ResolveAst<'base> for UseAst<'base> {
             let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
             let module = context.modules.get_mut(module_ref.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module_ref.as_ref()));
             if module.ast_imported_modules.insert(name, signature_location).is_some() {
-                return Err(TirError::AstModuleAlreadyDefined {
+                return Err(TirError::AstModuleAlreadyDefined(AstModuleAlreadyDefined{
                     position: self.import.to_range(),
                     source: self.ast_name().extra.file.clone(),
-                });
+                }.into()));
             }
         } else {
-            return Err(TirError::ImportNotFound {
-                module: self.import.text.clone(),
+            return Err(TirError::ImportNotFound(ImportNotFound {
+                module: self.import.text.to_string(),
                 position: self.import.to_range(),
                 source: self.ast_name().extra.file.clone(),
-            });
+            }.into()));
         }
 
         Ok(TypeLocation::UNDEFINED)
     }
 
-    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError<'base>> { Ok(()) }
+    fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
         if let Some(alias) = &self.alias {

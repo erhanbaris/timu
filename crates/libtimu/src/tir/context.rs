@@ -1,4 +1,4 @@
-use std::{borrow::Cow, ops::Range, rc::Rc, sync::atomic::{AtomicUsize, Ordering}};
+use std::{borrow::Cow, ops::Range, sync::atomic::{AtomicUsize, Ordering}};
 
 use indexmap::IndexMap;
 use simplelog::debug;
@@ -50,7 +50,7 @@ impl<'base> TirContext<'base> {
         self.ast_signatures.add_signature(SignaturePath::cow(key), signature)
     }
 
-    pub fn reserve_object_location(&mut self, object_name: Cow<'base, str>, signature_path: SignaturePath<'base>, module_ref: &ModuleRef<'base>, position: Range<usize>, source: Rc<SourceFile<'base>>) -> Result<(SignaturePath<'base>, TypeLocation), TirError<'base>> {
+    pub fn reserve_object_location(&mut self, object_name: Cow<'base, str>, signature_path: SignaturePath<'base>, module_ref: &ModuleRef<'base>, position: Range<usize>, source: SourceFile) -> Result<(SignaturePath<'base>, TypeLocation), TirError> {
         let module = self.modules.get_mut(module_ref.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module_ref.as_ref()));
 
         debug!("Reserving object location: <u><b>{}</b></u> in module <u><b>{}</b></u>", object_name, module_ref.as_ref());
@@ -67,11 +67,11 @@ impl<'base> TirContext<'base> {
         self.types.update(name, signature);
     }
 
-    pub fn resolve<T: ResolveAst<'base>>(&mut self, signature: &T, scope_location: ScopeLocation) -> Result<TypeLocation, TirError<'base>> {
+    pub fn resolve<T: ResolveAst<'base>>(&mut self, signature: &T, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         signature.resolve(self, scope_location)
     }
 
-    pub fn resolve_from_location(&mut self, signature_location: AstSignatureLocation, module_ref: &ModuleRef<'base>) -> Result<TypeLocation, TirError<'base>> {
+    pub fn resolve_from_location(&mut self, signature_location: AstSignatureLocation, module_ref: &ModuleRef<'base>) -> Result<TypeLocation, TirError> {
         let signature = self.ast_signatures.get_from_location(signature_location).map(|signature| signature.value.clone()).unwrap();
         let type_name = format!("{}.{}", module_ref.as_ref(), signature.name()); // todo: maybe it will not work with class function
         let scope_location = self.create_scope(type_name.into(), module_ref.clone());

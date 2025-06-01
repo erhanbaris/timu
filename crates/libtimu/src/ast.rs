@@ -87,7 +87,7 @@ pub enum ExpressionOperatorType {
 
 #[derive(Debug)]
 pub struct FileAst<'base> {
-    pub file: Rc<SourceFile<'base>>,
+    pub file: SourceFile,
     pub statements: Vec<FileStatementAst<'base>>,
 }
 

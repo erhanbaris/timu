@@ -65,8 +65,6 @@ impl Display for IfConditionAst<'_> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use std::rc::Rc;
-
     use rstest::rstest;
 
     use crate::{
@@ -95,14 +93,14 @@ else if false {}
     else {}
     "#, r#"if (true || false) {} else if false {} else if false {} else if false {} else {}"#)]
     fn if_condition_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
-        let source_file = Rc::new(SourceFile::new(vec!["<memory>".into()], code));
+        let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 
         let state = State {
             file: source_file.clone(),
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(state.file.code(), state);
+        let input = Span::new_extra(source_file.code().as_str(), state);
         let (_, response) = IfConditionAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }
