@@ -1,6 +1,5 @@
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use nom_language::error::VerboseErrorKind;
-use crate::tir::error::CustomError;
 use crate::{
     ast::FileAst,
     file::SourceFile,
@@ -29,10 +28,9 @@ pub fn handle_builder(result: TirResult<'_>) -> Result<TirContext<'_>, ()> {
     match result {
         Ok(context) => Ok(context),
         Err(error) => {
-            let errors = error.get_errors("01");
 
-            let error = errors.first().unwrap();
-            print_error("Definition issue", &error.message, error.position.clone(), error.file.clone());
+            let error = miette::Report::msg(error);
+            println!("Error: {}", error);
             Err(())
         }
     }

@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 
+use miette::SourceSpan;
+
 use crate::{
-    ast::UseAst,
-    tir::{context::TirContext, error::{AstModuleAlreadyDefined, ImportNotFound}, scope::ScopeLocation, TirError},
+    ast::UseAst, tir::{context::TirContext, error::{ImportNotFound, ModuleAlreadyImported}, scope::ScopeLocation, TirError}
 };
 
 use super::{ResolveAst, TypeLocation};
@@ -17,17 +18,19 @@ impl<'base> ResolveAst<'base> for UseAst<'base> {
 
             let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
             let module = context.modules.get_mut(module_ref.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module_ref.as_ref()));
-            if module.ast_imported_modules.insert(name, signature_location).is_some() {
-                return Err(TirError::AstModuleAlreadyDefined(AstModuleAlreadyDefined{
-                    position: self.import.to_range(),
-                    source: self.ast_name().extra.file.clone(),
+            if let Some(old) = module.ast_imported_modules.insert(name, signature_location) {
+                let old_signature  = context.ast_signatures.get_from_location(old).unwrap();
+                return Err(TirError::ModuleAlreadyImported(ModuleAlreadyImported {
+                    new_position: self.import.to_range().into(),
+                    old_position: old_signature.position.clone().into(),
+                    code: self.ast_name().extra.file.clone().into(),
                 }.into()));
             }
         } else {
             return Err(TirError::ImportNotFound(ImportNotFound {
                 module: self.import.text.to_string(),
-                position: self.import.to_range(),
-                source: self.ast_name().extra.file.clone(),
+                position: SourceSpan::from(self.import.to_range()),
+                code: self.ast_name().extra.file.into(),
             }.into()));
         }
 

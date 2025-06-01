@@ -2,7 +2,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use indexmap::IndexMap;
 
-use crate::{ast::FileAst, file::SourceFile};
+use crate::{ast::FileAst, file::SourceFile, map::TimuHashMap};
 
 use super::{resolver::{AstSignatureLocation, TypeLocation}, signature::SignaturePath, TirContext};
 
@@ -12,7 +12,7 @@ pub struct Module<'base> {
     pub name: Cow<'base, str>,
     pub path: Cow<'base, str>,
     pub file: SourceFile,
-    pub ast_signatures: IndexMap<SignaturePath<'base>, AstSignatureLocation>,
+    pub ast_signatures: TimuHashMap<SignaturePath<'base>, AstSignatureLocation>,
     pub ast_imported_modules: IndexMap<Cow<'base, str>, AstSignatureLocation>,
     pub types: IndexMap<SignaturePath<'base>, TypeLocation>,
     pub ast: Option<Rc<FileAst<'base>>>,
@@ -25,7 +25,7 @@ impl<'base> Module<'base> {
             name,
             path,
             file,
-            ast_signatures: IndexMap::new(),
+            ast_signatures: TimuHashMap::new(),
             ast_imported_modules: IndexMap::new(),
             types: IndexMap::new(),
             ast: Some(ast),
@@ -39,7 +39,7 @@ impl<'base> Module<'base> {
             path,
             file,
             ast_imported_modules: IndexMap::new(),
-            ast_signatures: IndexMap::new(),
+            ast_signatures: TimuHashMap::new(),
             types: IndexMap::new(),
             ast: None,
             modules: IndexMap::new(),

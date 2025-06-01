@@ -46,7 +46,7 @@ impl<'base> TirContext<'base> {
         self.ast_signatures.location(key.as_ref())
     }
 
-    pub fn add_ast_signature(&mut self, key: Cow<'base, str>, signature: AstSignature<'base>) -> Result<AstSignatureLocation, AstSignatureLocation> {
+    pub fn add_ast_signature(&mut self, key: Cow<'base, str>, signature: AstSignature<'base>) -> Result<AstSignatureLocation, TirError> {
         self.ast_signatures.add_signature(SignaturePath::cow(key), signature)
     }
 
@@ -55,8 +55,7 @@ impl<'base> TirContext<'base> {
 
         debug!("Reserving object location: <u><b>{}</b></u> in module <u><b>{}</b></u>", object_name, module_ref.as_ref());
         //add the signature to the context with full path
-        let signature_location = self.types.reserve(signature_path.clone(), object_name.clone(), source.clone(), position.clone())
-            .map_err(|_| TirError::already_defined(position, source))?;
+        let signature_location = self.types.reserve(signature_path.clone(), object_name.clone(), source.clone(), position.clone())?;
 
         //add the signature to the module with only the name
         module.types.insert(SignaturePath::cow(object_name), signature_location);

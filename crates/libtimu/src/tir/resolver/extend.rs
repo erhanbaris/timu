@@ -1,5 +1,7 @@
 use std::{borrow::Cow, rc::Rc};
 
+use indexmap::IndexMap;
+
 use crate::{
     ast::{ExtendDefinitionAst, ExtendDefinitionFieldAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{get_object_location_or_resolve, try_resolve_signature}, scope::ScopeLocation, TirError, TypeSignature}
 };
@@ -25,7 +27,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
         
         let mut extend_fields = TimuHashMap::<Cow<'_, str>, (Span<'base>, TypeLocation)>::default();
-        let mut extend_fields_for_track = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
+        let mut extend_fields_for_track = IndexMap::<Cow<'_, str>, TypeLocation>::default();
 
         let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
         let class_location = get_object_location_or_resolve(context, &self.name, &module_ref)?;
@@ -50,7 +52,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
                 TypeValue::Class(class) => class,
                 _ => return Err(TirError::invalid_type(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
             },
-            None => return Err(TirError::type_not_found(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
+            None => return Err(TirError::type_not_found(context, self.name.to_string(), self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
         };
 
         for (key, (_, value)) in extend_fields.iter() {
@@ -82,7 +84,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
 
 impl<'base> ExtendDefinitionAst<'base> {
     #[allow(clippy::too_many_arguments)]
-    fn resolve_fields(&self, context: &mut TirContext<'base>, class_name: &str, class_scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &mut TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, _: TypeLocation) -> Result<(), TirError> {
+    fn resolve_fields(&self, context: &mut TirContext<'base>, class_name: &str, class_scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &mut TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>, _: TypeLocation) -> Result<(), TirError> {
         for field in self.fields.iter() {
             match field {
                 ExtendDefinitionFieldAst::Function(function) => {
@@ -107,14 +109,14 @@ impl<'base> ExtendDefinitionAst<'base> {
         Ok(())
     }
     
-    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut TimuHashMap<Cow<'base, str>, TypeLocation>) -> Result<(), TirError> {
+    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, TypeLocation>) -> Result<(), TirError> {
         for interface_ast in self.base_interfaces.iter() {
             // Find the inferface signature
             let type_name = build_type_name(interface_ast);
             let interface_signature = try_resolve_signature(context, module, type_name.as_str())?;
             let interface_signature = match interface_signature {
                 Some(interface_signature) => interface_signature,
-                None => return Err(TirError::type_not_found(interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone()))
+                None => return Err(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone()))
             };
 
             let interface = if let Some(signature) = context.types.get_from_location(interface_signature) {
@@ -123,7 +125,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                     _ => return Err(TirError::invalid_type(interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone())),
                 }
             } else {
-                return Err(TirError::type_not_found(interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone()));
+                return Err(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone()));
             };
 
             for interface_field in interface.fields.iter() {
@@ -137,19 +139,19 @@ impl<'base> ExtendDefinitionAst<'base> {
                 // Check if the field type is the same
                 let defined_field_type = match context.types.get_from_location(*extend_field) {
                     Some(field_type) => field_type,
-                    None => return Err(TirError::type_not_found(interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone())),
+                    None => return Err(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone())),
                 };
 
                 let interface_field_type = match context.types.get_from_location(*interface_field.1) {
                     Some(field_type) => field_type,
-                    None => return Err(TirError::type_not_found(interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone())),
+                    None => return Err(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone())),
                 };
 
                 if !defined_field_type.value.compare_skeleton(context, &interface_field_type.value) {
                     return Err(TirError::types_do_not_match(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone()));
                 }
 
-                extend_fields_for_track.remove(interface_field.0);
+                extend_fields_for_track.swap_remove(interface_field.0);
             }
         }
 
@@ -162,7 +164,7 @@ mod tests {
     use crate::{file::SourceFile, nom_tools::State, process_code, tir::object_signature::TypeValue};
 
     #[test]
-    fn empty_interface() -> Result<(), ()> {
+    fn empty_interface() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest {}
 extend TestClass: ITest {}
@@ -174,7 +176,7 @@ class TestClass {}
     }
 
     #[test]
-    fn dublicate_field_1() -> Result<(), ()> {
+    fn dublicate_field_1() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { a: TestClass; }
 extend TestClass: ITest { a: TestClass; }
@@ -186,7 +188,7 @@ class TestClass { a: TestClass; }
     }
 
     #[test]
-    fn dublicate_field_2() -> Result<(), ()> {
+    fn dublicate_field_2() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(): TestClass { } }
@@ -198,7 +200,7 @@ class TestClass { func test(): TestClass { } }
     }
 
     #[test]
-    fn extended_fields() -> Result<(), ()> {
+    fn extended_fields() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; a: TestClass; }
 extend TestClass: ITest { func test(): TestClass { } a: TestClass; }
@@ -232,7 +234,7 @@ class TestClass { }
     }
 
     #[test]
-    fn missing_definition() -> Result<(), ()> {
+    fn missing_definition() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; a: TestClass; }
 extend TestClass: ITest { func test(): TestClass { } }
@@ -244,7 +246,7 @@ class TestClass { }
     }
 
     #[test]
-    fn interface_and_extend_informations_different_1() -> Result<(), ()> {
+    fn interface_and_extend_informations_different_1() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(a: TestClass): TestClass { } }
@@ -256,7 +258,7 @@ class TestClass { }
     }
 
     #[test]
-    fn interface_and_extend_informations_different_2() -> Result<(), ()> {
+    fn interface_and_extend_informations_different_2() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(): TmpClass { } }
@@ -269,7 +271,7 @@ class TmpClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_1() -> Result<(), ()> {
+    fn multiple_interface_validation_1() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 interface Interface2 { func world(): TestClass; }
@@ -285,7 +287,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_2() -> Result<(), ()> {
+    fn multiple_interface_validation_2() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 interface Interface2 { func world(): TestClass; }
@@ -300,7 +302,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_missing_field() -> Result<(), ()> {
+    fn multiple_interface_missing_field() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 interface Interface2 { func world(): TestClass; }
@@ -315,7 +317,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_3() -> Result<(), ()> {
+    fn multiple_interface_validation_3() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface2 { func world(): TestClass; }
 interface Interface1: Interface2 { func hello(): TestClass; }
@@ -330,7 +332,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_4() -> Result<(), ()> {
+    fn multiple_interface_validation_4() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 
@@ -344,7 +346,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_5() -> Result<(), ()> {
+    fn multiple_interface_validation_5() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface3 { func test(): TestClass; }
 interface Interface2 { func world(): TestClass; }
@@ -360,7 +362,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_6() -> Result<(), ()> {
+    fn multiple_interface_validation_6() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface3 { func test(): TestClass; }
 interface Interface2: Interface3 { func world(): TestClass; }
@@ -376,7 +378,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_7() -> Result<(), ()> {
+    fn multiple_interface_validation_7() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface3 { func test(): TestClass; }
 interface Interface2: Interface3 { func world(): TestClass; }

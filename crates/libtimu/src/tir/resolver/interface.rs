@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::{
-    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, error::{InvalidType, TypeNotFound}, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, error::InvalidType, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
@@ -89,18 +89,12 @@ impl<'base> InterfaceDefinitionAst<'base> {
             let base_interface_location = match find_ast_signature(context, module, base_interface_name) {
                 Some(location) => location,
                 None => {
-                    return Err(TirError::TypeNotFound(TypeNotFound {
-                        source: base_interface.names.last().unwrap().extra.file.clone(),
-                        position: base_interface.to_range(),
-                    }.into()));
+                    return Err(TirError::type_not_found(context, base_interface.to_string(), base_interface.to_range(), base_interface.names.last().unwrap().extra.file.clone()));
                 }
             };
 
             let base_interface_signature = context.ast_signatures.get_from_location(base_interface_location)
-                .ok_or_else(|| TirError::TypeNotFound(TypeNotFound {
-                    source: base_interface.names.last().unwrap().extra.file.clone(),
-                    position: base_interface.to_range(),
-                }.into()))?;
+                .ok_or_else(|| TirError::type_not_found(context, base_interface.to_string(), base_interface.to_range(), base_interface.names.last().unwrap().extra.file.clone()))?;
 
             if let AstSignatureValue::Interface(base_interface) = base_interface_signature.value.clone() {
                 Self::resolve_interface(context, &base_interface, fields, module, parent)?;
@@ -122,8 +116,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
         
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
         let signature_path = SignaturePath::owned(format!("{}.{}", tmp_module.path, full_name));
-        let signature_location = context.types.reserve(signature_path.clone(), Cow::Borrowed(*interface_function.name.fragment()), interface_function.name.extra.file.clone(), interface_function.name.to_range())
-            .map_err(|_| TirError::already_defined(self.name.to_range(), self.name.extra.file.clone()))?;
+        let signature_location = context.types.reserve(signature_path.clone(), Cow::Borrowed(*interface_function.name.fragment()), interface_function.name.extra.file.clone(), interface_function.name.to_range())?;
         tmp_module.types.insert(SignaturePath::cow(full_name), signature_location);
 
         let mut arguments = vec![];
@@ -147,11 +140,11 @@ impl<'base> InterfaceDefinitionAst<'base> {
 
             let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
                 Some(field_type) => field_type,
-                None => return Err(TirError::type_not_found(range, file))
+                None => return Err(TirError::type_not_found(context, type_name, range, file))
             };
 
-            if arguments.iter().any(|item: &FunctionArgument| *item.name.fragment() == argument_name) {
-                return Err(TirError::already_defined(range, file));
+            if let Some(old) = arguments.iter().find(|item: &&FunctionArgument<'_>| *item.name.fragment() == argument_name) {
+                return Err(TirError::already_defined(old.name.to_range(), range, file));
             }
 
             arguments.push(FunctionArgument {
@@ -187,7 +180,7 @@ mod tests {
     use crate::{file::SourceFile, nom_tools::State, process_code};
 
     #[test]
-    fn empty_interface() -> Result<(), ()> {
+    fn empty_interface() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
     }"#.to_string()));
@@ -197,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn basic_interface() -> Result<(), ()> {
+    fn basic_interface() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         a: ?Myinterface;
@@ -210,7 +203,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_type_1() -> Result<(), ()> {
+    fn missing_type_1() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         a: nope;
@@ -222,7 +215,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_type_2() -> Result<(), ()> {
+    fn missing_type_2() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         func test(a: nope): nope;
@@ -234,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn dublicate_field_1() -> Result<(), ()> {
+    fn dublicate_field_1() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         pub a: ?Myinterface;
@@ -247,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn dublicate_field_2() -> Result<(), ()> {
+    fn dublicate_field_2() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         func test(a: Myinterface): Myinterface;
@@ -260,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference_test() -> Result<(), ()> {
+    fn cross_reference_test() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         a: ?Myinterface;

@@ -1,6 +1,7 @@
 use std::{borrow::Cow, fmt::Debug};
 
 use function::FunctionResolveError;
+use miette::Diagnostic;
 use simplelog::debug;
 use statement::FunctionCallError;
 use strum::EnumProperty;
@@ -8,7 +9,7 @@ use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
-use super::{ast_signature::AstSignatureValue, context::TirContext, error::{CustomError, TirError, TypeNotFound}, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
+use super::{ast_signature::AstSignatureValue, context::TirContext, error::{CustomError, TirError}, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
 
 pub mod class;
 pub mod extend;
@@ -109,10 +110,7 @@ fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_n
     let field_type = match try_resolve_signature(context, module, type_name_str.as_str())? {
         Some(field_type) => field_type,
         None => {
-            return Err(TirError::TypeNotFound(TypeNotFound {
-                source: type_name.names.last().unwrap().extra.file.clone(),
-                position: type_name.to_range(),
-            }.into()));
+            return Err(TirError::type_not_found(context, type_name.to_string(), type_name.to_range(), type_name.names.last().unwrap().extra.file.clone()));
         }
     };
 
@@ -216,7 +214,10 @@ fn find_module<'base, K: AsRef<str> + ?Sized>(context: &mut TirContext<'base>, m
                 None
             }
         }
-        None => module.modules.get(module_name).cloned(),
+        None => match module.modules.get(module_name).cloned() { // Lets search module in the current module
+            Some(found_module) => Some(found_module),
+            None => context.modules.get(module_name).map(|module| module.get_ref().clone()), // Lets search module in the context
+        },
     }
 }
 
@@ -300,18 +301,18 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
 }
 
 
-#[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum ResolverError {
     #[error("{0}")]
-    #[strum(props(code=1))]
+    #[diagnostic(transparent)]
     FunctionCall(#[from] Box<FunctionCallError>),  
 
     #[error("{0}")]
-    #[strum(props(code=2))]
+    #[diagnostic(transparent)]
     Scope(#[from] Box<ScopeError>),
 
     #[error("{0}")]
-    #[strum(props(code=3))]
+    #[diagnostic(transparent)]
     FunctionResolve(#[from] Box<FunctionResolveError>),
 }
 
@@ -341,7 +342,7 @@ mod tests {
     use crate::{file::SourceFile, nom_tools::State, process_ast, process_code};
 
     #[test]
-    fn found_type() -> Result<(), ()> {
+    fn found_type() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(variable: a): a {} ".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
@@ -349,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference1() -> Result<(), ()> {
+    fn cross_reference1() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -366,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference2() -> Result<(), ()> {
+    fn cross_reference2() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -382,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference3() -> Result<(), ()> {
+    fn cross_reference3() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -396,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference4() -> Result<(), ()> {
+    fn cross_reference4() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -410,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference5() -> Result<(), ()> {
+    fn cross_reference5() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -424,7 +425,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference6() -> Result<(), ()> {
+    fn cross_reference6() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -438,7 +439,7 @@ mod tests {
     }
 
     #[test]
-    fn import_alias1() -> Result<(), ()> {
+    fn import_alias1() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -452,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn import_alias2() -> Result<(), ()> {
+    fn import_alias2() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -466,7 +467,7 @@ mod tests {
     }
 
     #[test]
-    fn import_alias3() -> Result<(), ()> {
+    fn import_alias3() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],

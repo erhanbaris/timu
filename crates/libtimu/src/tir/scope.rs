@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use indexmap::IndexMap;
+use miette::Diagnostic;
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
@@ -75,8 +76,8 @@ impl<'base> Scope<'base> {
 
     pub fn add_variable(&mut self, name: Span<'base>, location: TypeLocation) -> Result<(), TirError> {
         simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>", name.fragment(), location);
-        if self.variables.insert((*name.fragment()).into(), location).is_some() {
-            return Err(TirError::already_defined(name.to_range(), name.extra.file.clone()));
+        if let Some(_) = self.variables.insert((*name.fragment()).into(), location) {
+            return Err(TirError::already_defined(name.to_range(), name.to_range(), name.extra.file.clone()));
         }
         Ok(())
     }
@@ -86,10 +87,9 @@ impl<'base> Scope<'base> {
     }
 }
 
-#[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum ScopeError {
     #[error("Variable already defined")]
-    #[strum(props(code=1))]
     VariableAlreadyDefined(SpanInfo),
 }
 

@@ -2,8 +2,7 @@ use libtimu::{file::SourceFile, nom_tools::State, process_ast, process_code};
 use log::LevelFilter;
 use simplelog::{ColorChoice, CombinedLogger, ConfigBuilder, LevelPadding, TermLogger, TerminalMode, ThreadLogMode};
 
-
-fn main() -> Result<(), ()> {
+fn main() -> miette::Result<()> {
     let config = ConfigBuilder::new()
         .set_location_level(LevelFilter::Debug)
         .set_thread_mode(ThreadLogMode::Both)
@@ -12,39 +11,12 @@ fn main() -> Result<(), ()> {
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
 
-    let code = r#"
-interface ITest {
-    func test(a: string): string;
-    a: TestClass;
-}
+    let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} ".to_string()));
+    let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass; func abc(a: testclass): source.testclass { } func abc(a: testclass): source.testclass { }".to_string()));
 
-class TestClass {
-    func init(this): string {
-        this.test("erhan");
-        this.test("baris");
-        this.test("timucin");
-        this.a.test("baris");
-        abc();
-    }
-}
-
-extend TestClass: ITest {
-    func test(a: string): string {
-        
-    }
-    a: TestClass;
-}
-
-func abc(): TestClass {
-}
-    "#;
-    let file = SourceFile::new(vec!["main".into()], code.to_string());
-    let state = State {
-        file,
-        indexer: Default::default(),
-    };
-
-    let source = process_code(&state)?;
-    process_ast(vec![source.into()])?;
+    let ast_1 = process_code(&state_1)?;
+    let ast_2 = process_code(&state_2)?;
+   
+    process_ast(vec![ast_1.into(), ast_2.into()])?;
     Ok(())
 }

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use ast::FileAst;
-use error::{handle_builder, handle_parser};
+use error::handle_parser;
 use nom::Finish;
 use nom_tools::State;
 use tir::TirContext;
@@ -21,13 +21,12 @@ pub mod map;
 mod tests;
 
 #[allow(clippy::result_unit_err)]
-pub fn process_code<'base>(state: &'base State) -> Result<FileAst<'base>, ()> {
+pub fn process_code<'base>(state: &'base State) -> miette::Result<FileAst<'base>> {
     let response = parser::parse(state).finish();
     Ok(handle_parser(response).unwrap())
 }
 
 #[allow(clippy::result_unit_err)]
-pub fn process_ast(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, ()> {
-    let response = crate::tir::build(files);
-    handle_builder(response)
+pub fn process_ast(files: Vec<Rc<FileAst<'_>>>) -> miette::Result<TirContext<'_>> {
+    crate::tir::build(files).map_err(|err| err.into())
 }

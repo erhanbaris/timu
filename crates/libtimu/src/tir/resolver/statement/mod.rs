@@ -2,7 +2,7 @@ use core::panic;
 use std::borrow::Cow;
 
 use crate::{
-    ast::{BodyStatementAst, PrimitiveValue}, nom_tools::{Span, ToRange}, tir::{context::TirContext, error::TypeNotFound, object_signature::TypeValue, scope::ScopeLocation, signature::SignaturePath, TirError}
+    ast::{BodyStatementAst, PrimitiveValue}, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::TypeValue, scope::ScopeLocation, signature::SignaturePath, TirError}
 };
 
 use super::{ResolveAst, TypeLocation};
@@ -48,7 +48,7 @@ pub fn try_resolve_primitive<'base>(context: &mut TirContext<'base>, primitive: 
     let location = context.types.find_by_value(&TypeValue::PrimitiveType(primitive.to_type()));
     match location {
         Some(location) => Ok(location),
-        None => Err(TirError::TypeNotFound(TypeNotFound { source: span.extra.file.clone(), position: span.to_range() }.into())),
+        None => Err(TirError::type_not_found(context, span.to_string(), span.to_range(), span.extra.file.clone())),
     }
 }
 
@@ -57,7 +57,7 @@ mod tests {
     use crate::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
 
     #[test]
-    fn missing_type_1() -> Result<(), ()> {
+    fn missing_type_1() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], "func test(): a {} ".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -65,15 +65,14 @@ mod tests {
     }
 
     #[test]
-    fn dublicated_function_argument() -> Result<(), ()> {
+    fn dublicated_function_argument() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ".to_string()));
         let ast = process_code(&state)?;
         let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
         if let TirError::AlreadyDefined(error) = error
         {
-            assert_eq!(error.position, 27..28);
-            assert_eq!(error.source.path().join("/"), "source");
+            assert_eq!(error.new_position, (27..28).into());
         } else {
             panic!("Expected TirError::AlreadyDefined but got {:?}", error);
         }
@@ -81,7 +80,7 @@ mod tests {
     }
 
     #[test]
-    fn valid_types() -> Result<(), ()> {
+    fn valid_types() -> miette::Result<()> {
         
         let state_1 = State::new(SourceFile::new(vec!["lib".into()], " class testclass1 {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["main".into()],
@@ -109,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_type_2() -> Result<(), ()> {
+    fn missing_type_2() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], "func test(a: a): test {}".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -117,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    fn not_in_class() -> Result<(), ()> {
+    fn not_in_class() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], "func test(this): test {}".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();

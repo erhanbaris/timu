@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use miette::Diagnostic;
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
@@ -144,11 +145,11 @@ impl<'base> FunctionDefinitionAst<'base> {
 
             let field_type = match try_resolve_signature(context, module, type_name.as_ref())? {
                 Some(field_type) => field_type,
-                None => return Err(TirError::type_not_found(range, file))
+                None => return Err(TirError::type_not_found(context, type_name.to_string(), range, file))
             };
 
-            if arguments.iter().any(|item: &FunctionArgument| *item.name.fragment() == argument_name) {
-                return Err(TirError::already_defined(range, file));
+            if let Some(old) = arguments.iter().find(|item: &&FunctionArgument| *item.name.fragment() == argument_name) {
+                return Err(TirError::already_defined(old.name.to_range(), range.clone(), file));
             }
 
             arguments.push(FunctionArgument {
@@ -171,14 +172,12 @@ impl<'base> FunctionDefinitionAst<'base> {
 
 }
 
-#[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionResolveError {
     #[error("'this' needs to be first argument in function definition")]
-    #[strum(props(code=1))]
     ThisArgumentMustBeFirst(SpanInfo),
 
     #[error("'this' need to define in class function")]
-    #[strum(props(code=2))]
     ThisNeedToDefineInClass(SpanInfo),
 }
 
@@ -216,7 +215,7 @@ mod tests {
     use crate::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
 
     #[test]
-    fn missing_type_1() -> Result<(), ()> {
+    fn missing_type_1() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], "func test(): a {} ".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -224,15 +223,14 @@ mod tests {
     }
 
     #[test]
-    fn dublicated_function_argument() -> Result<(), ()> {
+    fn dublicated_function_argument() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ".to_string()));
         let ast = process_code(&state)?;
         let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
         if let TirError::AlreadyDefined(inner_error) = error
         {
-            assert_eq!(inner_error.position, 27..28);
-            assert_eq!(inner_error.source.path().join("/"), "source");
+            assert_eq!(inner_error.new_position, (27..28).into());
         } else {
             panic!("Expected TirError::AlreadyDefined but got {:?}", error);
         }
@@ -240,7 +238,7 @@ mod tests {
     }
 
     #[test]
-    fn valid_types() -> Result<(), ()> {
+    fn valid_types() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["lib".into()], " class testclass1 {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["main".into()],
             r#"use lib.testclass1 as test;
@@ -267,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_type_2() -> Result<(), ()> {
+    fn missing_type_2() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], "func test(a: a): test {}".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -275,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    fn not_in_class() -> Result<(), ()> {
+    fn not_in_class() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], "func test(this): test {}".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();

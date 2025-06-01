@@ -1,16 +1,15 @@
+use miette::Diagnostic;
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::SpanInfo, tir::{error::{CustomError, ErrorReport}, resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
-#[derive(Debug, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError {
     #[error("Unsupported argument type in function call")]
-    #[strum(props(code=1))]
     UnsupportedArgumentType(SpanInfo),
 
     #[error("Function call argument count mismatch: expected {expected}, got {got}")]
-    #[strum(props(code=2))]
     FunctionCallArgumentCountMismatch {
         expected: usize,
         expected_source: SpanInfo,
@@ -137,7 +136,7 @@ mod tests {
     use crate::{file::SourceFile, nom_tools::State, process_code};
 
     #[test]
-    fn func_call_1() -> Result<(), ()> {
+    fn func_call_1() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
@@ -155,7 +154,7 @@ func abc(): string {
     }
 
     #[test]
-    fn func_call_2() -> Result<(), ()> {
+    fn func_call_2() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
@@ -177,7 +176,7 @@ func abc(): string {
     }
 
     #[test]
-    fn func_call_3() -> Result<(), ()> {
+    fn func_call_3() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {

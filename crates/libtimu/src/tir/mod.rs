@@ -102,6 +102,8 @@ pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError> {
 mod tests {
     use std::rc::Rc;
 
+    use miette::SourceSpan;
+
     use crate::{
         ast::FileAst, file::SourceFile, nom_tools::State, process_code, tir::ast_signature::{build_module_signature, AstSignatureValue}
     };
@@ -189,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn module_test() -> Result<(), ()> {
+    fn module_test() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["source2".into()], "use source1; use source1.testclass1;".to_string()));
         let state_3 = State::new(SourceFile::new(vec!["sub".into(), "source3".into()], "class testclass2 {}".to_string()));
@@ -216,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_module() -> Result<(), ()> {
+    fn missing_module() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source1".into()], "use missing;".to_string()));
         let ast = process_code(&state)?;
         let error = crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -232,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn dublicated_module() -> Result<(), ()> {
+    fn dublicated_module() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass; use source.testclass;".to_string()));
         
@@ -240,9 +242,10 @@ mod tests {
         let ast_2 = process_code(&state_2)?;
         let error = crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap_err();
 
-        if let TirError::AstModuleAlreadyDefined(error) = error
+        if let TirError::ModuleAlreadyImported(error) = error
         {
-            assert_eq!(error.position, 26..42);
+            assert_eq!(error.old_position, SourceSpan::from(7..16));
+            assert_eq!(error.new_position, SourceSpan::from(26..42));
         } else {
             panic!("Expected TirError::AstModuleAlreadyDefined");
         }
@@ -250,9 +253,20 @@ mod tests {
     }
 
     #[test]
-    fn no_dublicated_module() -> Result<(), ()> {
+    fn no_dublicated_module() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass as t1; use source.testclass as t2;".to_string()));
+
+        let ast_1 = process_code(&state_1)?;
+        let ast_2 = process_code(&state_2)?;
+        crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn no_import_works_fine() -> miette::Result<()> {
+        let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} ".to_string()));
+        let state_2 = State::new(SourceFile::new(vec!["lib".into()], "func abc(a: source.testclass): source.testclass { }".to_string()));
 
         let ast_1 = process_code(&state_1)?;
         let ast_2 = process_code(&state_2)?;

@@ -17,8 +17,8 @@ use super::TimuParserError;
 impl UseAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, UseAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("use")).parse(input)?;
-        let (input, (import, splited_import)) = context("Module path missing", cut(consumed(cleanup(separated_list1(char('.'), ident()))))).parse(input)?;
-        let import = SplitedPath::new(import, splited_import);
+        let (input, (import_span, splited_import)) = context("Module path missing", cut(consumed(cleanup(separated_list1(char('.'), ident()))))).parse(input)?;
+        let import = SplitedPath::new(import_span.clone(), splited_import);
         
         let (input, alias) = match opt(cleanup(tag("as"))).parse(input)? {
             (input, Some(_)) => {

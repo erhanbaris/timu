@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 libtimu = { path = "../libtimu" }
 
-# miette = { version = "5.9.0", features = ["fancy"] }
+miette = { version = "7.6.0", features = ["fancy"] }
 ariadne = "0.5.1"
 #inkwell = { version =  "0.5.0", features = ["llvm18-0"] }
 nom = "8.0.0"

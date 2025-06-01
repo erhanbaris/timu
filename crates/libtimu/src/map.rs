@@ -6,13 +6,19 @@ use crate::{nom_tools::{Span, ToRange}, tir::TirError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TimuHashMap<K: Hash + Eq, V> {
-    map: IndexMap<K, V>,
+    map: IndexMap<K, Value<V>>,
 }
 
 impl<K: Hash + Eq, V> Default for TimuHashMap<K, V> {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Value<V> {
+    value: V,
+    positon: std::ops::Range<usize>,
 }
 
 impl<K: Hash + Eq, V> TimuHashMap<K, V> {
@@ -23,22 +29,22 @@ impl<K: Hash + Eq, V> TimuHashMap<K, V> {
     }
 
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-        self.map.insert(key, value)
+        self.map.insert(key, Value { value, positon: 0..0 }).map(|item| item.value)
     }
 
     pub fn validate_insert<'base>(&mut self, key: K, value: V, span: &Span<'base>) -> Result<(), TirError> {
-        match self.map.insert(key, value) {
-            Some(_) => Err(TirError::already_defined(span.to_range(), span.extra.file.clone())),
+        match self.map.insert(key, Value { value, positon: span.to_range() }) {
+            Some(old) => Err(TirError::already_defined(span.to_range(), old.positon, span.extra.file.clone())),
             None => Ok(())
         }
     }
 
     pub fn first(&self) -> Option<(&K, &V)> {
-        self.map.first()
+        self.map.first().map(|item| (item.0, &item.1.value))
     }
 
     pub fn last(&self) -> Option<(&K, &V)> {
-        self.map.last()
+        self.map.last().map(|item| (item.0, &item.1.value))
     }
 
     pub fn get<Q>(&self, key: &Q) -> Option<&V>
@@ -46,14 +52,14 @@ impl<K: Hash + Eq, V> TimuHashMap<K, V> {
         Q: ?Sized + Hash + Equivalent<K>,
         K: std::hash::Hash + Eq,
     {
-        self.map.get(key)
+        self.map.get(key).map(|item| &item.value)
     }
 
     pub fn remove(&mut self, key: &K) -> Option<V>
     where
         K: std::hash::Hash + Eq,
     {
-        self.map.shift_remove(key)
+        self.map.shift_remove(key).map(|item| item.value)
     }
 
     pub fn contains_key(&self, key: &K) -> bool
@@ -68,10 +74,10 @@ impl<K: Hash + Eq, V> TimuHashMap<K, V> {
     }
 
     pub fn values(&self) -> impl Iterator<Item = &V> {
-        self.map.values()
+        self.map.values().map(|item| &item.value)
     }
     pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
-        self.map.iter()
+        self.map.iter().map(|item| (item.0, &item.1.value))
     }
     pub fn len(&self) -> usize {
         self.map.len()
@@ -84,6 +90,6 @@ impl<K: Hash + Eq, V> TimuHashMap<K, V> {
     }
     #[allow(clippy::should_implement_trait)]
     pub fn into_iter(self) -> impl Iterator<Item = (K, V)> {
-        self.map.into_iter()
+        self.map.into_iter().map(|item| (item.0, item.1.value))
     }
 }

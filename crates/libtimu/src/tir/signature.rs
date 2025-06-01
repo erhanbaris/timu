@@ -5,6 +5,8 @@ use simplelog::debug;
 
 use crate::file::SourceFile;
 
+use super::TirError;
+
 pub trait LocationTrait: Debug + From<usize> + Clone {
     fn get(&self) -> usize;
 }
@@ -86,16 +88,28 @@ where
         }
     }
 
-    fn inner_add(&mut self, name: SignaturePath<'base>, value: SignatureInfo<'base, T, E>) -> Result<L, L> {
+    fn inner_add(&mut self, name: SignaturePath<'base>, value: SignatureInfo<'base, T, E>) -> Result<L, TirError> {
         self.signatures.push(Some(value));
         let index = self.signatures.len() - 1;
         match self.locations.insert(name, index) {
-            Some(_) => Err(index.into()),
+            Some(old) => {
+                let old_position = match self.signatures[old].as_ref().unwrap() {
+                    SignatureInfo::Reserved(reservation) => reservation.position.clone(),
+                    SignatureInfo::Value(signature) => signature.position.clone(),
+                };
+
+                let (new_position, file) = match self.signatures[index].as_ref().unwrap() {
+                    SignatureInfo::Reserved(reservation) => (reservation.position.clone(), reservation.file.clone()),
+                    SignatureInfo::Value(signature) =>(signature.position.clone(), signature.file.clone()),
+                };
+
+                Err(TirError::already_defined(new_position, old_position, file))
+            },
             None => Ok(index.into())
         }
     }
 
-    pub fn reserve(&mut self, path: SignaturePath<'base>, name: Cow<'base, str>, file: SourceFile, position: Range<usize>) -> Result<L, L> {
+    pub fn reserve(&mut self, path: SignaturePath<'base>, name: Cow<'base, str>, file: SourceFile, position: Range<usize>) -> Result<L, TirError> {
         debug!("Reserve signature: {}", name.as_ref());
         self.inner_add(path, SignatureInfo::Reserved(SignatureReservation { name, file, position }))
     }
@@ -108,7 +122,7 @@ where
         
     }
 
-    pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<T, E>) -> Result<L, L> {
+    pub fn add_signature(&mut self, name: SignaturePath<'base>, signature: Signature<T, E>) -> Result<L, TirError> {
         debug!("Adding signature: <u><b>{}</b></u>", name.get_name());
         self.inner_add(name, SignatureInfo::Value(signature))
     }
@@ -375,7 +389,7 @@ mod tests {
     use super::SignaturePath;
 
     #[test]
-    fn signature_generation() -> Result<(), ()> {
+    fn signature_generation() -> miette::Result<()> {
         let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} func testfunction(): testclass {} interface testinterface {}".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source; use source.testclass; use source.testfunction; use source.testinterface;".to_string()));
         
@@ -386,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn dublicate_signatures() -> Result<(), ()> {
+    fn dublicate_signatures() -> miette::Result<()> {
         let state = State::new(SourceFile::new(vec!["source".into()], " class test {} func test(): void {} interface test {}".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -394,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn direct_signature_path() -> Result<(), ()> {
+    fn direct_signature_path() -> miette::Result<()> {
 
         let path = SignaturePath::borrowed("test");
         assert_eq!(path.get_type(), SignaturePathType::Direct);
@@ -406,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn moduled_signature_path_1() -> Result<(), ()> {
+    fn moduled_signature_path_1() -> miette::Result<()> {
 
         let path = SignaturePath::borrowed("module.test");
         assert_eq!(path.get_type(), SignaturePathType::Moduled);
