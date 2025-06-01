@@ -124,6 +124,7 @@ pub struct InterfaceDefinitionAst<'base> {
     pub name: Span<'base>,
     pub fields: Vec<InterfaceDefinitionFieldAst<'base>>,
     pub base_interfaces: Vec<TypeNameAst<'base>>,
+    pub index: AstIndex,
 }
 
 #[derive(Debug, PartialEq)]

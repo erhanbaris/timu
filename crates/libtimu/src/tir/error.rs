@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use miette::{Diagnostic, NamedSource, SourceSpan};
+use miette::{Diagnostic, LabeledSpan, NamedSource, SourceSpan};
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::file::SourceFile;
@@ -68,15 +68,47 @@ pub struct AlreadyDefined {
 
 #[derive(Debug, Diagnostic, thiserror::Error)]
 #[error("Extra accessibility identifier")]
-pub struct ExtraAccessibilityIdentifier { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+#[diagnostic(code(timu::error::extra_accessibility_identifier), help("remove pub"))]
+pub struct ExtraAccessibilityIdentifier { 
+    #[label("pub identifier is not allowed here")]
+    pub position: SourceSpan,
+    
+    #[source_code]
+    pub code: NamedSource<String>,
+}
 
 #[derive(Debug, Diagnostic, thiserror::Error)]
 #[error("Invalid type")]
-pub struct InvalidType { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+#[diagnostic(code(timu::error::invalid_type))]
+pub struct InvalidType {
+    #[label(collection, "")]
+    pub position: Vec<LabeledSpan>,
+    
+    #[source_code]
+    pub code: NamedSource<String>,
+}
 
 #[derive(Debug, Diagnostic, thiserror::Error)]
-#[error("Interface field not defined")]
-pub struct InterfaceFieldNotDefined { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+#[error("Circular reference detected")]
+#[diagnostic(code(timu::error::circular_reference), help("to fix this, you need to remove the circular reference"))]
+pub struct CircularReference {
+    #[label("Has a circular reference here")]
+    pub position: SourceSpan,
+    
+    #[source_code]
+    pub code: NamedSource<String>,
+}
+
+#[derive(Debug, Diagnostic, thiserror::Error)]
+#[error("Interface field(s) not defined")]
+#[diagnostic(code(timu::error::interface_field_not_defined), help("to fix this, you need to define field(s) in the interface"))]
+pub struct InterfaceFieldNotDefined { 
+    #[label("Interface field(s) not defined here")]
+    pub position: SourceSpan,
+    
+    #[source_code]
+    pub code: NamedSource<String>,
+ }
 
 #[derive(Debug, Diagnostic, thiserror::Error)]
 #[error("Types do not match")]
@@ -84,7 +116,14 @@ pub struct TypesDoNotMatch { #[allow(dead_code)] pub position: Range<usize>, #[a
 
 #[derive(Debug, Diagnostic, thiserror::Error)]
 #[error("Extra field in interface")]
-pub struct ExtraFieldInInterface { #[allow(dead_code)] position: Range<usize>, #[allow(dead_code)] source: SourceFile }
+#[diagnostic(code(timu::error::interface_field_not_defined), help("remove the field(s) not defined in the interface"))]
+pub struct ExtraFieldInExtend { 
+    #[label("This field is not defined in the extend")]
+    pub position: SourceSpan,
+    
+    #[source_code]
+    pub code: NamedSource<String>,
+ }
 
 #[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum TirError {
@@ -122,11 +161,15 @@ pub enum TirError {
     
     #[error(transparent)]
     #[diagnostic(transparent)]
-    ExtraFieldInInterface(Box<ExtraFieldInInterface>),
+    ExtraFieldInExtend(Box<ExtraFieldInExtend>),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
     ResolverError(#[from] Box<ResolverError>),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    CircularReference(#[from] Box<CircularReference>),
 }
 
 impl TirError {
@@ -140,8 +183,8 @@ impl TirError {
 
     pub fn interface_field_not_defined(position: Range<usize>, source: SourceFile) -> Self {
         TirError::InterfaceFieldNotDefined(InterfaceFieldNotDefined {
-            position,
-            source,
+            position: position.into(),
+            code: source.into(),
         }.into())
     }
 
@@ -154,15 +197,22 @@ impl TirError {
 
     pub fn extra_accessibility_identifier(position: Range<usize>, source: SourceFile) -> Self {
         TirError::ExtraAccessibilityIdentifier(ExtraAccessibilityIdentifier {
-            position,
-            source,
+            position: position.into(),
+            code: source.into(),
         }.into())
     }
 
-    pub fn extra_field_in_interface(position: Range<usize>, source: SourceFile) -> Self {
-        TirError::ExtraFieldInInterface(ExtraFieldInInterface {
-            position,
-            source,
+    pub fn extra_field_in_extend(position: Range<usize>, source: SourceFile) -> Self {
+        TirError::ExtraFieldInExtend(ExtraFieldInExtend {
+            position: position.into(),
+            code: source.into(),
+        }.into())
+    }
+
+    pub fn circular_reference(position: Range<usize>, source: SourceFile) -> Self {
+        TirError::CircularReference(CircularReference {
+            position: position.into(),
+            code: source.into(),
         }.into())
     }
 
@@ -191,10 +241,10 @@ impl TirError {
         }.into())
     }
 
-    pub fn invalid_type(position: Range<usize>, source: SourceFile) -> Self {
+    pub fn invalid_type(position: Range<usize>, message: &str, source: SourceFile) -> Self {
         TirError::InvalidType(InvalidType {
-            position,
-            source,
+            position: vec![LabeledSpan::at(position, message)],
+            code: source.into(),
         }.into())
     }
 }

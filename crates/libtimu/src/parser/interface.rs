@@ -8,7 +8,7 @@ use nom::error::context;
 use nom::multi::{many0, separated_list0};
 use nom::{IResult, Parser, sequence::delimited};
 
-use crate::ast::{FieldAst, FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst, TypeNameAst};
+use crate::ast::{AstIndex, FieldAst, FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst, TypeNameAst};
 use crate::{ast::FileStatementAst, nom_tools::{cleanup, Span}};
 
 use super::{expected_ident, TimuParserError};
@@ -36,6 +36,7 @@ impl InterfaceDefinitionAst<'_> {
             context("Interface's closing '}' missing", cut(char('}'))),
         )
         .parse(input)?;
+        let index = AstIndex(input.extra.indexer.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
 
         Ok((
             input,
@@ -43,6 +44,7 @@ impl InterfaceDefinitionAst<'_> {
                 name,
                 fields,
                 base_interfaces,
+                index,
             }.into()),
         ))
     }

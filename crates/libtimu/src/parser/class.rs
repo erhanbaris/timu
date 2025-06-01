@@ -15,7 +15,6 @@ use super::{expected_ident, TimuParserError};
 
 impl ClassDefinitionAst<'_> {
     pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
-        let index = AstIndex(input.extra.indexer.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
         let (input, _) = cleanup(tag("class")).parse(input)?;
         let (input, name) = expected_ident("Missing class name", input)?;
         let (input, _) = context("Class's opening '{' missing", cut(peek(cleanup(char('{'))))).parse(input)?;
@@ -30,6 +29,7 @@ impl ClassDefinitionAst<'_> {
             context("Class's closing '}' missing", cut(char('}'))),
         )
         .parse(input)?;
+        let index = AstIndex(input.extra.indexer.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
 
         Ok((
             input,

@@ -11,12 +11,32 @@ fn main() -> miette::Result<()> {
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
 
-    let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} ".to_string()));
-    let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass; func abc(a: testclass): source.testclass { } func abc(a: testclass): source.testclass { }".to_string()));
+let state = State::new(SourceFile::new(vec!["source".into()], r#"
+interface ITest {
+    func test(a: string): string;
+    a: TestClass;
+}
 
-    let ast_1 = process_code(&state_1)?;
-    let ast_2 = process_code(&state_2)?;
+extend TestClass: ITest {
+    func test(a: string): string {
+        
+    }
+    a: TestClass;
+}
+
+class TestClass {
+    func init(this): string {
+        this.test("erhanbaris");
+        this.a.test("baris");
+        abc(abc("erhan"));
+    }
+}
+
+func abc(a:string): string {
+}
+"#.to_string()));
+        let ast = process_code(&state).unwrap();
    
-    process_ast(vec![ast_1.into(), ast_2.into()])?;
+    process_ast(vec![ast.into()])?;
     Ok(())
 }

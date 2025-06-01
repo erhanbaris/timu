@@ -1,7 +1,8 @@
+use core::panic;
 use std::borrow::Cow;
 
 use crate::{
-    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, error::InvalidType, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
@@ -10,7 +11,7 @@ use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
 #[allow(dead_code)]
 pub struct InterfaceDefinition<'base> {
     pub name: Span<'base>,
-    pub fields: TimuHashMap<Cow<'base, str>, TypeLocation>,
+    pub fields: TimuHashMap<Span<'base>, TypeLocation>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -32,9 +33,10 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), parent);
         let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.extra.file.clone())?;
 
-        let mut fields = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
+        let mut fields = TimuHashMap::<Span<'_>, TypeLocation>::default();
+        let mut base_interfaces = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
         
-        Self::resolve_interface(context, self, &mut fields, &module_ref, parent)?;
+        Self::resolve_interface(context, self, self, &mut fields, &mut base_interfaces, &module_ref, parent)?;
 
         let signature = TypeSignature::new(TypeValue::Interface(InterfaceDefinition {
             name: self.name.clone(),
@@ -53,7 +55,8 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
 }
 
 impl<'base> InterfaceDefinitionAst<'base> {
-    fn resolve_interface(context: &mut TirContext<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<(), TirError>  {
+    #[allow(clippy::only_used_in_recursion)]
+    fn resolve_interface(context: &mut TirContext<'base>, resolve_interface: &InterfaceDefinitionAst<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut TimuHashMap<Span<'base>, TypeLocation>, base_interfaces: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<(), TirError>  {
         let interface_path = build_signature_path(context, &interface.name, module);
 
         // Check if the interface is already defined
@@ -69,7 +72,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
             match field {
                 InterfaceDefinitionFieldAst::Function(function) => {
                     let signature = interface.resolve_function(context, module, function, parent)?;
-                    fields.validate_insert((*function.name.fragment()).into(), signature, &function.name)?;
+                    fields.validate_insert(function.name.clone(), signature, &function.name)?;
                 }
                 InterfaceDefinitionFieldAst::Field(field) => {
                     if field.is_public.is_some() {
@@ -77,7 +80,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                     }
 
                     let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
-                    fields.validate_insert((*field.name.fragment()).into(), field_type, &field.name)?;
+                    fields.validate_insert(field.name.clone(), field_type, &field.name)?;
                 }
             };
         }
@@ -96,14 +99,17 @@ impl<'base> InterfaceDefinitionAst<'base> {
             let base_interface_signature = context.ast_signatures.get_from_location(base_interface_location)
                 .ok_or_else(|| TirError::type_not_found(context, base_interface.to_string(), base_interface.to_range(), base_interface.names.last().unwrap().extra.file.clone()))?;
 
-            if let AstSignatureValue::Interface(base_interface) = base_interface_signature.value.clone() {
-                Self::resolve_interface(context, &base_interface, fields, module, parent)?;
-            } else {
-                return Err(TirError::InvalidType(InvalidType {
-                    source: base_interface.names.last().unwrap().extra.file.clone(),
-                    position: base_interface.to_range(),
-                }.into()));
-            }
+            match base_interface_signature.value.clone() {
+                AstSignatureValue::Interface(base_interface) => {
+
+                    if base_interface.index == resolve_interface.index {
+                        return Err(TirError::circular_reference(resolve_interface.name.to_range(), resolve_interface.name.extra.file.clone()));
+                    }
+
+                    Self::resolve_interface(context, resolve_interface, &base_interface, fields, base_interfaces, module, parent)?
+                },
+                _ => return Err(TirError::invalid_type(base_interface.to_range(), "only interface type is valid", base_interface.names.last().unwrap().extra.file.clone()))
+            };
         }
         
         Ok(())
@@ -266,6 +272,18 @@ mod tests {
         let ast = process_code(&state)?;
 
         crate::tir::build(vec![ast.into()]).unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn circular_reference() -> miette::Result<()> {
+        let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} interface a: a { b: string; }  ".to_string()));
+        let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass; func abc2(a: testclass): source.testclass { } func abc(a: testclass): source.testclass { }".to_string()));
+
+        let ast_1 = process_code(&state_1)?;
+        let ast_2 = process_code(&state_2)?;
+
+        crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap_err();
         Ok(())
     }
 }

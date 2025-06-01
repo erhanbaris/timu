@@ -43,7 +43,6 @@ impl<'base> FunctionDefinitionAst<'base> {
     pub fn parse(
         input: Span<'base>,
     ) -> IResult<Span<'base>, FunctionDefinitionAst<'base>, TimuParserError<'base>> {
-        let index = AstIndex(input.extra.indexer.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
         let (input, is_public) = is_public(input)?;
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
@@ -58,6 +57,7 @@ impl<'base> FunctionDefinitionAst<'base> {
         let (input, return_type) = context("Missing function return type", cut(cleanup(cleanup(TypeNameAst::parse)))).parse(input)?;
 
         let (input, body) = BodyAst::parse(input)?;
+        let index = AstIndex(input.extra.indexer.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
 
         Ok((
             input,
