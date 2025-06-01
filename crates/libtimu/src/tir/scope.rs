@@ -1,12 +1,11 @@
 use std::borrow::Cow;
 
 use miette::Diagnostic;
-use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{map::TimuHashMap, nom_tools::{Span, SpanInfo}};
 
-use super::{error::CustomError, module::ModuleRef, resolver::{ResolverError, TypeLocation}, signature::LocationTrait, TirContext, TirError};
+use super::{module::ModuleRef, resolver::{ResolverError, TypeLocation}, signature::LocationTrait, TirContext, TirError};
 
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -93,24 +92,5 @@ pub enum ScopeError {
 impl From<ScopeError> for TirError {
     fn from(value: ScopeError) -> Self {
         ResolverError::Scope(Box::new(value)).into()
-    }
-}
-
-impl CustomError for ScopeError {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport> {
-        match self {
-            ScopeError::VariableAlreadyDefined(span) => {
-                vec![crate::tir::error::ErrorReport {
-                    position: span.position.clone(),
-                    message: format!("{}", self),
-                    file: span.file.clone(),
-                    error_code: self.build_error_code(parent_error_code),
-                }]
-            }
-        }
-    }
-    
-    fn get_error_code(&self) -> i64 {
-        self.get_int("code").unwrap()
     }
 }

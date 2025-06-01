@@ -4,12 +4,11 @@ use function::FunctionResolveError;
 use miette::Diagnostic;
 use simplelog::debug;
 use statement::FunctionCallError;
-use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
-use super::{ast_signature::AstSignatureValue, context::TirContext, error::{CustomError, TirError}, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
+use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
 
 pub mod class;
 pub mod extend;
@@ -321,21 +320,6 @@ impl From<ResolverError> for TirError {
         TirError::ResolverError(Box::new(value))
     }
 }
-
-impl CustomError for ResolverError {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport> {
-        match self {
-            ResolverError::FunctionCall(error) => error.get_errors(&self.build_error_code(parent_error_code)),
-            ResolverError::Scope(error) => error.get_errors(&self.build_error_code(parent_error_code)),
-            ResolverError::FunctionResolve(error) => error.get_errors(&self.build_error_code(parent_error_code)),
-        }
-    }
-    
-    fn get_error_code(&self) -> i64 {
-        self.get_int("code").unwrap()
-    }
-}
-
 
 #[cfg(test)]
 mod tests {

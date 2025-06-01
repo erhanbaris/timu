@@ -1,11 +1,10 @@
 use std::borrow::Cow;
 
 use miette::Diagnostic;
-use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{
-    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::{AstNameInfo, TirContext}, error::{CustomError, ErrorReport}, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::{AstNameInfo, TirContext}, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
 };
 
 use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
@@ -184,29 +183,6 @@ pub enum FunctionResolveError {
 impl From<FunctionResolveError> for TirError {
     fn from(value: FunctionResolveError) -> Self {
         ResolverError::FunctionResolve(Box::new(value)).into()
-    }
-}
-
-impl CustomError for FunctionResolveError {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport> {
-        match self {
-            FunctionResolveError::ThisArgumentMustBeFirst(span) => vec![ErrorReport {
-                position: span.position.clone(),
-                message: format!("{}", self),
-                file: span.file.clone(),
-                error_code: self.build_error_code(parent_error_code),
-            }],
-            FunctionResolveError::ThisNeedToDefineInClass(span) => vec![ErrorReport {
-                position: span.position.clone(),
-                message: format!("{}", self),
-                file: span.file.clone(),
-                error_code: self.build_error_code(parent_error_code),
-            }],
-        }
-    }
-    
-    fn get_error_code(&self) -> i64 {
-        self.get_int("code").unwrap()
     }
 }
 

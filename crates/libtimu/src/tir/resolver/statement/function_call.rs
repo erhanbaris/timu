@@ -1,8 +1,7 @@
 use miette::Diagnostic;
-use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::SpanInfo, tir::{error::{CustomError, ErrorReport}, resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::SpanInfo, tir::{resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
 #[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError {
@@ -20,29 +19,6 @@ pub enum FunctionCallError {
 impl From<FunctionCallError> for TirError {
     fn from(value: FunctionCallError) -> Self {
         ResolverError::FunctionCall(Box::new(value)).into()
-    }
-}
-
-impl CustomError for FunctionCallError {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<crate::tir::error::ErrorReport> {
-        match self {
-            FunctionCallError::UnsupportedArgumentType(span) => vec![ErrorReport {
-                position: span.position.clone(), // Placeholder, should be replaced with actual position
-                message: format!("{}", self),
-                file: span.file.clone(),
-                error_code: self.get_int("code").unwrap().to_string(),
-            }],
-            FunctionCallError::FunctionCallArgumentCountMismatch { expected_source, .. } => vec![ErrorReport {
-                position: expected_source.position.clone(),
-                message: format!("{}", self),
-                file: expected_source.file.clone(),
-                error_code: self.build_error_code(parent_error_code),
-            }],
-        }
-    }
-    
-    fn get_error_code(&self) -> i64 {
-        self.get_int("code").unwrap()
     }
 }
 

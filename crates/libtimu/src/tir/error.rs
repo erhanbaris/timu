@@ -1,7 +1,6 @@
 use std::ops::Range;
 
 use miette::{Diagnostic, NamedSource, SourceSpan};
-use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::file::SourceFile;
@@ -128,36 +127,6 @@ pub enum TirError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     ResolverError(#[from] Box<ResolverError>),
-}
-
-#[derive(Debug)]
-pub struct ErrorReport {
-    #[allow(dead_code)]
-    pub position: Range<usize>,
-    #[allow(dead_code)]
-    pub message: String,
-    #[allow(dead_code)]
-    pub file: SourceFile,
-    #[allow(dead_code)]
-    pub error_code: String,
-}
-
-pub trait CustomError {
-    fn get_errors(&self, parent_error_code: &str) -> Vec<ErrorReport>;
-    fn get_error_code(&self) -> i64;
-    fn build_error_code(&self, parent_error_code: &str) -> String {
-        format!("{}-{}", parent_error_code, self.get_error_code())
-    }
-}
-
-impl CustomError for TirError {
-    fn get_errors(&self, _: &str) -> Vec<ErrorReport> {
-       panic!("Please use get_error() for TirError, not get_errors()");
-    }
-    
-    fn get_error_code(&self) -> i64 {
-        self.get_int("code").unwrap()
-    }
 }
 
 impl TirError {
