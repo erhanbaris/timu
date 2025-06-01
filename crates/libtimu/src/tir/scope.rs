@@ -1,11 +1,10 @@
 use std::borrow::Cow;
 
-use indexmap::IndexMap;
 use miette::Diagnostic;
 use strum::EnumProperty;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::nom_tools::{Span, SpanInfo, ToRange};
+use crate::{map::TimuHashMap, nom_tools::{Span, SpanInfo}};
 
 use super::{error::CustomError, module::ModuleRef, resolver::{ResolverError, TypeLocation}, signature::LocationTrait, TirContext, TirError};
 
@@ -32,7 +31,7 @@ impl LocationTrait for ScopeLocation {
 #[derive(Debug, Clone)]
 pub struct Scope<'base> {
     pub module_ref: ModuleRef<'base>,
-    variables: IndexMap<Cow<'base, str>, TypeLocation>,
+    variables: TimuHashMap<Cow<'base, str>, TypeLocation>,
     pub parent_scope: Option<ScopeLocation>,
     pub parent_type: Option<TypeLocation>,
     pub current_type: TypeLocation,
@@ -43,7 +42,7 @@ impl<'base> Scope<'base> {
     pub fn new(module_ref: ModuleRef<'base>, parent_scope: Option<ScopeLocation>,  parent_type: Option<TypeLocation>, location: ScopeLocation) -> Self {
         Self {
             module_ref,
-            variables: IndexMap::new(),
+            variables: TimuHashMap::new(),
             parent_scope,
             parent_type,
             location,
@@ -76,9 +75,7 @@ impl<'base> Scope<'base> {
 
     pub fn add_variable(&mut self, name: Span<'base>, location: TypeLocation) -> Result<(), TirError> {
         simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>", name.fragment(), location);
-        if let Some(_) = self.variables.insert((*name.fragment()).into(), location) {
-            return Err(TirError::already_defined(name.to_range(), name.to_range(), name.extra.file.clone()));
-        }
+        self.variables.validate_insert((*name.fragment()).into(), location, &name)?;
         Ok(())
     }
 
