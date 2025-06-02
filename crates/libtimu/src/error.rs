@@ -1,8 +1,8 @@
 use nom_language::error::VerboseErrorKind;
 use crate::{
     ast::FileAst,
-    nom_tools::State,
-    tir::{TirContext, TirError},
+    nom_tools::{State, ToRange},
+    tir::{error::SyntaxErrorItem, TirContext, TirError},
 };
 
 pub type ParseError<'base> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'base str, State>>;
@@ -24,16 +24,21 @@ pub fn handle_builder(result: TirResult<'_>) -> Result<TirContext<'_>, ()> {
 }
 
 #[allow(clippy::result_unit_err)]
-pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, ()> {
+pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, TirError> {
     match result {
         Ok((_, parsed)) => Ok(parsed),
-        Err(error) => {
-            error.errors.iter().for_each(|(_, error_kind)| {
+    Err(error) => {
+        let mut errors =  Vec::new();
+            error.errors.iter().for_each(|(span, error_kind)| {
                 if let VerboseErrorKind::Context(error_message) = error_kind {
-                    println!("Syntax Error: {}", error_message);
+                    errors.push(SyntaxErrorItem {
+                        position: span.to_range().into(),
+                        code: span.extra.file.clone().into(),
+                        message: error_message
+                    });
                 }
             });
-            Err(())
+            Err(TirError::syntax_error(errors))
         }
     }
 }

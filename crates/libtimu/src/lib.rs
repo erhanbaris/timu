@@ -23,7 +23,7 @@ mod tests;
 #[allow(clippy::result_unit_err)]
 pub fn process_code<'base>(state: &'base State) -> miette::Result<FileAst<'base>> {
     let response = parser::parse(state).finish();
-    Ok(handle_parser(response).unwrap())
+    Ok(handle_parser(response)?)
 }
 
 #[allow(clippy::result_unit_err)]

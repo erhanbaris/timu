@@ -3,7 +3,7 @@ use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::SpanInfo, tir::{resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
-#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError {
     #[error("Unsupported argument type in function call")]
     UnsupportedArgumentType(SpanInfo),

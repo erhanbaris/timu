@@ -300,7 +300,7 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
 }
 
 
-#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum ResolverError {
     #[error("{0}")]
     #[diagnostic(transparent)]

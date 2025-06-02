@@ -7,7 +7,7 @@ use crate::file::SourceFile;
 
 use super::{resolver::ResolverError, TirContext};
 
-#[derive(Debug, thiserror::Error, Diagnostic)]
+#[derive(Clone, Debug, thiserror::Error, Diagnostic)]
 #[error("'{module}' not found")]
 #[diagnostic(code(timu::error::import_not_found), help("try to remove the import or check the module name"))]
 pub struct ImportNotFound {
@@ -22,7 +22,7 @@ pub struct ImportNotFound {
 
 pub static TYPE_NOT_FOUND_HELP: &str = "try to import the type, or maybe you need to define it in the current file";
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
 #[error("'{type_name}' type not found")]
 #[diagnostic(code(timu::error::type_not_found))]
 pub struct TypeNotFound {
@@ -38,7 +38,7 @@ pub struct TypeNotFound {
     pub advice: String,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
 #[diagnostic(code(timu::error::module_already_imported), help("try to remove one of the import"))]
 #[error("Module already defined")]
 pub struct ModuleAlreadyImported {
@@ -52,7 +52,7 @@ pub struct ModuleAlreadyImported {
     pub code: NamedSource<String>,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
 #[error("Already defined")]
 #[diagnostic(code(timu::error::already_imported), help("change one of the names or remove the definition"))]
 pub struct AlreadyDefined {
@@ -66,7 +66,7 @@ pub struct AlreadyDefined {
     pub code: NamedSource<String>,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
 #[error("Extra accessibility identifier")]
 #[diagnostic(code(timu::error::extra_accessibility_identifier), help("remove pub"))]
 pub struct ExtraAccessibilityIdentifier { 
@@ -77,7 +77,7 @@ pub struct ExtraAccessibilityIdentifier {
     pub code: NamedSource<String>,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
 #[error("Invalid type")]
 #[diagnostic(code(timu::error::invalid_type))]
 pub struct InvalidType {
@@ -88,7 +88,7 @@ pub struct InvalidType {
     pub code: NamedSource<String>,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
 #[error("Circular reference detected")]
 #[diagnostic(code(timu::error::circular_reference), help("to fix this, you need to remove the circular reference"))]
 pub struct CircularReference {
@@ -99,7 +99,35 @@ pub struct CircularReference {
     pub code: NamedSource<String>,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[error("ooops, multiple errors detected")]
+pub struct ErrorCollection {
+    #[related]
+    #[diagnostic(transparent)]
+    pub errors: Vec<TirError>
+}
+
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[error("{} syntax error(s) detected", .errors.len())]
+pub struct SyntaxError {
+    #[related]
+    #[diagnostic(transparent)]
+    pub errors: Vec<SyntaxErrorItem>
+}
+
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[error("Syntax error")]
+pub struct SyntaxErrorItem {
+    #[label("Invalid syntax here")]
+    pub position: SourceSpan,
+    
+    #[source_code]
+    pub code: NamedSource<String>,
+
+    pub message: &'static str,
+}
+
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
 #[error("Interface field(s) not defined")]
 #[diagnostic(code(timu::error::interface_field_not_defined), help("to fix this, you need to define field(s) in the interface"))]
 pub struct InterfaceFieldNotDefined { 
@@ -110,23 +138,28 @@ pub struct InterfaceFieldNotDefined {
     pub code: NamedSource<String>,
  }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
 #[error("Types do not match")]
+#[diagnostic(code(timu::error::types_do_not_match), help("to fix this, you need to change the type(s) to match"))]
 pub struct TypesDoNotMatch { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
 #[error("Extra field in interface")]
-#[diagnostic(code(timu::error::interface_field_not_defined), help("remove the field(s) not defined in the interface"))]
+#[diagnostic(code(timu::error::extra_field_in_interface), help("remove the field(s) not defined in the interface"))]
 pub struct ExtraFieldInExtend { 
     #[label("This field is not defined in the extend")]
     pub position: SourceSpan,
     
     #[source_code]
     pub code: NamedSource<String>,
- }
+}
 
-#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum TirError {
+    #[error("Temporary error")]
+    #[diagnostic()]
+    TemporaryError,
+
     #[error(transparent)]
     #[diagnostic(transparent)]
     ImportNotFound(Box<ImportNotFound>),
@@ -170,6 +203,14 @@ pub enum TirError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     CircularReference(#[from] Box<CircularReference>),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ErrorCollection(#[from] Box<ErrorCollection>),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    SyntaxError(#[from] Box<SyntaxError>),
 }
 
 impl TirError {
@@ -245,6 +286,18 @@ impl TirError {
         TirError::InvalidType(InvalidType {
             position: vec![LabeledSpan::at(position, message)],
             code: source.into(),
+        }.into())
+    }
+
+    pub fn multiple_errors(errors: Vec<TirError>) -> Self {
+        TirError::ErrorCollection(ErrorCollection {
+            errors
+        }.into())
+    }
+
+    pub fn syntax_error(errors: Vec<SyntaxErrorItem>) -> Self {
+        TirError::SyntaxError(SyntaxError {
+            errors
         }.into())
     }
 }

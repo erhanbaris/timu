@@ -83,7 +83,7 @@ impl<'base> Scope<'base> {
     }
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Clone, Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum ScopeError {
     #[error("Variable already defined")]
     VariableAlreadyDefined(SpanInfo),
