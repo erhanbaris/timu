@@ -11,19 +11,6 @@ pub type ParseResult<'base> = Result<(nom_locate::LocatedSpan<&'base str, State>
 pub type TirResult<'base> = Result<TirContext<'base>, TirError>;
 
 #[allow(clippy::result_unit_err)]
-pub fn handle_builder(result: TirResult<'_>) -> Result<TirContext<'_>, ()> {
-    match result {
-        Ok(context) => Ok(context),
-        Err(error) => {
-
-            let error = miette::Report::msg(error);
-            println!("Error: {}", error);
-            Err(())
-        }
-    }
-}
-
-#[allow(clippy::result_unit_err)]
 pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, TirError> {
     match result {
         Ok((_, parsed)) => Ok(parsed),
