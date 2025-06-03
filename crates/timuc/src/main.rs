@@ -1,11 +1,11 @@
-use libtimu::{file::SourceFile, nom_tools::State, process_ast, process_code};
+use libtimu::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
 use log::LevelFilter;
 use simplelog::{ColorChoice, CombinedLogger, ConfigBuilder, LevelPadding, TermLogger, TerminalMode, ThreadLogMode};
 use libtimu_macros::TimuError;
 use libtimu_macros_core::{traits::TimuErrorTrait, *};
 
 #[derive(Clone, Debug, TimuError)]
-#[diagnostic(code("code error"), help("This is a help message"))]
+#[diagnostic(code("code error222"), help("This is a help message"))]
 pub struct ExtraFieldInExtend { 
     #[label("Already imported here")]
     pub position1: SourceSpan,
@@ -17,6 +17,16 @@ pub struct ExtraFieldInExtend {
     pub source_code: String,
 }
 
+#[derive(Clone, Debug, thiserror::Error, TimuError)]
+pub enum EnumTest { 
+    #[error("Temporary error")]
+    TemporaryError(ExtraFieldInExtend),
+
+     
+    #[error("Temporary error2")]
+    TemporaryError2(ExtraFieldInExtend),
+}
+
 fn main() -> miette::Result<()> {
        let _test = ExtraFieldInExtend {
         position1: SourceSpan::new(SourceOffset(0), 10),
@@ -24,10 +34,16 @@ fn main() -> miette::Result<()> {
         source_code: "test".to_string(),
     };
 
-    println!("{:?}", _test.labels());
-    println!("{:?}", _test.source_code());
-    println!("{:?}", _test.error_code());
-    println!("{:?}", _test.help());
+    println!("{:#?}", TirError::extra_accessibility_identifier(0..25, SourceFile::new(vec!["test".to_string()], "merhaba dunya merhaba".to_string())).to_string());
+
+    let ttt = EnumTest::TemporaryError(ExtraFieldInExtend { position1: (0..10).into(), position2: (0..20).into(), source_code: "asdasdasdasdadjnsdkjfnsdkjfnskdjfnsjkdnfsjdf".to_string() });
+
+
+    println!("{:?}", ttt.labels());
+    println!("{:?}", ttt.source_code());
+    println!("{:?}", ttt.error_code());
+    println!("{:?}", ttt.help());
+    println!("{:?}", ttt.to_string());
 
     let config = ConfigBuilder::new()
         .set_location_level(LevelFilter::Debug)

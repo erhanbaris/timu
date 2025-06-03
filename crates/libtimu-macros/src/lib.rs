@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::{parse_macro_input, spanned::Spanned, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed, Ident};
+use quote::{format_ident, quote};
+use syn::{parse_macro_input, spanned::Spanned, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed, Ident, Variant};
 mod error;
 
 #[derive(deluxe::ExtractAttributes)]
@@ -89,7 +89,7 @@ fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> To
 
         let labels = get_labels(fields);
 
-        return TokenStream::from(quote!(
+        return TokenStream::from(quote!{
             impl libtimu_macros_core::traits::TimuErrorTrait for #name {
                 fn labels(&self) -> Vec<libtimu_macros_core::traits::LabelField> {
                     vec![#(#labels),*]
@@ -97,14 +97,46 @@ fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> To
                 fn source_code(&self) -> Option<String> { #source_code }
                 fn error_code(&self) -> Option<String> { #error_code }
                 fn help(&self) -> Option<String> { #help }
-            }));
+            }
+        });
     }
 
     TokenStream::from(syn::Error::new(name.span(), "Only structs and enums with named fields can derive `TimuError`").to_compile_error())
 }
 
-fn build_enum(name: Ident, diagnostic: Diagnostic, mut data: DataEnum) -> TokenStream {
-    TokenStream::from(syn::Error::new(name.span(), "Only structs and enums with named fields can derive `TimuError`").to_compile_error())
+fn enum_generator(name: &Ident, function_name: Ident, variants: &Vec<Variant>) -> proc_macro2::TokenStream {
+    let mut lines = Vec::new();
+    for variant in variants.iter() {
+        let variant_ident = &variant.ident;
+        lines.push(quote! { #name::#variant_ident ( data ) =>  data.#function_name() });
+    }
+
+    proc_macro2::TokenStream::from(quote!(
+        match self {
+            #(#lines),*
+        }
+    ))
+}
+
+fn build_enum(name: Ident, data: DataEnum) -> TokenStream {
+    let mut variants = Vec::new();
+    for variant in data.variants.into_iter() {
+        variants.push(variant);
+    }
+
+    let labels = enum_generator(&name, format_ident!("labels"), &variants);
+    let source_code = enum_generator(&name, format_ident!("source_code"), &variants);
+    let error_code = enum_generator(&name, format_ident!("error_code"), &variants);
+    let help = enum_generator(&name, format_ident!("help"), &variants);
+
+    return TokenStream::from(quote!{
+        impl libtimu_macros_core::traits::TimuErrorTrait for #name {
+            fn labels(&self) -> Vec<libtimu_macros_core::traits::LabelField> { #labels }
+            fn source_code(&self) -> Option<String> { #source_code }
+            fn error_code(&self) -> Option<String> { #error_code }
+            fn help(&self) -> Option<String> { #help }
+        }
+    });
 }
 
 #[proc_macro_derive(TimuError, attributes(source_code, label, help, diagnostic))]
@@ -118,7 +150,7 @@ pub fn derive_timu_error(input: TokenStream) -> TokenStream {
 
     match input.data {
         syn::Data::Struct(data) => return build_struct(input.ident, diagnostic, data),
-        syn::Data::Enum(data) => return build_enum(input.ident, diagnostic, data),
+        syn::Data::Enum(data) => return build_enum(input.ident, data),
         _ => {}
     };
 
