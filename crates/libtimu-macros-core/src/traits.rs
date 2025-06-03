@@ -1,12 +1,14 @@
 use crate::SourceSpan;
 
 #[derive(Clone, Debug)]
-pub struct LabelField<'a> {
+pub struct LabelField {
     pub position: SourceSpan,
-    pub label: &'a str,
+    pub label: String,
 }
 
 pub trait TimuErrorTrait {
     fn labels(&self) -> Vec<LabelField>;
-    //fn code(&self) -> Vec<String>;
+    fn source_code(&self) -> Option<String>;
+    fn error_code(&self) -> Option<String>;
+    fn help(&self) -> Option<String>;
 }

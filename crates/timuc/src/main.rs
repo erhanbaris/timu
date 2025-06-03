@@ -1,10 +1,34 @@
-use libtimu::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::error::ImportNotFound};
+use libtimu::{file::SourceFile, nom_tools::State, process_ast, process_code};
 use log::LevelFilter;
-use miette::{NamedSource, SourceOffset, SourceSpan};
 use simplelog::{ColorChoice, CombinedLogger, ConfigBuilder, LevelPadding, TermLogger, TerminalMode, ThreadLogMode};
-use miette::*;
+use libtimu_macros::TimuError;
+use libtimu_macros_core::{traits::TimuErrorTrait, *};
+
+#[derive(Clone, Debug, TimuError)]
+#[diagnostic(code("code error"), help("This is a help message"))]
+pub struct ExtraFieldInExtend { 
+    #[label("Already imported here")]
+    pub position1: SourceSpan,
+    
+    #[label("asd")]
+    pub position2: SourceSpan,
+
+    #[source_code]
+    pub source_code: String,
+}
 
 fn main() -> miette::Result<()> {
+       let _test = ExtraFieldInExtend {
+        position1: SourceSpan::new(SourceOffset(0), 10),
+        position2: SourceSpan::new(SourceOffset(10), 10),
+        source_code: "test".to_string(),
+    };
+
+    println!("{:?}", _test.labels());
+    println!("{:?}", _test.source_code());
+    println!("{:?}", _test.error_code());
+    println!("{:?}", _test.help());
+
     let config = ConfigBuilder::new()
         .set_location_level(LevelFilter::Debug)
         .set_thread_mode(ThreadLogMode::Both)

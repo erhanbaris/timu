@@ -3,15 +3,7 @@ use std::ops::Range;
 use miette::{Diagnostic, LabeledSpan, NamedSource, SourceSpan};
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::file::SourceFile;
-
-use super::{resolver::ResolverError, TirContext};
-pub trait ErrorTrait {
-    fn message(&self) -> String;
-    fn positions(&self) -> Vec<LabeledSpan>;
-    fn source(&self) -> String;
-    fn help(&self) -> Option<String>;
-}
+use crate::{file::SourceFile, tir::{resolver::ResolverError, TirContext}};
 
 #[derive(Clone, Debug, thiserror::Error, Diagnostic)]
 #[error("'{module}' not found")]
