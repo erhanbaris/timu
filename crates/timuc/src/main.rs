@@ -38,11 +38,10 @@ fn main() -> miette::Result<()> {
 
     let ttt = EnumTest::TemporaryError(ExtraFieldInExtend { position1: (0..10).into(), position2: (0..20).into(), source_code: "asdasdasdasdadjnsdkjfnsdkjfnskdjfnsjkdnfsjdf".to_string() });
 
-
     println!("{:?}", ttt.labels());
-    println!("{:?}", ttt.source_code());
-    println!("{:?}", ttt.error_code());
-    println!("{:?}", ttt.help());
+    println!("{}", match ttt.source_code() { Some(code) => code.to_string(), None => "No source code".to_string() });
+    println!("{}", ttt.error_code().unwrap());
+    println!("{}", ttt.help().unwrap());
     println!("{:?}", ttt.to_string());
 
     let config = ConfigBuilder::new()

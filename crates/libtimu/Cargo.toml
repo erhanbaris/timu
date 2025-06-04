@@ -6,6 +6,8 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+libtimu-macros = { path = "../libtimu-macros" }
+libtimu-macros-core = { path = "../libtimu-macros-core" }
 miette = { version = "7.6.0", features = ["fancy"] }
 #inkwell = { version =  "0.5.0", features = ["llvm18-0"] }
 nom = "8.0.0"

@@ -1,3 +1,5 @@
+use std::fmt::{Debug, Display};
+
 use crate::SourceSpan;
 
 #[derive(Clone, Debug)]
@@ -8,7 +10,7 @@ pub struct LabelField {
 
 pub trait TimuErrorTrait {
     fn labels(&self) -> Vec<LabelField>;
-    fn source_code(&self) -> Option<String>;
-    fn error_code(&self) -> Option<String>;
-    fn help(&self) -> Option<String>;
+    fn source_code(&self) -> Option<Box<dyn Display>> { None }
+    fn error_code(&self) -> Option<Box<dyn Display>> { None }
+    fn help(&self) -> Option<Box<dyn Display>> { None }
 }

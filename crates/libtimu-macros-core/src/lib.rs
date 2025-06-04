@@ -1,4 +1,5 @@
 pub mod traits;
+pub mod error;
 
 pub type ByteOffset = usize;
 

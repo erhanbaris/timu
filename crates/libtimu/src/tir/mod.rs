@@ -14,6 +14,7 @@ use crate::{ast::{FileAst, FileStatementAst}, file::SourceFile};
 mod ast_signature;
 mod context;
 pub mod error;
+pub mod new_error;
 mod module;
 mod object_signature;
 mod resolver;
