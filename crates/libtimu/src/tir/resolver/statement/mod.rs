@@ -54,10 +54,10 @@ pub fn try_resolve_primitive<'base>(context: &mut TirContext<'base>, primitive: 
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::SourceFile, nom_tools::State, process_ast, process_code};
+    use crate::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
 
     #[test]
-    fn missing_type_1() -> miette::Result<()> {
+    fn missing_type_1() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "func test(): a {} ".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -65,7 +65,7 @@ mod tests {
     }
 
     #[test]
-    fn dublicated_function_argument() -> miette::Result<()> {
+    fn dublicated_function_argument() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ".to_string()));
         let ast = process_code(&state)?;
         let _error = crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -83,7 +83,7 @@ mod tests {
     }
 
     #[test]
-    fn valid_types() -> miette::Result<()> {
+    fn valid_types() -> Result<(), TirError> {
         
         let state_1 = State::new(SourceFile::new(vec!["lib".into()], " class testclass1 {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["main".into()],
@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_type_2() -> miette::Result<()> {
+    fn missing_type_2() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "func test(a: a): test {}".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -119,7 +119,7 @@ mod tests {
     }
 
     #[test]
-    fn not_in_class() -> miette::Result<()> {
+    fn not_in_class() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "func test(this): test {}".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();

@@ -183,10 +183,10 @@ impl<'base> InterfaceDefinitionAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::SourceFile, nom_tools::State, process_code};
+    use crate::{file::SourceFile, nom_tools::State, process_code, tir::TirError};
 
     #[test]
-    fn empty_interface() -> miette::Result<()> {
+    fn empty_interface() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
     }"#.to_string()));
@@ -196,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn basic_interface() -> miette::Result<()> {
+    fn basic_interface() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         a: ?Myinterface;
@@ -209,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_type_1() -> miette::Result<()> {
+    fn missing_type_1() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         a: nope;
@@ -221,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_type_2() -> miette::Result<()> {
+    fn missing_type_2() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         func test(a: nope): nope;
@@ -233,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn dublicate_field_1() -> miette::Result<()> {
+    fn dublicate_field_1() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         pub a: ?Myinterface;
@@ -246,7 +246,7 @@ mod tests {
     }
 
     #[test]
-    fn dublicate_field_2() -> miette::Result<()> {
+    fn dublicate_field_2() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         func test(a: Myinterface): Myinterface;
@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference_test() -> miette::Result<()> {
+    fn cross_reference_test() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
     interface Myinterface {
         a: ?Myinterface;
@@ -276,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn circular_reference() -> miette::Result<()> {
+    fn circular_reference() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} interface a: a { b: string; }  ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass; func abc2(a: testclass): source.testclass { } func abc(a: testclass): source.testclass { }".to_string()));
 

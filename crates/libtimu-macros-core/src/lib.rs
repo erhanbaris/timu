@@ -1,5 +1,6 @@
+use std::fmt::{Display, Formatter};
+
 pub mod traits;
-pub mod error;
 
 pub type ByteOffset = usize;
 
@@ -85,5 +86,17 @@ impl SourceSpan {
     /// to point to a specific point.
     pub const fn is_empty(&self) -> bool {
         self.length == 0
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SourceCode {
+    pub source: String,
+    pub name: String,
+}
+
+impl Display for SourceCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.source)
     }
 }

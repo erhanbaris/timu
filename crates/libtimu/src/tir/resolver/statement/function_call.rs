@@ -1,9 +1,9 @@
-use miette::Diagnostic;
+use libtimu_macros::TimuError;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::SpanInfo, tir::{resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError {
     #[error("Unsupported argument type in function call")]
     UnsupportedArgumentType(SpanInfo),
@@ -109,10 +109,10 @@ impl<'base> BodyStatementAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::SourceFile, nom_tools::State, process_code};
+    use crate::{file::SourceFile, nom_tools::State, process_code, tir::TirError};
 
     #[test]
-    fn func_call_1() -> miette::Result<()> {
+    fn func_call_1() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
@@ -130,7 +130,7 @@ func abc(): string {
     }
 
     #[test]
-    fn func_call_2() -> miette::Result<()> {
+    fn func_call_2() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {
@@ -152,7 +152,7 @@ func abc(): string {
     }
 
     #[test]
-    fn func_call_3() -> miette::Result<()> {
+    fn func_call_3() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
 class TestClass {

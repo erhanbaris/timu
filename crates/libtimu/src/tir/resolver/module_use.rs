@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 
-use miette::SourceSpan;
+use libtimu_macros_core::SourceSpan;
 
 use crate::{
-    ast::UseAst, tir::{context::TirContext, error::{ImportNotFound, ModuleAlreadyImported}, scope::ScopeLocation, TirError}
+    ast::UseAst, tir::{context::TirContext, new_error::{ImportNotFound, ModuleAlreadyImported}, scope::ScopeLocation, TirError}
 };
 
 use super::{ResolveAst, TypeLocation};

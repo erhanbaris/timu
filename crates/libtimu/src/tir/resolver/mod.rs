@@ -1,14 +1,14 @@
 use std::{borrow::Cow, fmt::Debug};
 
 use function::FunctionResolveError;
-use miette::Diagnostic;
+use libtimu_macros::TimuError;
 use simplelog::debug;
 use statement::FunctionCallError;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
-use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
+use super::{ast_signature::AstSignatureValue, context::TirContext, new_error::TirError, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
 
 pub mod class;
 pub mod extend;
@@ -300,18 +300,15 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
 }
 
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum ResolverError {
     #[error("{0}")]
-    #[diagnostic(transparent)]
     FunctionCall(#[from] Box<FunctionCallError>),  
 
     #[error("{0}")]
-    #[diagnostic(transparent)]
     Scope(#[from] Box<ScopeError>),
 
     #[error("{0}")]
-    #[diagnostic(transparent)]
     FunctionResolve(#[from] Box<FunctionResolveError>),
 }
 
@@ -323,10 +320,10 @@ impl From<ResolverError> for TirError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::SourceFile, nom_tools::State, process_ast, process_code};
+    use crate::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
 
     #[test]
-    fn found_type() -> miette::Result<()> {
+    fn found_type() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(variable: a): a {} ".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
@@ -334,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference1() -> miette::Result<()> {
+    fn cross_reference1() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -351,7 +348,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference2() -> miette::Result<()> {
+    fn cross_reference2() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -367,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference3() -> miette::Result<()> {
+    fn cross_reference3() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -381,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference4() -> miette::Result<()> {
+    fn cross_reference4() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -395,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference5() -> miette::Result<()> {
+    fn cross_reference5() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -409,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn cross_reference6() -> miette::Result<()> {
+    fn cross_reference6() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -423,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn import_alias1() -> miette::Result<()> {
+    fn import_alias1() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -437,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn import_alias2() -> miette::Result<()> {
+    fn import_alias2() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
@@ -451,7 +448,7 @@ mod tests {
     }
 
     #[test]
-    fn import_alias3() -> miette::Result<()> {
+    fn import_alias3() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],

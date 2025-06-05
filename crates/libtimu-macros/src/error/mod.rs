@@ -1,19 +1,23 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, spanned::Spanned, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed, Ident, Variant};
+use syn::{parse_macro_input, spanned::Spanned, DataEnum, DataStruct, DeriveInput, Field, Fields, FieldsNamed, Ident, Variant};
 
 #[derive(deluxe::ExtractAttributes)]
 #[deluxe(attributes(label))]
 struct Label(String);
 
-#[derive(deluxe::ExtractAttributes)]
+#[derive(deluxe::ExtractAttributes, deluxe::ParseMetaItem)]
 #[deluxe(attributes(diagnostic))]
+#[derive(Debug)]
 struct Diagnostic {
     #[deluxe(default)]
     code: Option<String>,
 
     #[deluxe(default)]
     help: Option<String>,
+
+    #[deluxe(default)]
+    transparent: bool,
 }
 
 fn get_source_code(fields: &mut FieldsNamed) -> Option<syn::Member> {
@@ -45,17 +49,17 @@ fn get_help(fields: &mut FieldsNamed) -> Option<proc_macro2::TokenStream> {
     None
 }
 
-fn get_labels(fields: &mut FieldsNamed) -> Vec<proc_macro2::TokenStream> {
+fn get_labels(fields: &mut FieldsNamed) -> Vec<(Field, proc_macro2::TokenStream)> {
     let mut field_values = Vec::new();
     for field in fields.named.iter_mut() {
         if let Ok(Label(message)) = deluxe::extract_attributes(field) {
             let name = &field.ident;
-            field_values.push(quote! {
+            field_values.push((field.clone(), quote! {
                 libtimu_macros_core::traits::LabelField {
                     label: #message.to_string(),
                     position: self.#name,
                 }
-            });
+            }));
         }
     }
 
@@ -65,9 +69,7 @@ fn get_labels(fields: &mut FieldsNamed) -> Vec<proc_macro2::TokenStream> {
 fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> TokenStream {
     if let Fields::Named(fields) = &mut data.fields {
         let source_code = match get_source_code(fields) {
-            Some(member) => {
-                quote!( Some(Box::new(self.#member.clone())) )
-            },
+            Some(member) => quote!( Some(Box::new(self.#member.clone())) ),
             None => quote!( None ),
         };
 
@@ -75,7 +77,6 @@ fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> To
             Some(code) => quote!( Some(Box::new(#code.to_string())) ),
             None => quote!( None ),
         };
-
 
         let help = match diagnostic.help {
             Some(help) => quote!( Some(Box::new(#help.to_string())) ),
@@ -85,14 +86,12 @@ fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> To
             },
         };
 
-        let labels = get_labels(fields);
+        let labels = get_labels(fields).into_iter().map(|(_, token)| token).collect::<Vec<_>>();
 
         return TokenStream::from(quote!{
             impl libtimu_macros_core::traits::TimuErrorTrait for #name {
-                fn labels(&self) -> Vec<libtimu_macros_core::traits::LabelField> {
-                    vec![#(#labels),*]
-                }
-                fn source_code(&self) -> Option<Box<dyn std::fmt::Display>> { #source_code }
+                fn labels(&self) -> Option<Vec<libtimu_macros_core::traits::LabelField>> { Some(vec![#(#labels),*]) }
+                fn source_code(&self) -> Option<Box<libtimu_macros_core::SourceCode>> { #source_code }
                 fn error_code(&self) -> Option<Box<dyn std::fmt::Display>> { #error_code }
                 fn help(&self) -> Option<Box<dyn std::fmt::Display>> { #help }
             }
@@ -102,18 +101,87 @@ fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> To
     TokenStream::from(syn::Error::new(name.span(), "Only structs and enums with named fields can derive `TimuError`").to_compile_error())
 }
 
-fn enum_generator(name: &Ident, function_name: Ident, variants: &Vec<Variant>) -> proc_macro2::TokenStream {
-    let mut lines = Vec::new();
-    for variant in variants.iter() {
-        let variant_ident = &variant.ident;
-        lines.push(quote! { #name::#variant_ident ( data ) =>  data.#function_name() });
-    }
+fn generate_enum_source_code(enum_name: &Ident, enum_field_ident: &Ident, fields: &mut FieldsNamed) -> proc_macro2::TokenStream {
+    let inner_match = match get_source_code(fields) {
+        Some(member) => quote!( #member ),
+        None => quote!( None )
+    };
 
-    proc_macro2::TokenStream::from(quote!(
+    quote!( #enum_name::#enum_field_ident { .. } => #inner_match )
+}
+
+fn generate_enum_error_code(enum_name: &Ident, enum_field_ident: &Ident, diagnostic: &Diagnostic) -> proc_macro2::TokenStream {
+    let inner_match = match diagnostic.code.as_ref() {
+        Some(code) => quote!( Some(Box::new(#code.to_string())) ),
+        None => quote!( None ),
+    };
+
+    quote!( #enum_name::#enum_field_ident { .. } => #inner_match )
+}
+
+fn generate_enum_help(enum_name: &Ident, enum_field_ident: &Ident, diagnostic: &Diagnostic) -> proc_macro2::TokenStream {
+    let inner_match = match diagnostic.help.as_ref() {
+        Some(help) => quote!( Some(Box::new(#help.to_string())) ),
+        None => quote!(  None ),
+    };
+
+    quote!( #enum_name::#enum_field_ident { .. } => #inner_match )
+}
+
+fn generate_enum_labels(enum_name: &Ident, enum_field_ident: &Ident, fields: &mut FieldsNamed) -> proc_macro2::TokenStream {
+    let labels = get_labels(fields);
+    match labels.is_empty() {
+        true => quote!( #enum_name::#enum_field_ident { .. } => None ),
+        false => {
+            let fields = labels.iter().map(|(field, _)| field).collect::<Vec<_>>();
+            let tokens = labels.iter().map(|(_, token)| token).collect::<Vec<_>>();
+
+            quote!( #enum_name::#enum_field_ident { #(#fields),*, .. } => Some(vec![#(#tokens),*]) )
+        },
+    }
+}
+
+fn enum_generator(enum_name: &Ident, function_name: Ident, variants: &mut [Variant]) -> proc_macro2::TokenStream {
+    let mut lines = Vec::new();
+    for enum_field in variants.iter_mut() {
+        
+        let enum_field_ident = enum_field.ident.clone();
+        if let Ok(diagnostic) = deluxe::extract_attributes::<_, Diagnostic>(enum_field) {
+
+            // The error details will be comes from sub struct or enum
+            if diagnostic.transparent {
+
+                lines.push(quote! { #enum_name::#enum_field_ident ( data ) =>  data.#function_name() });
+            } else {
+                match &mut enum_field.fields {
+                    Fields::Named(fields) => {    
+                        let tokens = match function_name.to_string().as_str() {
+                            "labels" => generate_enum_labels(enum_name, &enum_field_ident, fields),
+                            "source_code" => generate_enum_source_code(enum_name, &enum_field_ident, fields),
+                            "error_code" => generate_enum_error_code(enum_name, &enum_field_ident, &diagnostic),
+                            "help" => generate_enum_help(enum_name, &enum_field_ident, &diagnostic),
+                            _ => panic!("Unknown field ({})", function_name)
+                        };
+
+                        lines.push(tokens);
+                    }
+                    Fields::Unnamed(_) => {
+                        lines.push(quote!( #enum_name::#enum_field_ident { .. } => None ));
+                    },
+                    Fields::Unit => {
+                        lines.push(quote!( #enum_name::#enum_field_ident { .. } => None ));
+                    }
+                };
+            }
+        } else {
+            lines.push(quote!( #enum_name::#enum_field_ident { .. } => None ));
+        }
+    }
+    quote!(
         match self {
             #(#lines),*
         }
-    ))
+    )
 }
 
 fn build_enum(name: Ident, data: DataEnum) -> TokenStream {
@@ -122,19 +190,19 @@ fn build_enum(name: Ident, data: DataEnum) -> TokenStream {
         variants.push(variant);
     }
 
-    let labels = enum_generator(&name, format_ident!("labels"), &variants);
-    let source_code = enum_generator(&name, format_ident!("source_code"), &variants);
-    let error_code = enum_generator(&name, format_ident!("error_code"), &variants);
-    let help = enum_generator(&name, format_ident!("help"), &variants);
+    let labels = enum_generator(&name, format_ident!("labels"), &mut variants);
+    let source_code = enum_generator(&name, format_ident!("source_code"), &mut variants);
+    let error_code = enum_generator(&name, format_ident!("error_code"), &mut variants);
+    let help = enum_generator(&name, format_ident!("help"), &mut variants);
 
-    return TokenStream::from(quote!{
+    TokenStream::from(quote!{
         impl libtimu_macros_core::traits::TimuErrorTrait for #name {
-            fn labels(&self) -> Vec<libtimu_macros_core::traits::LabelField> { #labels }
-            fn source_code(&self) -> Option<Box<dyn std::fmt::Display>> { #source_code }
+            fn labels(&self) -> Option<Vec<libtimu_macros_core::traits::LabelField>> { #labels }
+            fn source_code(&self) -> Option<Box<libtimu_macros_core::SourceCode>> { #source_code }
             fn error_code(&self) -> Option<Box<dyn std::fmt::Display>> { #error_code }
             fn help(&self) -> Option<Box<dyn std::fmt::Display>> { #help }
         }
-    });
+    })
 }
 
 pub fn timu_error(input: TokenStream) -> TokenStream {
@@ -144,12 +212,10 @@ pub fn timu_error(input: TokenStream) -> TokenStream {
         Ok(diagnostic) => diagnostic,
         _ => return TokenStream::from(syn::Error::new(input.ident.span(), "diagnostic is missing").to_compile_error())
     };
-
+    
     match input.data {
-        syn::Data::Struct(data) => return build_struct(input.ident, diagnostic, data),
-        syn::Data::Enum(data) => return build_enum(input.ident, data),
-        _ => {}
-    };
-
-    TokenStream::from(syn::Error::new(input.ident.span(), "Only structs and enums with named fields can derive `TimuError`").to_compile_error())
+        syn::Data::Struct(data) => build_struct(input.ident, diagnostic, data),
+        syn::Data::Enum(data) => build_enum(input.ident, data),
+        _ => TokenStream::from(syn::Error::new(input.ident.span(), "Only structs and enums with named fields can derive `TimuError`").to_compile_error())
+    }
 }

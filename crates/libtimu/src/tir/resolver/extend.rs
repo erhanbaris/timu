@@ -186,10 +186,10 @@ impl<'base> ExtendDefinitionAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::SourceFile, nom_tools::State, process_code, tir::object_signature::TypeValue};
+    use crate::{file::SourceFile, nom_tools::State, process_code, tir::{object_signature::TypeValue, TirError}};
 
     #[test]
-    fn empty_interface() -> miette::Result<()> {
+    fn empty_interface() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest {}
 extend TestClass: ITest {}
@@ -201,7 +201,7 @@ class TestClass {}
     }
 
     #[test]
-    fn dublicate_field_1() -> miette::Result<()> {
+    fn dublicate_field_1() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { a: TestClass; }
 extend TestClass: ITest { a: TestClass; }
@@ -213,7 +213,7 @@ class TestClass { a: TestClass; }
     }
 
     #[test]
-    fn dublicate_field_2() -> miette::Result<()> {
+    fn dublicate_field_2() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(): TestClass { } }
@@ -225,7 +225,7 @@ class TestClass { func test(): TestClass { } }
     }
 
     #[test]
-    fn extended_fields() -> miette::Result<()> {
+    fn extended_fields() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; a: TestClass; }
 extend TestClass: ITest { func test(): TestClass { } a: TestClass; }
@@ -259,7 +259,7 @@ class TestClass { }
     }
 
     #[test]
-    fn missing_definition() -> miette::Result<()> {
+    fn missing_definition() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; a: TestClass; }
 extend TestClass: ITest { func test(): TestClass { } }
@@ -271,7 +271,7 @@ class TestClass { }
     }
 
     #[test]
-    fn interface_and_extend_informations_different_1() -> miette::Result<()> {
+    fn interface_and_extend_informations_different_1() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(a: TestClass): TestClass { } }
@@ -283,7 +283,7 @@ class TestClass { }
     }
 
     #[test]
-    fn interface_and_extend_informations_different_2() -> miette::Result<()> {
+    fn interface_and_extend_informations_different_2() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(): TmpClass { } }
@@ -296,7 +296,7 @@ class TmpClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_1() -> miette::Result<()> {
+    fn multiple_interface_validation_1() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 interface Interface2 { func world(): TestClass; }
@@ -312,7 +312,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_2() -> miette::Result<()> {
+    fn multiple_interface_validation_2() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 interface Interface2 { func world(): TestClass; }
@@ -327,7 +327,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_missing_field() -> miette::Result<()> {
+    fn multiple_interface_missing_field() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 interface Interface2 { func world(): TestClass; }
@@ -342,7 +342,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_3() -> miette::Result<()> {
+    fn multiple_interface_validation_3() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface2 { func world(): TestClass; }
 interface Interface1: Interface2 { func hello(): TestClass; }
@@ -357,7 +357,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_4() -> miette::Result<()> {
+    fn multiple_interface_validation_4() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface1 { func hello(): TestClass; }
 
@@ -371,7 +371,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_5() -> miette::Result<()> {
+    fn multiple_interface_validation_5() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface3 { func test(): TestClass; }
 interface Interface2 { func world(): TestClass; }
@@ -387,7 +387,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_6() -> miette::Result<()> {
+    fn multiple_interface_validation_6() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface3 { func test(): TestClass; }
 interface Interface2: Interface3 { func world(): TestClass; }
@@ -403,7 +403,7 @@ class TestClass { }
     }
 
     #[test]
-    fn multiple_interface_validation_7() -> miette::Result<()> {
+    fn multiple_interface_validation_7() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface Interface3 { func test(): TestClass; }
 interface Interface2: Interface3 { func world(): TestClass; }

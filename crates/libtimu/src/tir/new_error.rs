@@ -1,10 +1,9 @@
 use std::ops::Range;
 
-use miette::{Diagnostic, LabeledSpan, NamedSource};
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use libtimu_macros::TimuError;
-use libtimu_macros_core::{traits::TimuErrorTrait, *};
+use libtimu_macros_core::{traits::LabeledSpan, SourceCode, SourceSpan};
 
 use crate::{file::SourceFile, tir::{resolver::ResolverError, TirContext}};
 
@@ -18,14 +17,14 @@ pub struct ImportNotFound {
     pub position: SourceSpan,
     
     #[source_code]
-    pub code: NamedSource<String>
+    pub code: SourceCode
 }
 
 pub static TYPE_NOT_FOUND_HELP: &str = "try to import the type, or maybe you need to define it in the current file";
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("'{type_name}' type not found")]
-#[diagnostic(code(timu::error::type_not_found))]
+#[diagnostic(code("timu::error::type_not_found"))]
 pub struct TypeNotFound {
     pub type_name: String,
 
@@ -33,14 +32,14 @@ pub struct TypeNotFound {
     pub position: SourceSpan,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 
     #[help]
     pub advice: String,
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
-#[diagnostic(code(timu::error::module_already_imported), help("try to remove one of the import"))]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[diagnostic(code("timu::error::module_already_imported"), help("try to remove one of the import"))]
 #[error("Module already defined")]
 pub struct ModuleAlreadyImported {
     #[label("Already imported here")]
@@ -50,12 +49,12 @@ pub struct ModuleAlreadyImported {
     pub new_position: SourceSpan,
 
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Already defined")]
-#[diagnostic(code(timu::error::already_imported), help("change one of the names or remove the definition"))]
+#[diagnostic(code("timu::error::already_imported"), help("change one of the names or remove the definition"))]
 pub struct AlreadyDefined {
     #[label("Already defined here")]
     pub old_position: SourceSpan,
@@ -64,105 +63,107 @@ pub struct AlreadyDefined {
     pub new_position: SourceSpan,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Extra accessibility identifier")]
-#[diagnostic(code(timu::error::extra_accessibility_identifier), help("remove pub"))]
+#[diagnostic(code("timu::error::extra_accessibility_identifier"), help("remove pub"))]
 pub struct ExtraAccessibilityIdentifier { 
     #[label("pub identifier is not allowed here")]
     pub position: SourceSpan,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Invalid type")]
-#[diagnostic(code(timu::error::invalid_type))]
+#[diagnostic(code("timu::error::invalid_type"))]
 pub struct InvalidType {
     #[label(collection, "")]
     pub position: Vec<LabeledSpan>,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Circular reference detected")]
-#[diagnostic(code(timu::error::circular_reference), help("to fix this, you need to remove the circular reference"))]
+#[diagnostic(code("timu::error::circular_reference"), help("to fix this, you need to remove the circular reference"))]
 pub struct CircularReference {
     #[label("Has a circular reference here")]
     pub position: SourceSpan,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("ooops, multiple errors detected")]
 pub struct ErrorCollection {
-    #[related]
-    #[diagnostic(transparent)]
+    //#[related]
     pub errors: Vec<TirError>
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("{} syntax error(s) detected", .errors.len())]
 pub struct SyntaxError {
-    #[related]
-    #[diagnostic(transparent)]
+    //#[related]
     pub errors: Vec<SyntaxErrorItem>
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Syntax error")]
 pub struct SyntaxErrorItem {
     #[label("Invalid syntax here")]
     pub position: SourceSpan,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 
     pub message: &'static str,
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Interface field(s) not defined")]
-#[diagnostic(code(timu::error::interface_field_not_defined), help("to fix this, you need to define field(s) in the interface"))]
+#[diagnostic(code("timu::error::interface_field_not_defined"), help("to fix this, you need to define field(s) in the interface"))]
 pub struct InterfaceFieldNotDefined { 
     #[label("Interface field(s) not defined here")]
     pub position: SourceSpan,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
  }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Types do not match")]
-#[diagnostic(code(timu::error::types_do_not_match), help("to fix this, you need to change the type(s) to match"))]
+#[diagnostic(code("timu::error::types_do_not_match"), help("to fix this, you need to change the type(s) to match"))]
 pub struct TypesDoNotMatch { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Extra field in interface")]
-#[diagnostic(code(timu::error::extra_field_in_interface), help("remove the field(s) not defined in the interface"))]
+#[diagnostic(code("timu::error::extra_field_in_interface"), help("remove the field(s) not defined in the interface"))]
 pub struct ExtraFieldInExtend { 
     #[label("This field is not defined in the extend")]
     pub position: SourceSpan,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Clone, Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum TirError {
     #[error("Temporary error")]
-    #[diagnostic()]
+    #[diagnostic(code("merhaba dunya"))]
     TemporaryError,
 
+    #[error("Temporary error")]
+    #[diagnostic(code("merhaba dunya"))]
+    ERHANBARIS,
+
     #[error(transparent)]
-    #[diagnostic(transparent)]
+    #[diagnostic(transparent, code("merhaba dunya"))]
     ImportNotFound(Box<ImportNotFound>),
     
     #[error(transparent)]
@@ -187,7 +188,7 @@ pub enum TirError {
     
     #[error(transparent)]
     #[diagnostic(transparent)]
-    InterfaceFieldNotDefined(Box<InterfaceFieldNotDefined>) ,
+    InterfaceFieldNotDefined(Box<InterfaceFieldNotDefined>),
     
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -285,7 +286,7 @@ impl TirError {
 
     pub fn invalid_type(position: Range<usize>, message: &str, source: SourceFile) -> Self {
         TirError::InvalidType(InvalidType {
-            position: vec![LabeledSpan::at(position, message)],
+            position: vec![LabeledSpan::new(message.to_string(), position)],
             code: source.into(),
         }.into())
     }

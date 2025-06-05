@@ -384,12 +384,12 @@ impl Borrow<str> for SignaturePath<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::SourceFile, nom_tools::State, process_code, tir::signature::SignaturePathType};
+    use crate::{file::SourceFile, nom_tools::State, process_code, tir::{signature::SignaturePathType, TirError}};
 
     use super::SignaturePath;
 
     #[test]
-    fn signature_generation() -> miette::Result<()> {
+    fn signature_generation() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} func testfunction(): testclass {} interface testinterface {}".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source; use source.testclass; use source.testfunction; use source.testinterface;".to_string()));
         
@@ -400,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn dublicate_signatures() -> miette::Result<()> {
+    fn dublicate_signatures() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], " class test {} func test(): void {} interface test {}".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -408,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn direct_signature_path() -> miette::Result<()> {
+    fn direct_signature_path() -> Result<(), TirError> {
 
         let path = SignaturePath::borrowed("test");
         assert_eq!(path.get_type(), SignaturePathType::Direct);
@@ -420,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn moduled_signature_path_1() -> miette::Result<()> {
+    fn moduled_signature_path_1() -> Result<(), TirError> {
 
         let path = SignaturePath::borrowed("module.test");
         assert_eq!(path.get_type(), SignaturePathType::Moduled);
