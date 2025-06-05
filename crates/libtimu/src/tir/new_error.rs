@@ -109,7 +109,7 @@ pub struct ErrorCollection {
 #[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("{} syntax error(s) detected", .errors.len())]
 pub struct SyntaxError {
-    //#[related]
+    #[related]
     pub errors: Vec<SyntaxErrorItem>
 }
 

@@ -66,10 +66,28 @@ fn get_labels(fields: &mut FieldsNamed) -> Vec<(Field, proc_macro2::TokenStream)
     field_values
 }
 
+fn get_related(fields: &mut FieldsNamed) -> Option<proc_macro2::TokenStream> {
+    for field in fields.named.iter_mut() {
+        if field.attrs.iter().any(|attr| attr.path().is_ident("related")) {
+            let name = &field.ident;
+            return Some(quote! {
+                std::boxed::Box::new(self.#name.iter().map(|x| -> &(dyn libtimu_macros_core::traits::TimuErrorTrait) { &*x }))
+            });
+        }
+    }
+
+    None
+}
+
 fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> TokenStream {
     if let Fields::Named(fields) = &mut data.fields {
         let source_code = match get_source_code(fields) {
             Some(member) => quote!( Some(Box::new(self.#member.clone())) ),
+            None => quote!( None ),
+        };
+
+        let related = match get_related(fields) {
+            Some(related) => quote!( Some(#related) ),
             None => quote!( None ),
         };
 
@@ -91,6 +109,7 @@ fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> To
         return TokenStream::from(quote!{
             impl libtimu_macros_core::traits::TimuErrorTrait for #name {
                 fn labels(&self) -> Option<Vec<libtimu_macros_core::traits::LabelField>> { Some(vec![#(#labels),*]) }
+                fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn libtimu_macros_core::traits::TimuErrorTrait> + 'a>> { #related }
                 fn source_code(&self) -> Option<Box<libtimu_macros_core::SourceCode>> { #source_code }
                 fn error_code(&self) -> Option<Box<dyn std::fmt::Display>> { #error_code }
                 fn help(&self) -> Option<Box<dyn std::fmt::Display>> { #help }
@@ -102,6 +121,15 @@ fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> To
 }
 
 fn generate_enum_source_code(enum_name: &Ident, enum_field_ident: &Ident, fields: &mut FieldsNamed) -> proc_macro2::TokenStream {
+    let inner_match = match get_source_code(fields) {
+        Some(member) => quote!( #member ),
+        None => quote!( None )
+    };
+
+    quote!( #enum_name::#enum_field_ident { .. } => #inner_match )
+}
+
+fn generate_enum_related(enum_name: &Ident, enum_field_ident: &Ident, fields: &mut FieldsNamed) -> proc_macro2::TokenStream {
     let inner_match = match get_source_code(fields) {
         Some(member) => quote!( #member ),
         None => quote!( None )
@@ -167,6 +195,7 @@ fn enum_generator(enum_name: &Ident, function_name: Ident, variants: &mut [Varia
                             "source_code" => generate_enum_source_code(enum_name, &enum_field_ident, fields),
                             "error_code" => generate_enum_error_code(enum_name, &enum_field_ident, &diagnostic),
                             "help" => generate_enum_help(enum_name, &enum_field_ident, &diagnostic),
+                            "related" => generate_enum_related(enum_name, &enum_field_ident, fields),
                             _ => panic!("Unknown field ({})", function_name)
                         };
 
@@ -221,10 +250,12 @@ fn build_enum(name: Ident, data: DataEnum) -> TokenStream {
     let labels = enum_generator(&name, format_ident!("labels"), &mut (variants.clone()));
     let source_code = enum_generator(&name, format_ident!("source_code"), &mut (variants.clone()));
     let help = enum_generator(&name, format_ident!("help"), &mut (variants.clone()));
+    let related = enum_generator(&name, format_ident!("related"), &mut (variants.clone()));
 
     TokenStream::from(quote!{
         impl libtimu_macros_core::traits::TimuErrorTrait for #name {
             fn labels(&self) -> Option<Vec<libtimu_macros_core::traits::LabelField>> { #labels }
+            fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn libtimu_macros_core::traits::TimuErrorTrait> + 'a>> { #related }
             fn source_code(&self) -> Option<Box<libtimu_macros_core::SourceCode>> { #source_code }
             fn error_code(&self) -> Option<Box<dyn std::fmt::Display>> { #error_code }
             fn help(&self) -> Option<Box<dyn std::fmt::Display>> { #help }
@@ -240,12 +271,9 @@ pub fn timu_error(input: TokenStream) -> TokenStream {
         _ => return TokenStream::from(syn::Error::new(input.ident.span(), "diagnostic is missing").to_compile_error())
     };
     
-    let a = match input.data {
+    match input.data {
         syn::Data::Struct(data) => build_struct(input.ident, diagnostic, data),
         syn::Data::Enum(data) => build_enum(input.ident, data),
         _ => TokenStream::from(syn::Error::new(input.ident.span(), "Only structs and enums with named fields can derive `TimuError`").to_compile_error())
-    };
-
-    //println!("{}", a);
-    a
+    }
 }
