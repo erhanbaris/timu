@@ -159,7 +159,7 @@ pub enum TirError {
     TemporaryError,
 
     #[error("Temporary error")]
-    #[diagnostic(code("merhaba dunya"))]
+    #[diagnostic(code("merhaba dunya"), help("yardim geliyor"))]
     ERHANBARIS,
 
     #[error(transparent)]

@@ -111,9 +111,14 @@ fn generate_enum_source_code(enum_name: &Ident, enum_field_ident: &Ident, fields
 }
 
 fn generate_enum_error_code(enum_name: &Ident, enum_field_ident: &Ident, diagnostic: &Diagnostic) -> proc_macro2::TokenStream {
+
+    //println!("diagnostic {:?}", diagnostic);
     let inner_match = match diagnostic.code.as_ref() {
         Some(code) => quote!( Some(Box::new(#code.to_string())) ),
-        None => quote!( None ),
+        None => {
+            //println!("No code in diag. {}", enum_field_ident);
+            quote!( None )
+        },
     };
 
     quote!( #enum_name::#enum_field_ident { .. } => #inner_match )
@@ -122,7 +127,7 @@ fn generate_enum_error_code(enum_name: &Ident, enum_field_ident: &Ident, diagnos
 fn generate_enum_help(enum_name: &Ident, enum_field_ident: &Ident, diagnostic: &Diagnostic) -> proc_macro2::TokenStream {
     let inner_match = match diagnostic.help.as_ref() {
         Some(help) => quote!( Some(Box::new(#help.to_string())) ),
-        None => quote!(  None ),
+        None => quote!( None ),
     };
 
     quote!( #enum_name::#enum_field_ident { .. } => #inner_match )
@@ -146,8 +151,9 @@ fn enum_generator(enum_name: &Ident, function_name: Ident, variants: &mut [Varia
     for enum_field in variants.iter_mut() {
         
         let enum_field_ident = enum_field.ident.clone();
+        //println!(" --- {:?} {:?}", enum_field_ident, deluxe::extract_attributes::<_, Diagnostic>(enum_field));
         if let Ok(diagnostic) = deluxe::extract_attributes::<_, Diagnostic>(enum_field) {
-
+            
             // The error details will be comes from sub struct or enum
             if diagnostic.transparent {
 
@@ -155,6 +161,7 @@ fn enum_generator(enum_name: &Ident, function_name: Ident, variants: &mut [Varia
             } else {
                 match &mut enum_field.fields {
                     Fields::Named(fields) => {    
+                        //println!("Fields::Named");
                         let tokens = match function_name.to_string().as_str() {
                             "labels" => generate_enum_labels(enum_name, &enum_field_ident, fields),
                             "source_code" => generate_enum_source_code(enum_name, &enum_field_ident, fields),
@@ -166,15 +173,35 @@ fn enum_generator(enum_name: &Ident, function_name: Ident, variants: &mut [Varia
                         lines.push(tokens);
                     }
                     Fields::Unnamed(_) => {
-                        lines.push(quote!( #enum_name::#enum_field_ident { .. } => None ));
+                        //println!("Fields::Unnamed");
+                        let tokens = match function_name.to_string().as_str() {
+                            "error_code" => generate_enum_error_code(enum_name, &enum_field_ident, &diagnostic),
+                            "help" => generate_enum_help(enum_name, &enum_field_ident, &diagnostic),
+                            _ => {
+                                //println!("Received(Unnamed) {} and return None", function_name);
+                                quote!( #enum_name::#enum_field_ident { .. } => None )
+                            }
+                        };
+                        lines.push(tokens);
                     },
                     Fields::Unit => {
-                        lines.push(quote!( #enum_name::#enum_field_ident { .. } => None ));
+                        //println!("Fields::Unit");
+
+                        let tokens = match function_name.to_string().as_str() {
+                            "error_code" => generate_enum_error_code(enum_name, &enum_field_ident, &diagnostic),
+                            "help" => generate_enum_help(enum_name, &enum_field_ident, &diagnostic),
+                            _ => {
+                                //println!("Received(Unit) {} and return None", function_name);
+                                quote!( #enum_name::#enum_field_ident { .. } => None )
+                            }
+                        };
+
+                        lines.push(tokens);
                     }
                 };
             }
         } else {
-            lines.push(quote!( #enum_name::#enum_field_ident { .. } => None ));
+            panic!("#[diagnostic] expected");
         }
     }
     quote!(
@@ -190,10 +217,10 @@ fn build_enum(name: Ident, data: DataEnum) -> TokenStream {
         variants.push(variant);
     }
 
-    let labels = enum_generator(&name, format_ident!("labels"), &mut variants);
-    let source_code = enum_generator(&name, format_ident!("source_code"), &mut variants);
-    let error_code = enum_generator(&name, format_ident!("error_code"), &mut variants);
-    let help = enum_generator(&name, format_ident!("help"), &mut variants);
+    let error_code = enum_generator(&name, format_ident!("error_code"), &mut (variants.clone()));
+    let labels = enum_generator(&name, format_ident!("labels"), &mut (variants.clone()));
+    let source_code = enum_generator(&name, format_ident!("source_code"), &mut (variants.clone()));
+    let help = enum_generator(&name, format_ident!("help"), &mut (variants.clone()));
 
     TokenStream::from(quote!{
         impl libtimu_macros_core::traits::TimuErrorTrait for #name {
@@ -213,9 +240,12 @@ pub fn timu_error(input: TokenStream) -> TokenStream {
         _ => return TokenStream::from(syn::Error::new(input.ident.span(), "diagnostic is missing").to_compile_error())
     };
     
-    match input.data {
+    let a = match input.data {
         syn::Data::Struct(data) => build_struct(input.ident, diagnostic, data),
         syn::Data::Enum(data) => build_enum(input.ident, data),
         _ => TokenStream::from(syn::Error::new(input.ident.span(), "Only structs and enums with named fields can derive `TimuError`").to_compile_error())
-    }
+    };
+
+    //println!("{}", a);
+    a
 }
