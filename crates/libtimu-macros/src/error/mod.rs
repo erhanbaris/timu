@@ -53,22 +53,83 @@ fn get_labels(fields: &mut FieldsNamed) -> Vec<(Field, proc_macro2::TokenStream)
     let mut field_values = Vec::new();
     for field in fields.named.iter_mut() {
         if let Ok(Label(message)) = deluxe::extract_attributes(field) {
-            let name = &field.ident;
-            field_values.push((field.clone(), quote! {
-                libtimu_macros_core::traits::LabelField {
-                    label: #message.to_string(),
-                    position: self.#name,
+            
+            match message.contains('{') {
+                true => {
+                    //println!("contains {{");
+                    let mut fields = Vec::new();
+                    let mut out = String::new();
+                    let mut read = message.as_str();
+
+                    while let Some(start_index) = read.find('{') {
+                        //println!("Text : {read}");
+                        //println!("start_index: {}", start_index);
+
+                        if let Some(end_index) = read.find('}') {
+                            out.push_str(&read[0..start_index]);
+
+                            out.push('{');
+                            out.push('}');
+
+                            //println!("end_index: {}", end_index);
+                            let field_name = &read[start_index+1..end_index];
+                            //println!("Found: {field_name}");
+                            let field_name = format_ident!("{}", field_name);
+                            fields.push(quote! { self.#field_name.to_string() });
+
+                            read = &read[end_index+1..];
+                        } else {
+                            panic!("Invalid fmt syntax");
+                        }
+                    }
+
+                    out.push_str(read);
+
+                    let name = &field.ident;
+                    field_values.push((field.clone(), quote! {
+                        libtimu_macros_core::traits::LabelField {
+                            label: {
+                                use std::fmt::Write;
+                                let mut s = String::new();
+                                write!(&mut s, #out, #(#fields),*).unwrap();
+                                s
+                            },
+                            position: self.#name,
+                        }
+                    }));
+                    
+                },
+                false => {
+                    let name = &field.ident;
+                    field_values.push((field.clone(), quote! {
+                        libtimu_macros_core::traits::LabelField {
+                            label: #message.to_string(),
+                            position: self.#name,
+                        }
+                    }));
                 }
-            }));
+            };
         }
     }
 
     field_values
 }
 
-fn get_related(fields: &mut FieldsNamed) -> Option<proc_macro2::TokenStream> {
+fn get_references(fields: &mut FieldsNamed) -> Vec<(Field, proc_macro2::TokenStream)> {
+    let mut field_values = Vec::new();
     for field in fields.named.iter_mut() {
-        if field.attrs.iter().any(|attr| attr.path().is_ident("related")) {
+        if field.attrs.iter().any(|attr| attr.path().is_ident("reference")) {
+            let name = &field.ident;
+            field_values.push((field.clone(), quote! { Box::new(&self.#name as &dyn libtimu_macros_core::traits::TimuErrorTrait) }));
+        }
+    }
+
+    field_values
+}
+
+fn get_errors(fields: &mut FieldsNamed) -> Option<proc_macro2::TokenStream> {
+    for field in fields.named.iter_mut() {
+        if field.attrs.iter().any(|attr| attr.path().is_ident("errors")) {
             let name = &field.ident;
             return Some(quote! {
                 std::boxed::Box::new(self.#name.iter().map(|x| -> &(dyn libtimu_macros_core::traits::TimuErrorTrait) { &*x }))
@@ -86,8 +147,8 @@ fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> To
             None => quote!( None ),
         };
 
-        let related = match get_related(fields) {
-            Some(related) => quote!( Some(#related) ),
+        let errors = match get_errors(fields) {
+            Some(errors) => quote!( Some(#errors) ),
             None => quote!( None ),
         };
 
@@ -105,11 +166,13 @@ fn build_struct(name: Ident, diagnostic: Diagnostic, mut data: DataStruct) -> To
         };
 
         let labels = get_labels(fields).into_iter().map(|(_, token)| token).collect::<Vec<_>>();
+        let reerences = get_references(fields).into_iter().map(|(_, token)| token).collect::<Vec<_>>();
 
         return TokenStream::from(quote!{
             impl libtimu_macros_core::traits::TimuErrorTrait for #name {
                 fn labels(&self) -> Option<Vec<libtimu_macros_core::traits::LabelField>> { Some(vec![#(#labels),*]) }
-                fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn libtimu_macros_core::traits::TimuErrorTrait> + 'a>> { #related }
+                fn references<'a>(&'a self) -> Option<Vec<Box<&'a dyn libtimu_macros_core::traits::TimuErrorTrait>>> { Some(vec![#(#reerences),*]) }
+                fn errors<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn libtimu_macros_core::traits::TimuErrorTrait> + 'a>> { #errors }
                 fn source_code(&self) -> Option<Box<libtimu_macros_core::SourceCode>> { #source_code }
                 fn error_code(&self) -> Option<Box<dyn std::fmt::Display>> { #error_code }
                 fn help(&self) -> Option<Box<dyn std::fmt::Display>> { #help }
@@ -129,8 +192,8 @@ fn generate_enum_source_code(enum_name: &Ident, enum_field_ident: &Ident, fields
     quote!( #enum_name::#enum_field_ident { .. } => #inner_match )
 }
 
-fn generate_enum_related(enum_name: &Ident, enum_field_ident: &Ident, fields: &mut FieldsNamed) -> proc_macro2::TokenStream {
-    let inner_match = match get_source_code(fields) {
+fn generate_enum_errors(enum_name: &Ident, enum_field_ident: &Ident, fields: &mut FieldsNamed) -> proc_macro2::TokenStream {
+    let inner_match = match get_errors(fields) {
         Some(member) => quote!( #member ),
         None => quote!( None )
     };
@@ -174,6 +237,19 @@ fn generate_enum_labels(enum_name: &Ident, enum_field_ident: &Ident, fields: &mu
     }
 }
 
+fn generate_enum_references(enum_name: &Ident, enum_field_ident: &Ident, fields: &mut FieldsNamed) -> proc_macro2::TokenStream {
+    let labels = get_references(fields);
+    match labels.is_empty() {
+        true => quote!( #enum_name::#enum_field_ident { .. } => None ),
+        false => {
+            let fields = labels.iter().map(|(field, _)| field).collect::<Vec<_>>();
+            let tokens = labels.iter().map(|(_, token)| token).collect::<Vec<_>>();
+
+            quote!( #enum_name::#enum_field_ident { #(#fields),*, .. } => Some(vec![#(#tokens),*]) )
+        },
+    }
+}
+
 fn enum_generator(enum_name: &Ident, function_name: Ident, variants: &mut [Variant]) -> proc_macro2::TokenStream {
     let mut lines = Vec::new();
     for enum_field in variants.iter_mut() {
@@ -192,10 +268,11 @@ fn enum_generator(enum_name: &Ident, function_name: Ident, variants: &mut [Varia
                         //println!("Fields::Named");
                         let tokens = match function_name.to_string().as_str() {
                             "labels" => generate_enum_labels(enum_name, &enum_field_ident, fields),
+                            "references" => generate_enum_references(enum_name, &enum_field_ident, fields),
                             "source_code" => generate_enum_source_code(enum_name, &enum_field_ident, fields),
                             "error_code" => generate_enum_error_code(enum_name, &enum_field_ident, &diagnostic),
                             "help" => generate_enum_help(enum_name, &enum_field_ident, &diagnostic),
-                            "related" => generate_enum_related(enum_name, &enum_field_ident, fields),
+                            "errors" => generate_enum_errors(enum_name, &enum_field_ident, fields),
                             _ => panic!("Unknown field ({})", function_name)
                         };
 
@@ -250,12 +327,14 @@ fn build_enum(name: Ident, data: DataEnum) -> TokenStream {
     let labels = enum_generator(&name, format_ident!("labels"), &mut (variants.clone()));
     let source_code = enum_generator(&name, format_ident!("source_code"), &mut (variants.clone()));
     let help = enum_generator(&name, format_ident!("help"), &mut (variants.clone()));
-    let related = enum_generator(&name, format_ident!("related"), &mut (variants.clone()));
+    let errors = enum_generator(&name, format_ident!("errors"), &mut (variants.clone()));
+    let references = enum_generator(&name, format_ident!("references"), &mut (variants.clone()));
 
     TokenStream::from(quote!{
         impl libtimu_macros_core::traits::TimuErrorTrait for #name {
             fn labels(&self) -> Option<Vec<libtimu_macros_core::traits::LabelField>> { #labels }
-            fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn libtimu_macros_core::traits::TimuErrorTrait> + 'a>> { #related }
+            fn references<'a>(&'a self) -> Option<Vec<Box<&'a dyn libtimu_macros_core::traits::TimuErrorTrait>>> { #references }
+            fn errors<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn libtimu_macros_core::traits::TimuErrorTrait> + 'a>> { #errors }
             fn source_code(&self) -> Option<Box<libtimu_macros_core::SourceCode>> { #source_code }
             fn error_code(&self) -> Option<Box<dyn std::fmt::Display>> { #error_code }
             fn help(&self) -> Option<Box<dyn std::fmt::Display>> { #help }

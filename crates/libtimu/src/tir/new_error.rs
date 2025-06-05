@@ -102,14 +102,14 @@ pub struct CircularReference {
 #[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("ooops, multiple errors detected")]
 pub struct ErrorCollection {
-    //#[related]
+    #[errors]
     pub errors: Vec<TirError>
 }
 
 #[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("{} syntax error(s) detected", .errors.len())]
 pub struct SyntaxError {
-    #[related]
+    #[errors]
     pub errors: Vec<SyntaxErrorItem>
 }
 

@@ -22,7 +22,8 @@ impl LabeledSpan {
 
 pub trait TimuErrorTrait {
     fn labels(&self) -> Option<Vec<LabelField>>;
-    fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn TimuErrorTrait> + 'a>>;
+    fn errors<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn TimuErrorTrait> + 'a>>;
+    fn references(&self) -> Option<Vec<Box<&dyn TimuErrorTrait>>>;
     fn source_code(&self) -> Option<Box<crate::SourceCode>> { None }
     fn error_code(&self) -> Option<Box<dyn Display>> { None }
     fn help(&self) -> Option<Box<dyn Display>> { None }
