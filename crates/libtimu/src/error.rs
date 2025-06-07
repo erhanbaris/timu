@@ -5,7 +5,7 @@ use simplelog::ColorChoice;
 use crate::{
     ast::FileAst,
     nom_tools::{State, ToRange},
-    tir::{new_error::SyntaxErrorItem, TirContext, TirError},
+    tir::{error::SyntaxErrorItem, TirContext, TirError},
 };
 
 pub type ParseError<'base> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'base str, State>>;

@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use ast_signature::{build_module, AstSignatureValue};
 pub use context::TirContext;
-pub use new_error::TirError;
+pub use error::TirError;
 use module::{Module, ModuleRef};
 pub use object_signature::{PrimitiveType, TypeValue};
 use resolver::{build_file, AstSignatureLocation, ObjectLocation, ResolveAst, TypeLocation};
@@ -14,7 +14,7 @@ use crate::{ast::{FileAst, FileStatementAst}, file::SourceFile};
 mod ast_signature;
 mod context;
 //pub mod error;
-pub mod new_error;
+pub mod error;
 mod module;
 mod object_signature;
 mod resolver;

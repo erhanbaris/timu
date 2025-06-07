@@ -8,7 +8,7 @@ use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{ast::TypeNameAst, nom_tools::ToRange};
 
-use super::{ast_signature::AstSignatureValue, context::TirContext, new_error::TirError, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
+use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
 
 pub mod class;
 pub mod extend;
