@@ -1,7 +1,10 @@
 [package]
 name = "libtimu"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,17 +13,18 @@ libtimu-macros = { path = "../libtimu-macros" }
 libtimu-macros-core = { path = "../libtimu-macros-core" }
 miette = { version = "7.6.0", features = ["fancy"] }
 #inkwell = { version =  "0.5.0", features = ["llvm18-0"] }
-nom = "8.0.0"
-nom_locate = "5.0.0"
-nom-language = "0.1.0"
-minimal-lexical = "0.2.1"
-log = "0.4.27"
-simplelog = { version = "^0.12.2", features = ["paris"] }
-indexmap = "2.9.0"
-strum = "0.27.1"
-strum_macros = "0.27.1"
-thiserror = "2.0.12"
+nom = { workspace = true }
+nom_locate = { workspace = true }
+nom-language = { workspace = true }
+minimal-lexical = { workspace = true }
+log = { workspace = true }
+simplelog = { workspace = true }
+indexmap = { workspace = true }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+thiserror = { workspace = true }
+codespan-reporting = { workspace = true }
 
 [dev-dependencies]
-rstest = "0.25.0"
-pretty_assertions = "1.4.1"
+rstest = { workspace = true }
+pretty_assertions = { workspace = true }

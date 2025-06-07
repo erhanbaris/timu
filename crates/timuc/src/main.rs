@@ -1,6 +1,8 @@
-use libtimu::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
+use std::{ops::Range, process::exit};
+
+use libtimu::{error::{CodeSpanReportGenerator, ReportGenerator}, file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
 use libtimu_macros::TimuError;
-use libtimu_macros_core::{traits::TimuErrorTrait, SourceCode, SourceOffset, SourceSpan};
+use libtimu_macros_core::SourceCode;
 use log::LevelFilter;
 use simplelog::{ColorChoice, CombinedLogger, ConfigBuilder, LevelPadding, TermLogger, TerminalMode, ThreadLogMode};
 
@@ -13,7 +15,7 @@ pub struct TypeWithSpan {
 
     /// Span of expected type
     #[label("this has `{ty}`")]
-    pub at: SourceSpan,
+    pub at: Range<usize>,
 
     // TODO: change to `Option<SourceFile>`
     /// Source code of the module, this type is located at
@@ -44,26 +46,17 @@ fn main() -> Result<(), TirError> {
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
 
-    let a = TypeMismatch {
-        expected: TypeWithSpan { ty: "int".to_string(), at: SourceSpan::new(SourceOffset(0), 5), source_code: SourceCode { source: "merhaba dunya".to_string(), name: "source.tim".to_string() } },
-        got: TypeWithSpan { ty: "string".to_string(), at: SourceSpan::new(SourceOffset(0), 5), source_code: SourceCode { source: "merhaba dunya".to_string(), name: "source.tim".to_string() } }
-    };
-
-    println!("{a}");
-
-    println!("{:?}", a.references().unwrap().first().unwrap().labels());
-    println!("{:?}", a.references().unwrap().get(1).unwrap().labels());
 let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest {
     func test(a: string): string;
     a: TestClass;
 }
-
+ asd
 extend TestClass: ITest {
-    func test(a: string): string {
+    func test(a: string, b: string): string {
         
     }
-    a: string;
+    a: TestClass;
 }
 
 class TestClass {
@@ -77,8 +70,20 @@ class TestClass {
 func abc(a:string): string {
 }
 "#.to_string()));
-    let ast = process_code(&state)?;
+    let ast = match process_code(&state) {
+        Ok(ast) => ast,
+        Err(error) => {
+            CodeSpanReportGenerator::generate(error);
+            exit(1);
+        }
+    };
 
-    process_ast(vec![ast.into()])?;
+    match process_ast(vec![ast.into()]) {
+        Ok(ast) => ast,
+        Err(error) => {
+            CodeSpanReportGenerator::generate(error);
+            exit(1);
+        }
+    };
     Ok(())
 }

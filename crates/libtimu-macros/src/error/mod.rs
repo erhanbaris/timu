@@ -94,7 +94,7 @@ fn get_labels(fields: &mut FieldsNamed) -> Vec<(Field, proc_macro2::TokenStream)
                                 write!(&mut s, #out, #(#fields),*).unwrap();
                                 s
                             },
-                            position: self.#name,
+                            position: self.#name.clone(),
                         }
                     }));
                     
@@ -104,7 +104,7 @@ fn get_labels(fields: &mut FieldsNamed) -> Vec<(Field, proc_macro2::TokenStream)
                     field_values.push((field.clone(), quote! {
                         libtimu_macros_core::traits::LabelField {
                             label: #message.to_string(),
-                            position: self.#name,
+                            position: self.#name.clone(),
                         }
                     }));
                 }

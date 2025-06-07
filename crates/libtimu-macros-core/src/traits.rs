@@ -1,10 +1,8 @@
 use std::{fmt::{Debug, Display}, ops::Range};
 
-use crate::SourceSpan;
-
 #[derive(Clone, Debug)]
 pub struct LabelField {
-    pub position: SourceSpan,
+    pub position: Range<usize>,
     pub label: String,
 }
 
@@ -20,7 +18,7 @@ impl LabeledSpan {
     }
 }
 
-pub trait TimuErrorTrait {
+pub trait TimuErrorTrait: Display {
     fn labels(&self) -> Option<Vec<LabelField>>;
     fn errors<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn TimuErrorTrait> + 'a>>;
     fn references(&self) -> Option<Vec<Box<&dyn TimuErrorTrait>>>;
