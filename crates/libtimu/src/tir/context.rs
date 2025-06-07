@@ -31,6 +31,7 @@ pub struct TirContext<'base> {
     ast_name: IndexMap<AstIndex, AstNameInfo<'base>>,
     pub ast_type: IndexMap<AstIndex, TypeLocation>,
     pub tmp_type_indexer: AtomicUsize,
+    pub errors: Vec<TirError>,
 }
 
 impl<'base> TirContext<'base> {
@@ -125,5 +126,13 @@ impl<'base> TirContext<'base> {
 
     pub fn get_ast_name(&mut self, index: AstIndex) -> Option<&AstNameInfo<'base>> {
         self.ast_name.get(&index)
+    }
+
+    pub fn add_error(&mut self, error: TirError) {
+        self.errors.push(error);
+    }
+
+    pub fn add_errors(&mut self, mut errors: Vec<TirError>) {
+        self.errors.append(&mut errors);
     }
 }

@@ -22,6 +22,7 @@ RUN mkdir -p /opt/rust/rustup /opt/rust/cargo && \
 
 # Install rust tools
 RUN rustup component add llvm-tools-preview && cargo install grcov
+RUN rustup target add wasm32-unknown-unknown
 
 # Install zsh and oh-my-zsh
 RUN wget https://github.com/robbyrussell/oh-my-zsh/raw/master/tools/install.sh -O - | zsh || true

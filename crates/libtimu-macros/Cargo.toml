@@ -1,0 +1,17 @@
+[package]
+name = "libtimu-macros"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+edition.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+darling = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
+proc-macro2 = { workspace = true }
+deluxe = { workspace = true }

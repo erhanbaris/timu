@@ -1,17 +1,23 @@
 [package]
 name = "timuc"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+documentation.workspace = true
+edition.workspace = true
 
 [dependencies]
 libtimu = { path = "../libtimu" }
+libtimu-macros = { path = "../libtimu-macros" }
+libtimu-macros-core = { path = "../libtimu-macros-core" }
 
-miette = { version = "7.6.0", features = ["fancy"] }
-#inkwell = { version =  "0.5.0", features = ["llvm18-0"] }
-nom = "8.0.0"
-nom_locate = "5.0.0"
-nom-language = "0.1.0"
-minimal-lexical = "0.2.1"
-log = "0.4.27"
-simplelog = { version = "^0.12.2", features = ["paris"] }
-indexmap = "2.9.0"
+miette = { workspace = true }
+#inkwell = { workspace = true }
+nom = { workspace = true }
+nom_locate = { workspace = true }
+nom-language = { workspace = true }
+minimal-lexical = { workspace = true }
+log = { workspace = true }
+simplelog = { workspace = true }
+indexmap = { workspace = true }
+thiserror = { workspace = true }

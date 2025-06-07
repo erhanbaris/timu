@@ -1,134 +1,171 @@
 use std::ops::Range;
 
-use miette::{Diagnostic, LabeledSpan, NamedSource, SourceSpan};
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::file::SourceFile;
+use libtimu_macros::TimuError;
+use libtimu_macros_core::{traits::LabeledSpan, SourceCode};
 
-use super::{resolver::ResolverError, TirContext};
+use crate::{file::SourceFile, tir::{resolver::ResolverError, TirContext}};
 
-#[derive(Debug, thiserror::Error, Diagnostic)]
+#[derive(Clone, Debug, thiserror::Error, TimuError)]
 #[error("'{module}' not found")]
-#[diagnostic(code(timu::error::import_not_found), help("try to remove the import or check the module name"))]
+#[diagnostic(code("timu::error::import_not_found"), help("try to remove the import or check the module name"))]
 pub struct ImportNotFound {
     pub module: String,
 
     #[label("no external or internal module found with this name")]
-    pub position: SourceSpan,
+    pub position: Range<usize>,
     
     #[source_code]
-    pub code: NamedSource<String>
+    pub code: SourceCode
 }
 
 pub static TYPE_NOT_FOUND_HELP: &str = "try to import the type, or maybe you need to define it in the current file";
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("'{type_name}' type not found")]
-#[diagnostic(code(timu::error::type_not_found))]
+#[diagnostic(code("timu::error::type_not_found"))]
 pub struct TypeNotFound {
     pub type_name: String,
 
     #[label("type is not imported or defined in the current file")]
-    pub position: SourceSpan,
+    pub position: Range<usize>,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 
     #[help]
     pub advice: String,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
-#[diagnostic(code(timu::error::module_already_imported), help("try to remove one of the import"))]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[diagnostic(code("timu::error::module_already_imported"), help("try to remove one of the import"))]
 #[error("Module already defined")]
 pub struct ModuleAlreadyImported {
     #[label("Already imported here")]
-    pub old_position: SourceSpan,
+    pub old_position: Range<usize>,
 
     #[label("But it is imported again here")]
-    pub new_position: SourceSpan,
+    pub new_position: Range<usize>,
 
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Already defined")]
-#[diagnostic(code(timu::error::already_imported), help("change one of the names or remove the definition"))]
+#[diagnostic(code("timu::error::already_imported"), help("change one of the names or remove the definition"))]
 pub struct AlreadyDefined {
     #[label("Already defined here")]
-    pub old_position: SourceSpan,
+    pub old_position: Range<usize>,
 
     #[label("But it is defined again here")]
-    pub new_position: SourceSpan,
+    pub new_position: Range<usize>,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Extra accessibility identifier")]
-#[diagnostic(code(timu::error::extra_accessibility_identifier), help("remove pub"))]
+#[diagnostic(code("timu::error::extra_accessibility_identifier"), help("remove pub"))]
 pub struct ExtraAccessibilityIdentifier { 
     #[label("pub identifier is not allowed here")]
-    pub position: SourceSpan,
+    pub position: Range<usize>,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Invalid type")]
-#[diagnostic(code(timu::error::invalid_type))]
+#[diagnostic(code("timu::error::invalid_type"))]
 pub struct InvalidType {
     #[label(collection, "")]
     pub position: Vec<LabeledSpan>,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Circular reference detected")]
-#[diagnostic(code(timu::error::circular_reference), help("to fix this, you need to remove the circular reference"))]
+#[diagnostic(code("timu::error::circular_reference"), help("to fix this, you need to remove the circular reference"))]
 pub struct CircularReference {
     #[label("Has a circular reference here")]
-    pub position: SourceSpan,
+    pub position: Range<usize>,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("ooops, multiple errors detected")]
+pub struct ErrorCollection {
+    #[errors]
+    pub errors: Vec<TirError>
+}
+
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("{} syntax error(s) detected", .errors.len())]
+pub struct SyntaxError {
+    #[errors]
+    pub errors: Vec<SyntaxErrorItem>
+}
+
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("Syntax error")]
+pub struct SyntaxErrorItem {
+    #[label("Invalid syntax here")]
+    pub position: Range<usize>,
+    
+    #[source_code]
+    pub code: SourceCode,
+
+    pub message: &'static str,
+}
+
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Interface field(s) not defined")]
-#[diagnostic(code(timu::error::interface_field_not_defined), help("to fix this, you need to define field(s) in the interface"))]
+#[diagnostic(code("timu::error::interface_field_not_defined"), help("to fix this, you need to define field(s) in the interface"))]
 pub struct InterfaceFieldNotDefined { 
     #[label("Interface field(s) not defined here")]
-    pub position: SourceSpan,
+    pub position: Range<usize>,
     
     #[source_code]
-    pub code: NamedSource<String>,
+    pub code: SourceCode,
  }
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Types do not match")]
-pub struct TypesDoNotMatch { #[allow(dead_code)] pub position: Range<usize>, #[allow(dead_code)] pub source: SourceFile }
+#[diagnostic(code("timu::error::types_do_not_match"), help("to fix this, you need to change the type(s) to match"))]
+pub struct TypesDoNotMatch {
+    #[label("This type not matching")]
+    pub position: Range<usize>,
 
-#[derive(Debug, Diagnostic, thiserror::Error)]
+    #[source_code]
+    pub code: SourceCode
+}
+
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Extra field in interface")]
-#[diagnostic(code(timu::error::interface_field_not_defined), help("remove the field(s) not defined in the interface"))]
+#[diagnostic(code("timu::error::extra_field_in_interface"), help("remove the field(s) not defined in the interface"))]
 pub struct ExtraFieldInExtend { 
     #[label("This field is not defined in the extend")]
-    pub position: SourceSpan,
+    pub position: Range<usize>,
     
     #[source_code]
-    pub code: NamedSource<String>,
- }
+    pub code: SourceCode,
+}
 
-#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum TirError {
+    #[error("Temporary error")]
+    #[diagnostic(code("merhaba dunya"))]
+    TemporaryError,
+
     #[error(transparent)]
-    #[diagnostic(transparent)]
+    #[diagnostic(transparent, code("merhaba dunya"))]
     ImportNotFound(Box<ImportNotFound>),
     
     #[error(transparent)]
@@ -153,7 +190,7 @@ pub enum TirError {
     
     #[error(transparent)]
     #[diagnostic(transparent)]
-    InterfaceFieldNotDefined(Box<InterfaceFieldNotDefined>) ,
+    InterfaceFieldNotDefined(Box<InterfaceFieldNotDefined>),
     
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -170,20 +207,28 @@ pub enum TirError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     CircularReference(#[from] Box<CircularReference>),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ErrorCollection(#[from] Box<ErrorCollection>),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    SyntaxError(#[from] Box<SyntaxError>),
 }
 
 impl TirError {
     pub fn already_defined(new_position: Range<usize>, old_position: Range<usize>, source: SourceFile) -> Self {
         TirError::AlreadyDefined(AlreadyDefined {
-            new_position: new_position.into(),
-            old_position: old_position.into(),
+            new_position,
+            old_position,
             code: source.into(),
         }.into())
     }
 
     pub fn interface_field_not_defined(position: Range<usize>, source: SourceFile) -> Self {
         TirError::InterfaceFieldNotDefined(InterfaceFieldNotDefined {
-            position: position.into(),
+            position,
             code: source.into(),
         }.into())
     }
@@ -191,27 +236,27 @@ impl TirError {
     pub fn types_do_not_match(position: Range<usize>, source: SourceFile) -> Self {
         TirError::TypesDoNotMatch(TypesDoNotMatch {
             position,
-            source,
+            code: source.into(),
         }.into())
     }
 
     pub fn extra_accessibility_identifier(position: Range<usize>, source: SourceFile) -> Self {
         TirError::ExtraAccessibilityIdentifier(ExtraAccessibilityIdentifier {
-            position: position.into(),
+            position,
             code: source.into(),
         }.into())
     }
 
     pub fn extra_field_in_extend(position: Range<usize>, source: SourceFile) -> Self {
         TirError::ExtraFieldInExtend(ExtraFieldInExtend {
-            position: position.into(),
+            position,
             code: source.into(),
         }.into())
     }
 
     pub fn circular_reference(position: Range<usize>, source: SourceFile) -> Self {
         TirError::CircularReference(CircularReference {
-            position: position.into(),
+            position,
             code: source.into(),
         }.into())
     }
@@ -234,7 +279,7 @@ impl TirError {
         };
 
         TirError::TypeNotFound(TypeNotFound {
-            position: position.into(),
+            position,
             code: source.into(),
             type_name: missing_type_name,
             advice,
@@ -243,8 +288,20 @@ impl TirError {
 
     pub fn invalid_type(position: Range<usize>, message: &str, source: SourceFile) -> Self {
         TirError::InvalidType(InvalidType {
-            position: vec![LabeledSpan::at(position, message)],
+            position: vec![LabeledSpan::new(message.to_string(), position)],
             code: source.into(),
+        }.into())
+    }
+
+    pub fn multiple_errors(errors: Vec<TirError>) -> Self {
+        TirError::ErrorCollection(ErrorCollection {
+            errors
+        }.into())
+    }
+
+    pub fn syntax_error(errors: Vec<SyntaxErrorItem>) -> Self {
+        TirError::SyntaxError(SyntaxError {
+            errors
         }.into())
     }
 }

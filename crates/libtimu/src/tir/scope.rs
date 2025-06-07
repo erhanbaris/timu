@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use miette::Diagnostic;
+use libtimu_macros::TimuError;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{map::TimuHashMap, nom_tools::{Span, SpanInfo}};
@@ -83,7 +83,7 @@ impl<'base> Scope<'base> {
     }
 }
 
-#[derive(Debug, Diagnostic, thiserror::Error, EnumDiscriminants, EnumProperty)]
+#[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum ScopeError {
     #[error("Variable already defined")]
     VariableAlreadyDefined(SpanInfo),

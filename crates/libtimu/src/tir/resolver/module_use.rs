@@ -1,7 +1,5 @@
 use std::borrow::Cow;
 
-use miette::SourceSpan;
-
 use crate::{
     ast::UseAst, tir::{context::TirContext, error::{ImportNotFound, ModuleAlreadyImported}, scope::ScopeLocation, TirError}
 };
@@ -21,15 +19,15 @@ impl<'base> ResolveAst<'base> for UseAst<'base> {
             if let Some(old) = module.ast_imported_modules.insert(name, signature_location) {
                 let old_signature  = context.ast_signatures.get_from_location(old).unwrap();
                 return Err(TirError::ModuleAlreadyImported(ModuleAlreadyImported {
-                    new_position: self.import.to_range().into(),
-                    old_position: old_signature.position.clone().into(),
+                    new_position: self.import.to_range(),
+                    old_position: old_signature.position.clone(),
                     code: self.ast_name().extra.file.clone().into(),
                 }.into()));
             }
         } else {
             return Err(TirError::ImportNotFound(ImportNotFound {
                 module: self.import.text.to_string(),
-                position: SourceSpan::from(self.import.to_range()),
+                position: self.import.to_range(),
                 code: self.ast_name().extra.file.into(),
             }.into()));
         }

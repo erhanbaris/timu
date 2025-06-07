@@ -92,10 +92,10 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::SourceFile, nom_tools::State, process_code};
+    use crate::{file::SourceFile, nom_tools::State, process_code, tir::TirError};
 
     #[test]
-    fn missing_type() -> miette::Result<()> {
+    fn missing_type() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class test { func test(a: a): a {} }".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -103,7 +103,7 @@ mod tests {
     }
 
     #[test]
-    fn recursive_type() -> miette::Result<()> {
+    fn recursive_type() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class test { a: test; func test(a: test): test {} }".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
@@ -111,7 +111,7 @@ mod tests {
     }
 
     #[test]
-    fn this_location_1() -> miette::Result<()> {
+    fn this_location_1() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class test { func test(this): test {} }".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
@@ -119,7 +119,7 @@ mod tests {
     }
 
     #[test]
-    fn this_location_2() -> miette::Result<()> {
+    fn this_location_2() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class test { func test(this, a: test): test {} }".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap();
@@ -127,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn this_location_3() -> miette::Result<()> {
+    fn this_location_3() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class test { func test(a: test, this): test {} }".to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();
@@ -135,7 +135,7 @@ mod tests {
     }
 
     #[test]
-    fn call_interface_function() -> miette::Result<()> {
+    fn call_interface_function() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest {
     func test(): string;
