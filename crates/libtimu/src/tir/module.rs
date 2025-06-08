@@ -65,8 +65,7 @@ impl GetItem for ModuleRef<'_> {
             .upgrade(context)
             .unwrap()
             .types
-            .get(path)
-            .map(|item| item.clone())
+            .get(path).copied()
     }
 }
 

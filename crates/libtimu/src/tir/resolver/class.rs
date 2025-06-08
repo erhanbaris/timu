@@ -25,8 +25,7 @@ impl GetItem for ClassDefinition<'_> {
     fn get_item_location(&self, _: &TirContext<'_>, path: &str) -> Option<TypeLocation> {
         self
             .fields
-            .get(path)
-            .map(|item| item.clone())
+            .get(path).copied()
     }
 }
 
