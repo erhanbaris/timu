@@ -11,8 +11,7 @@ edition.workspace = true
 [dependencies]
 libtimu-macros = { path = "../libtimu-macros" }
 libtimu-macros-core = { path = "../libtimu-macros-core" }
-miette = { version = "7.6.0", features = ["fancy"] }
-#inkwell = { version =  "0.5.0", features = ["llvm18-0"] }
+#inkwell = { workspace = true }
 nom = { workspace = true }
 nom_locate = { workspace = true }
 nom-language = { workspace = true }

@@ -27,7 +27,7 @@ pub enum TypeValue<'base> {
     PrimitiveType(PrimitiveType),
     
     #[allow(dead_code)]
-    Function(FunctionDefinition<'base>),
+    Function(Box<FunctionDefinition<'base>>),
     
     #[allow(dead_code)]
     Class(ClassDefinition<'base>),

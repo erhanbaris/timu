@@ -24,7 +24,6 @@ pub struct ClassDefinition<'base> {
 impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
-        context.add_ast_scope(self.index, scope_location);
 
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
         let module_ref = context.get_scope(scope_location).expect("Scope not found").module_ref.clone();

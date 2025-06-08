@@ -1,26 +1,12 @@
-use std::{borrow::Cow, rc::Rc};
+use std::borrow::Cow;
 
 use indexmap::IndexMap;
 
 use crate::{
-    ast::{ExtendDefinitionAst, ExtendDefinitionFieldAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{get_object_location_or_resolve, try_resolve_signature}, scope::ScopeLocation, TirError, TypeSignature}
+    ast::{ExtendDefinitionAst, ExtendDefinitionFieldAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{get_object_location_or_resolve, try_resolve_signature}, scope::ScopeLocation, TirError}
 };
 
 use super::{build_type_name, ResolveAst, TypeLocation};
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct ExtendArgument<'base> {
-    pub name: Span<'base>,
-    pub field_type: Rc<TypeSignature<'base>>,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct ExtendDefinition<'base> {
-    pub name: Span<'base>,
-    pub fields: TimuHashMap<Cow<'base, str>, TypeLocation>,
-}
 
 impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
@@ -168,7 +154,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                 };
 
                 if !defined_field_type.value.compare_skeleton(context, &interface_field_type.value) {
-                    errors.push(TirError::types_do_not_match(self.name.to_range(), self.name.names.first().unwrap().extra.file.clone()));
+                    errors.push(TirError::types_do_not_match(interface_field.0.to_range(), interface_field.0.extra.file.clone()));
                 }
                 else {
                     extend_fields_for_track.swap_remove(*interface_field.0.fragment());

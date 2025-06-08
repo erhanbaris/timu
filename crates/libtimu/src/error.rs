@@ -8,6 +8,9 @@ use crate::{
     tir::{error::SyntaxErrorItem, TirContext, TirError},
 };
 
+
+pub static TIMU_LANG_EXT: &str = "tim";
+
 pub type ParseError<'base> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'base str, State>>;
 pub type ParseResult<'base> = Result<(nom_locate::LocatedSpan<&'base str, State>, FileAst<'base>), ParseError<'base>>;
 
@@ -21,17 +24,12 @@ pub trait ReportGenerator {
 
 pub struct CodeSpanReportGenerator;
 
-impl ReportGenerator for CodeSpanReportGenerator {
-    fn generate(error: TirError) {
-
-        let mut diagnostics = Vec::new();
-        let mut files = SimpleFiles::new();
-        let errors = error.errors();
-
+impl CodeSpanReportGenerator {
+    fn inner_generate(files: &mut SimpleFiles<String, String>, diagnostics: &mut Vec<Diagnostic<usize>>, error: &dyn TimuErrorTrait) {
         let mut diagnostic: Diagnostic<usize> = Diagnostic::error().with_message(error.to_string());
 
         if let Some(source_code) = error.source_code()  {
-            let file_id = files.add(source_code.name, source_code.source);
+            let file_id = files.add(format!("{}.{}", source_code.name, TIMU_LANG_EXT), source_code.source);
             
              if let Some(labels) = error.labels() {
                 let labels = labels.into_iter().map(|label| Label::primary(file_id, label.position).with_message(label.label)).collect::<Vec<_>>();
@@ -39,25 +37,32 @@ impl ReportGenerator for CodeSpanReportGenerator {
             }
         }
 
+        if let Some(help) = error.help() {
+            diagnostic = diagnostic.with_note(help.to_string());
+        }
+
         diagnostics.push(diagnostic);
 
-        if let Some(errors) = errors {
-            for inner_error in errors {
-                let mut diagnostic: Diagnostic<usize> = Diagnostic::error().with_message(inner_error.to_string());
-                let source_code = inner_error.source_code();
+        if let Some(references) = error.references() {
+            for reference in references.into_iter() {
+                Self::inner_generate(files, diagnostics, *reference);
+            }   
+        }
 
-                if let Some(source_code) = source_code  {
-                    let file_id = files.add(source_code.name, source_code.source);
-                    
-                    if let Some(inner_labels) = inner_error.labels() {
-                        let labels = inner_labels.into_iter().map(|label| Label::primary(file_id, label.position).with_message(label.label)).collect::<Vec<_>>();
-                        diagnostic = diagnostic.with_labels(labels);
-                    }
-                }
-                
-                diagnostics.push(diagnostic);
+        if let Some(errors) = error.errors() {
+            for inner_error in errors {
+                Self::inner_generate(files, diagnostics, inner_error);
             }
         }
+    }
+}
+
+impl ReportGenerator for CodeSpanReportGenerator {
+    fn generate(error: TirError) {
+        let mut diagnostics = Vec::new();
+        let mut files = SimpleFiles::new();
+
+        Self::inner_generate(&mut files, &mut diagnostics, &error);
 
         let writer = StandardStream::stderr(ColorChoice::Always);
         let config = codespan_reporting::term::Config::default();

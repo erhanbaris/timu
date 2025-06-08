@@ -4,7 +4,7 @@ use libtimu_macros::TimuError;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{
-    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::{AstNameInfo, TirContext}, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
 };
 
 use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
@@ -24,6 +24,7 @@ pub struct FunctionDefinition<'base> {
     pub arguments: Vec<FunctionArgument<'base>>,
     pub return_type: TypeLocation,
     pub signature_path: SignaturePath<'base>,
+    pub ast: FunctionDefinitionAst<'base>
 }
 
 pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>) -> Result<TypeLocation, TirError> {
@@ -37,8 +38,6 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
         simplelog::debug!("Resolving function: <u><b>{}</b></u>", full_name.as_str());
-        context.add_ast_scope(self.index, scope_location);
-        context.add_ast_name(self.index, AstNameInfo::new(self.name(), full_name.clone().into()));
 
         let (module_ref, parent_type, parent_scope,) = {
             let scope = context.get_scope(scope_location).expect("Scope not found, it is a bug");
@@ -49,7 +48,7 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
         let definition = self.build_definition(context, scope_location, parent_scope, &module_ref, parent_type, signature_path.clone())?;
 
         let signature = TypeSignature::new(
-            TypeValue::Function (definition),
+            TypeValue::Function (definition.into()),
             self.name.extra.file.clone(),
             self.name.to_range(),
             parent_type,
@@ -70,7 +69,7 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
      }
     
     fn name(&self) -> Cow<'base, str> {
-        match &self.location {
+        match self.location.as_ref() {
             FunctionDefinitionLocationAst::Module => (*self.name.fragment()).into(),
             FunctionDefinitionLocationAst::Class(class) => format!("{}::{}", class.fragment(), self.name.fragment()).into(),
         }
@@ -85,7 +84,7 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
             BuildFullNameLocater::Module(module_ref) => module_ref.upgrade(context).unwrap(),
         };
         
-        match &self.location {
+        match self.location.as_ref() {
             FunctionDefinitionLocationAst::Module => format!("{}.{}", module.path, self.name.fragment()),
             FunctionDefinitionLocationAst::Class(class) => format!("{}.{}::{}", module.path, class.fragment(), self.name.fragment()),
         }
@@ -166,6 +165,7 @@ impl<'base> FunctionDefinitionAst<'base> {
             arguments,
             return_type,
             signature_path,
+            ast: self.clone()
         })
     }
 

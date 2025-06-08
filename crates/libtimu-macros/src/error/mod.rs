@@ -40,7 +40,7 @@ fn get_source_code(fields: &mut FieldsNamed) -> Option<syn::Member> {
 
 fn get_help(fields: &mut FieldsNamed) -> Option<proc_macro2::TokenStream> {
     for field in fields.named.iter_mut() {
-        if field.attrs.iter().any(|attr| attr.path().is_ident("source_code")) {
+        if field.attrs.iter().any(|attr| attr.path().is_ident("help")) {
             let name = &field.ident;
             return Some(quote! { Some(Box::new(self.#name.clone())) });
         }

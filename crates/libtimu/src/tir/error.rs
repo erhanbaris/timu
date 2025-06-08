@@ -161,11 +161,11 @@ pub struct ExtraFieldInExtend {
 #[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum TirError {
     #[error("Temporary error")]
-    #[diagnostic(code("merhaba dunya"))]
+    #[diagnostic(code("Temporary error"))]
     TemporaryError,
 
     #[error(transparent)]
-    #[diagnostic(transparent, code("merhaba dunya"))]
+    #[diagnostic(transparent)]
     ImportNotFound(Box<ImportNotFound>),
     
     #[error(transparent)]

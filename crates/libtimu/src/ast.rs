@@ -165,7 +165,7 @@ pub struct RefAst<'base> {
     pub names: Vec<Span<'base>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FunctionArgumentAst<'base> {
     This(Span<'base>),
     Argument {
@@ -194,14 +194,15 @@ pub enum FunctionDefinitionLocationAst<'base> {
     Module,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefinitionAst<'base> {
     pub is_public: Option<Span<'base>>,
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgumentAst<'base>>,
+    pub arguments_span: Span<'base>,
     pub return_type: TypeNameAst<'base>,
-    pub body: BodyAst<'base>,
-    pub location: FunctionDefinitionLocationAst<'base>,
+    pub body: Rc<BodyAst<'base>>,
+    pub location: Rc<FunctionDefinitionLocationAst<'base>>,
     pub index: AstIndex,
 }
 
@@ -214,8 +215,8 @@ pub enum FunctionCallType<'base> {
 #[derive(Debug, PartialEq)]
 pub struct FunctionCallAst<'base> {
     pub call_span: Span<'base>,
+    pub arguments_span: Span<'base>,
     pub path: FunctionCallType<'base>,
-    //pub paths: Vec<Span<'base>>,
     pub arguments: Vec<ExpressionAst<'base>>,
 }
 

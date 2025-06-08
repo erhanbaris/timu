@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use nom::bytes::complete::tag;
 use nom::character::complete::char;
-use nom::combinator::{cut, map, opt, peek};
+use nom::combinator::{consumed, cut, map, opt, peek};
 use nom::error::context;
 use nom::multi::separated_list0;
 use nom::sequence::terminated;
@@ -25,7 +25,7 @@ impl<'base> FunctionDefinitionAst<'base> {
 
     pub fn parse_class_function(input: Span<'base>, class_name: Span<'base>) -> IResult<Span<'base>, ClassDefinitionFieldAst<'base>, TimuParserError<'base>> {
         let (input, mut function) = Self::parse(input)?;
-        function.location = FunctionDefinitionLocationAst::Class(class_name);
+        function.location = FunctionDefinitionLocationAst::Class(class_name).into();
         Ok((input, ClassDefinitionFieldAst::Function(function)))
     }
 
@@ -47,10 +47,10 @@ impl<'base> FunctionDefinitionAst<'base> {
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
         let (input, _) = context("Missing '('", cut(peek(cleanup(char('('))))).parse(input)?;
-        let (input, arguments) =
-            map(delimited(char('('), cleanup(separated_list0(char(','), FunctionArgumentAst::parse)), context("Missing ')'", cut(char(')')))), |items| {
+        let (input, (arguments_span, arguments)) =
+            consumed(map(delimited(char('('), cleanup(separated_list0(char(','), FunctionArgumentAst::parse)), context("Missing ')'", cut(char(')')))), |items| {
                 items
-            })
+            }))
             .parse(input)?;
 
         let (input, _) = context("Missing ':'", cleanup(opt(char(':')))).parse(input)?;
@@ -65,9 +65,10 @@ impl<'base> FunctionDefinitionAst<'base> {
                 is_public,
                 name,
                 arguments,
-                body,
+                arguments_span,
+                body: body.into(),
                 return_type,
-                location: FunctionDefinitionLocationAst::Module,
+                location: FunctionDefinitionLocationAst::Module.into(),
                 index
             },
         ))

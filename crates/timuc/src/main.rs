@@ -1,43 +1,10 @@
-use std::{ops::Range, process::exit};
+use std::process::exit;
 
 use libtimu::{error::{CodeSpanReportGenerator, ReportGenerator}, file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
-use libtimu_macros::TimuError;
-use libtimu_macros_core::SourceCode;
 use log::LevelFilter;
 use simplelog::{ColorChoice, CombinedLogger, ConfigBuilder, LevelPadding, TermLogger, TerminalMode, ThreadLogMode};
 
-
-#[derive(thiserror::Error, TimuError, Debug, Clone, PartialEq)]
-#[error("{ty}")]
-pub struct TypeWithSpan {
-    /// Type to show
-    pub ty: String,
-
-    /// Span of expected type
-    #[label("this has `{ty}`")]
-    pub at: Range<usize>,
-
-    // TODO: change to `Option<SourceFile>`
-    /// Source code of the module, this type is located at
-    #[source_code]
-    pub source_code: SourceCode,
-}
-
-/// Diagnostic for not convertible types
-#[derive(thiserror::Error, TimuError, Debug, Clone, PartialEq)]
-#[error("expected `{expected}` type, got `{got}`")]
-#[diagnostic(code("semantics::type_mismatch"))]
-pub struct TypeMismatch {
-    /// Expected type
-    #[reference]
-    pub expected: TypeWithSpan,
-    /// Real type
-    #[reference]
-    pub got: TypeWithSpan,
-}
-
 fn main() -> Result<(), TirError> {
-   
     let config = ConfigBuilder::new()
         .set_location_level(LevelFilter::Debug)
         .set_thread_mode(ThreadLogMode::Both)
@@ -46,31 +13,36 @@ fn main() -> Result<(), TirError> {
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
 
-let state = State::new(SourceFile::new(vec!["source".into()], r#"
+let state1 = State::new(SourceFile::new(vec!["lib".into()], r#"
 interface ITest {
     func test(a: string): string;
-    a: TestClass;
+    a: main.TestClass;
 }
- asd
+
+"#.to_string()));
+
+
+let state2 = State::new(SourceFile::new(vec!["main".into()], r#"
+use lib.ITest;
 extend TestClass: ITest {
-    func test(a: string, b: string): string {
-        
-    }
-    a: TestClass;
+    func test(a: string): string { }
+    a: main.TestClass;
 }
 
 class TestClass {
     func init(this): string {
         this.test("erhanbaris");
         this.a.test("baris");
-        abc(abc("erhan"));
+        abc(123);
     }
 }
 
 func abc(a:string): string {
 }
 "#.to_string()));
-    let ast = match process_code(&state) {
+
+
+    let ast1 = match process_code(&state1) {
         Ok(ast) => ast,
         Err(error) => {
             CodeSpanReportGenerator::generate(error);
@@ -78,7 +50,15 @@ func abc(a:string): string {
         }
     };
 
-    match process_ast(vec![ast.into()]) {
+    let ast2 = match process_code(&state2) {
+        Ok(ast) => ast,
+        Err(error) => {
+            CodeSpanReportGenerator::generate(error);
+            exit(1);
+        }
+    };
+
+    match process_ast(vec![ast1.into(), ast2.into()]) {
         Ok(ast) => ast,
         Err(error) => {
             CodeSpanReportGenerator::generate(error);

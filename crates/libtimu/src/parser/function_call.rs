@@ -30,16 +30,17 @@ impl FunctionCallAst<'_> {
             separated_list1(char('.'), ident()),
             peek(cleanup(char('('))))).parse(input)?;
         
-        let (input, arguments) =
-            map(delimited(char('('), cleanup(separated_list0(char(','), ExpressionAst::parse)), context("Missing ')'", cut(char(')')))), |items| {
+        let (input, (arguments_span, arguments)) =
+            consumed(map(delimited(char('('), cleanup(separated_list0(char(','), ExpressionAst::parse)), context("Missing ')'", cut(char(')')))), |items| {
                 items
-            })
+            }))
             .parse(input)?;
 
         Ok((
             input,
             FunctionCallAst {
                 call_span,
+                arguments_span,
                 path: match this {
                     Some(_) => FunctionCallType::This(paths),
                     None => FunctionCallType::Direct(paths),

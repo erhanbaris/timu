@@ -1,19 +1,90 @@
+use std::ops::Range;
+
 use libtimu_macros::TimuError;
+use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::SpanInfo, tir::{resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::{SpanInfo, ToRange}, tir::{resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
+
+#[derive(thiserror::Error, TimuError, Debug, Clone, PartialEq)]
+#[error("{ty}")]
+pub struct TypeWithSpan {
+    pub ty: String,
+
+    /// Span of expected type
+    #[label("this has `{ty}`")]
+    pub at: Range<usize>,
+
+    #[source_code]
+    pub source_code: SourceCode,
+}
+
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("Function call argument count mismatch: expected {expected}, got {got}")]
+#[diagnostic(code("timu::error::function_call_argument_count_mismatch"))]
+pub struct FunctionCallArgumentCountMismatch {
+    pub expected: usize,
+
+    #[label("this is what expected")]
+    pub expected_position: Range<usize>,
+
+    pub got: usize,
+
+    #[label("this is defined")]
+    pub got_position: Range<usize>,
+    
+    #[source_code]
+    pub code: SourceCode,
+}
+
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("{path} not valid call path. It is not class or pointer")]
+#[diagnostic(code("timu::error::call_path_not_valid"))]
+pub struct CallPathNotValid {
+    pub path: String,
+
+    #[label("this path not valid")]
+    pub position: Range<usize>,
+    
+    #[source_code]
+    pub code: SourceCode,
+}
+
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("expected `{expected}` type, got `{got}`")]
+pub struct ArgumentTypeMismatch {
+    #[reference]
+    pub expected: TypeWithSpan,
+
+    #[reference]
+    pub got: TypeWithSpan,
+    
+    #[source_code]
+    pub code: SourceCode,
+}
 
 #[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError {
     #[error("Unsupported argument type in function call")]
     UnsupportedArgumentType(SpanInfo),
 
-    #[error("Function call argument count mismatch: expected {expected}, got {got}")]
-    FunctionCallArgumentCountMismatch {
-        expected: usize,
-        expected_source: SpanInfo,
-        got: usize,
-    },
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    FunctionCallArgumentCountMismatch(Box<FunctionCallArgumentCountMismatch>),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    CallPathNotValid(Box<CallPathNotValid>),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ArgumentTypeMismatch(Box<ArgumentTypeMismatch>),
+}
+
+impl From<FunctionCallArgumentCountMismatch> for FunctionCallError {
+    fn from(value: FunctionCallArgumentCountMismatch) -> Self {
+        FunctionCallError::FunctionCallArgumentCountMismatch(Box::new(value))
+    }
 }
 
 impl From<FunctionCallError> for TirError {
@@ -34,8 +105,8 @@ impl<'base> BodyStatementAst<'base> {
             }
         };
 
-        for (index, path) in paths.iter().enumerate() {
-            let path = *path.fragment();
+        for (index, span) in paths.iter().enumerate() {
+            let path = *span.fragment();
 
             if index == 0 {
                 if let Some(argument) = scope.get_variable(context, path) {
@@ -59,7 +130,11 @@ impl<'base> BodyStatementAst<'base> {
                             panic!("Function argument not found: {}", path);
                         }
                     },
-                    value => panic!("Object location is not a class or function, but this is a bug, '{path}, {:?}", value),
+                    _ => return Err(FunctionCallError::CallPathNotValid(CallPathNotValid {
+                        path: path.to_string(),
+                        position: span.to_range(),
+                        code: span.extra.file.clone().into()
+                    }.into()).into()),
                 }
             }
         }
@@ -83,15 +158,19 @@ impl<'base> BodyStatementAst<'base> {
             TypeValue::Function(function) => function,
             _ => panic!("Expected a function signature, but got {:?}", callee_object.value)
         };
+        
         let return_type = callee.return_type;
 
         /* Validate parameters */
         if callee.arguments.len() != arguments.len() {
-            return Err(FunctionCallError::FunctionCallArgumentCountMismatch {
+            return Err(FunctionCallError::FunctionCallArgumentCountMismatch(FunctionCallArgumentCountMismatch {
                 expected: callee.arguments.len(),
                 got: arguments.len(),
-                expected_source: SpanInfo::new(callee_object.position.clone(), callee_object.file.clone()) 
-            }.into());
+                got_position: function_call.arguments_span.to_range(),
+                expected_position: callee.ast.arguments_span.to_range(),
+                code: callee_object.file.clone().into(),
+
+            }.into()).into());
         }
 
         for (callee_arg, call_arg) in callee.arguments.iter().zip(arguments.iter()) {
@@ -99,7 +178,19 @@ impl<'base> BodyStatementAst<'base> {
         
             let call_argument_signature = context.types.get_from_location(*call_arg).unwrap();
             if !callee_argument_signature.value.compare_skeleton(context, &call_argument_signature.value) {
-                panic!("Argument type mismatch: expected {:?}, got {:?}", callee_argument_signature.value, call_argument_signature.value);
+                return Err(FunctionCallError::ArgumentTypeMismatch(ArgumentTypeMismatch {
+                    code: callee_object.file.clone().into(),
+                    expected: TypeWithSpan {
+                        ty: callee_arg.name.fragment().to_string(),
+                        at: callee_arg.name.to_range(),
+                        source_code: callee_arg.name.extra.file.clone().into()
+                    },
+                    got: TypeWithSpan {
+                        ty: call_argument_signature.value.get_name().to_string(),
+                        at: call_argument_signature.position.clone(),
+                        source_code: call_argument_signature.file.clone().into()
+                    }
+                }.into()).into());
             }
         }
 
@@ -267,7 +358,6 @@ func abc(): TestClass {
     }
 
     #[test]
-    #[should_panic]
     fn func_call_8() {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 
@@ -306,7 +396,6 @@ func abc(): string {
     }
 
     #[test]
-    #[should_panic]
     fn func_call_10() {
         let state = State::new(SourceFile::new(vec!["source".into()], r#"
 interface ITest {

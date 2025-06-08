@@ -7,18 +7,6 @@ use crate::{ast::AstIndex, file::SourceFile};
 
 use super::{module::ModuleRef, resolver::{AstSignatureLocation, ResolveAst, TypeLocation}, scope::{Scope, ScopeLocation}, signature::SignaturePath, AstSignature, AstSignatureHolder, Module, TirError, TypeSignature, TypeSignatureHolder};
 
-#[derive(Debug)]
-pub struct AstNameInfo<'base> {
-    pub name: Cow<'base, str>,
-    pub full_name: Cow<'base, str>,
-}
-
-impl<'base> AstNameInfo<'base> {
-    pub fn new(name: Cow<'base, str>, full_name: Cow<'base, str>) -> Self {
-        Self { name, full_name }
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct TirContext<'base> {
     pub modules: IndexMap<Cow<'base, str>, Module<'base>>,
@@ -27,8 +15,8 @@ pub struct TirContext<'base> {
     pub types: TypeSignatureHolder<'base>,
     pub scopes: Vec<Scope<'base>>,
     pub types_scope: IndexMap<Cow<'base, str>, ScopeLocation>,
-    ast_scope: IndexMap<AstIndex, ScopeLocation>,
-    ast_name: IndexMap<AstIndex, AstNameInfo<'base>>,
+    //ast_scope: IndexMap<AstIndex, ScopeLocation>,
+    //ast_name: IndexMap<AstIndex, AstNameInfo<'base>>,
     pub ast_type: IndexMap<AstIndex, TypeLocation>,
     pub tmp_type_indexer: AtomicUsize,
     pub errors: Vec<TirError>,
@@ -106,26 +94,6 @@ impl<'base> TirContext<'base> {
 
     pub fn get_mut_scope(&mut self, key: ScopeLocation) -> Option<&mut Scope<'base>> {
         self.scopes.get_mut(key.0)
-    }
-
-    pub fn get_ast_scope(&self, index: AstIndex) -> Option<&Scope<'base>> {
-        self.get_scope(*self.ast_scope.get(&index)?)
-    }
-
-    pub fn get_mut_ast_scope(&mut self, index: AstIndex) -> Option<&mut Scope<'base>> {
-        self.get_mut_scope(*self.ast_scope.get(&index)?)
-    }
-
-    pub fn add_ast_scope(&mut self, index: AstIndex, scope_location: ScopeLocation) -> Option<ScopeLocation> {
-        self.ast_scope.insert(index, scope_location)
-    }
-
-    pub fn add_ast_name(&mut self, index: AstIndex, name_info: AstNameInfo<'base>) -> Option<AstNameInfo<'base>> {
-        self.ast_name.insert(index, name_info)
-    }
-
-    pub fn get_ast_name(&mut self, index: AstIndex) -> Option<&AstNameInfo<'base>> {
-        self.ast_name.get(&index)
     }
 
     pub fn add_error(&mut self, error: TirError) {

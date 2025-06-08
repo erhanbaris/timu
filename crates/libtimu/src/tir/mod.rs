@@ -79,7 +79,7 @@ impl<'base> ResolveAst<'base> for FileStatementAst<'base> {
 }
 
 pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError> {
-    let mut has_error = false;
+    //let mut has_error = false;
     let mut context: TirContext<'_> = TirContext::default();
 
     /*simplelog::debug!("Adding base module");
@@ -88,25 +88,31 @@ pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError> {
     build_primitive_types(&mut context);
 
     for ast in files.into_iter() {
-        if build_module(&mut context, ast.clone()).is_err() {
-            has_error = true;
+        if let Err(error) = build_module(&mut context, ast.clone()) {
+            if !context.errors.is_empty() {
+                return Err(TirError::multiple_errors(context.errors.clone()));
+            } else {
+                return Err(error);
+            }
+            //has_error = true;
         }
     }
 
     #[allow(clippy::iter_kv_map)]
     let modules = context.modules.iter().map(|(_, module)| module.get_ref()).collect::<Vec<_>>(); 
     for module in modules.into_iter() {
-        if build_file(&mut context, module).is_err() {
-            has_error = true;
+        if let Err(error) = build_file(&mut context, module) {
+            if !context.errors.is_empty() {
+                return Err(TirError::multiple_errors(context.errors.clone()));
+            } else {
+                return Err(error);
+            }
+            //has_error = true;
         }
     }
 
     if !context.errors.is_empty() {
         return Err(TirError::multiple_errors(context.errors.clone()));
-    }
-
-    if has_error {
-        return Err(TirError::TemporaryError);
     }
 
     Ok(context)

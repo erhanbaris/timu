@@ -302,13 +302,16 @@ pub fn try_resolve_signature<'base, K: AsRef<str>>(
 
 #[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum ResolverError {
-    #[error("{0}")]
+    #[error(transparent)]
+    #[diagnostic(transparent)]
     FunctionCall(#[from] Box<FunctionCallError>),  
 
-    #[error("{0}")]
+    #[error(transparent)]
+    #[diagnostic(transparent)]
     Scope(#[from] Box<ScopeError>),
 
-    #[error("{0}")]
+    #[error(transparent)]
+    #[diagnostic(transparent)]
     FunctionResolve(#[from] Box<FunctionResolveError>),
 }
 
