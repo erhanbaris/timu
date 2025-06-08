@@ -74,7 +74,7 @@ impl<'base> Scope<'base> {
         }
 
         if let Some(ast_location) = module.ast_imported_modules.get(name.as_ref()) {
-            if let Some(signature) = context.ast_signatures.get_from_location(ast_location.clone()) {
+            if let Some(signature) = context.ast_signatures.get_from_location(*ast_location) {
                 let full_name = signature.value.build_full_name(context, BuildFullNameLocater::Module(signature.extra.as_ref().unwrap()), None);
 
                 if let Some(type_location) = context.types.location(full_name.as_str()) {

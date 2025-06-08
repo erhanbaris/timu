@@ -206,7 +206,7 @@ fn find_module<'base, K: AsRef<str> + ?Sized>(context: &mut TirContext<'base>, m
 
     match module.ast_imported_modules.get(module_name) {
         Some(found_module) => {
-            let signature = context.ast_signatures.get_from_location(found_module.clone()).map(|module| module.value.as_ref());
+            let signature = context.ast_signatures.get_from_location(*found_module).map(|module| module.value.as_ref());
             if let Some(AstSignatureValue::Module(found_module)) = signature {
                 Some(found_module.clone())
             } else {
@@ -248,7 +248,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
     }
 
     let signature_location = match module.ast_imported_modules.get(key.as_ref()) {
-        Some(location) => location.clone(),
+        Some(location) => *location,
         None => {
             match module.get_ast_signature(key.as_ref()) {
                 Some(location) => location,
@@ -260,7 +260,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         },
     };
 
-    let signature = match context.ast_signatures.get_from_location(signature_location.clone()) {
+    let signature = match context.ast_signatures.get_from_location(signature_location) {
         Some(signature) => signature,
         None => return Ok(None),
     };
@@ -280,11 +280,11 @@ pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &Modul
     let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
 
     if let Some(location) = module.ast_signatures.get(key.get_name()) {
-        return Some(location.clone());
+        return Some(*location);
     }
 
     match module.ast_imported_modules.get(key.get_name()) {
-        Some(location) => Some(location.clone()),
+        Some(location) => Some(*location),
         None => context.get_ast_location(key.get_raw_path()),
     }
 }
