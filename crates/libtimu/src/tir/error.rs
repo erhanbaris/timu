@@ -116,7 +116,7 @@ pub struct SyntaxError {
 #[derive(Clone, Debug, TimuError, thiserror::Error)]
 #[error("Syntax error")]
 pub struct SyntaxErrorItem {
-    #[label("Invalid syntax here")]
+    #[label("{message}")]
     pub position: Range<usize>,
     
     #[source_code]

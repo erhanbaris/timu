@@ -94,7 +94,7 @@ impl VariableAssignAst<'_> {
         let (input, name) = ident().parse(input)?;
         let (input, _) = context("Missing '='", cleanup(char('='))).parse(input)?;
         let (input, expression) = context("Invalid expression", cut(ExpressionAst::parse)).parse(input)?;
-        let (input, _) = context("Missing ';'", cleanup(char(';'))).parse(input)?;
+        let (input, _) = context("Missing ';'", cut(cleanup(char(';')))).parse(input)?;
 
         Ok((
             input,

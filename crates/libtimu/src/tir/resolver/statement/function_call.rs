@@ -4,7 +4,7 @@ use libtimu_macros::TimuError;
 use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::{SpanInfo, ToRange}, tir::{object_signature::GetItem, resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::ToRange, tir::{object_signature::GetItem, resolver::{function::unwrap_for_this, statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
 #[derive(thiserror::Error, TimuError, Debug, Clone, PartialEq)]
 #[error("")]
@@ -56,10 +56,21 @@ pub struct ArgumentTypeMismatch {
     pub got: TypeWithSpan,
 }
 
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("Unsupported argument type in function call")]
+pub struct UnsupportedArgumentType {
+    #[label("Unsupported argument type")]
+    pub position: Range<usize>,
+
+    #[source_code]
+    pub code: SourceCode,
+}
+
 #[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionCallError {
-    #[error("Unsupported argument type in function call")]
-    UnsupportedArgumentType(SpanInfo),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    UnsupportedArgumentType(Box<UnsupportedArgumentType>),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -128,8 +139,15 @@ impl<'base> BodyStatementAst<'base> {
             let argument_location = match argument {
                 ExpressionAst::FunctionCall(func_call) => Self::resolve_function_call(context, scope_location, func_call)?,
                 ExpressionAst::Primitive { span, value } => try_resolve_primitive(context, value, span)?,
+                ExpressionAst::Ident(ident) => {
+                    let scope =  context.get_scope(scope_location).unwrap();
+                    unwrap_for_this(&Some(scope.current_type), ident)?
+                },
                 _ => {
-                    return Err(FunctionCallError::UnsupportedArgumentType(function_call.call_span.clone().into()).into());
+                    return Err(FunctionCallError::UnsupportedArgumentType(UnsupportedArgumentType {
+                        position: function_call.call_span.to_range(),
+                        code: function_call.call_span.state.file.clone().into()
+                    }.into()).into());
                 }
             };
 
