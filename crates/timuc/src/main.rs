@@ -18,12 +18,16 @@ interface ITest {
     func test(a: string): string;
     a: main.TestClass;
 }
+func abc(a:string): string {
+}
 
 "#.to_string()));
 
 
 let state2 = State::new(SourceFile::new(vec!["main".into()], r#"
 use lib.ITest;
+use lib.abc;
+
 extend TestClass: ITest {
     func test(a: string): string { }
     a: main.TestClass;
@@ -31,14 +35,11 @@ extend TestClass: ITest {
 
 class TestClass {
     func init(this): string {
-        this.test("erhanbaris");
-        this.a.test("baris");
-        abc(123);
+        lib.abc("erhan");
+        abc("baris");
     }
 }
 
-func abc(a:string): string {
-}
 "#.to_string()));
 
 

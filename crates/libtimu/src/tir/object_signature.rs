@@ -2,6 +2,8 @@ use std::fmt::Debug;
 
 use strum_macros::EnumIs;
 
+use crate::tir::module::ModuleRef;
+
 use super::{resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}}, TirContext};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -33,7 +35,7 @@ pub enum TypeValue<'base> {
     Class(ClassDefinition<'base>),
     
     #[allow(dead_code)]
-    Module,
+    Module(ModuleRef<'base>),
     
     #[allow(dead_code)]
     Interface(InterfaceDefinition<'base>),
@@ -60,7 +62,7 @@ impl TypeValue<'_> {
             (TypeValue::PrimitiveType(left), TypeValue::PrimitiveType(right)) => Self::compare_primitive_types(left, right),
             (TypeValue::Function(left_function), TypeValue::Function(right_function)) => Self::compare_functions(left_function, right_function),
             (TypeValue::Class(left_class), TypeValue::Class(right_class)) => Self::compare_classes(left_class, right_class),
-            (TypeValue::Module, TypeValue::Module) => false,
+            (TypeValue::Module(_), TypeValue::Module(_)) => false,
             (TypeValue::InterfaceFunction(interface_function), TypeValue::Function(function)) => Self::compare_interface_function_and_function(interface_function, function),
             (TypeValue::Function(function), TypeValue::InterfaceFunction(interface_function)) => Self::compare_interface_function_and_function(interface_function, function),
             (TypeValue::InterfaceFunction(left_function), TypeValue::InterfaceFunction(right_function)) => Self::compare_interface_functions(left_function, right_function),
@@ -88,7 +90,7 @@ impl TypeValue<'_> {
             },
             TypeValue::Function(function) => function.name.text,
             TypeValue::Class(class) => class.name.text,
-            TypeValue::Module => "Module",
+            TypeValue::Module(_) => "Module",
             TypeValue::Interface(interface) => interface.name.text,
             TypeValue::InterfaceFunction(interface_function) => interface_function.name.text,
         }

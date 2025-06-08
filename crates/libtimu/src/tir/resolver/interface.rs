@@ -136,12 +136,12 @@ impl<'base> InterfaceDefinitionAst<'base> {
                 FunctionArgumentAst::Argument { name, .. } => (Cow::Borrowed(name.text), name.to_range(), name.state.file.clone())
             };
             
-            let type_name: String = match argument {
+            let (field_type_span, type_name) = match argument {
                 FunctionArgumentAst::This(this) => {
                     let parent = context.types.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
-                    parent.value.get_name().to_string()
+                    (this.clone(), parent.value.get_name().to_string())
                 },
-                FunctionArgumentAst::Argument { field_type, .. } => build_type_name(field_type),
+                FunctionArgumentAst::Argument { field_type, .. } => (field_type.names_span.clone(), build_type_name(field_type)),
             };
 
             let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
@@ -159,6 +159,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                     FunctionArgumentAst::Argument { name, .. } => name.clone()
                 },
                 field_type,
+                field_type_span
             });
         }
 

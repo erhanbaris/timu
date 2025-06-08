@@ -56,7 +56,7 @@ impl LocationTrait for ObjectLocation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(PartialEq, Debug, Copy, Clone, Eq, PartialOrd, Ord, Hash)]
 pub struct AstSignatureLocation(#[allow(dead_code)]pub usize);
 
 impl From<usize> for AstSignatureLocation {

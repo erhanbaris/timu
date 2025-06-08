@@ -7,7 +7,7 @@ use strum_macros::{EnumDiscriminants, EnumProperty};
 use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::{SpanInfo, ToRange}, tir::{resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
 #[derive(thiserror::Error, TimuError, Debug, Clone, PartialEq)]
-#[error("{ty}")]
+#[error("")]
 pub struct TypeWithSpan {
     pub ty: String,
 
@@ -20,25 +20,21 @@ pub struct TypeWithSpan {
 }
 
 #[derive(Clone, Debug, TimuError, thiserror::Error)]
-#[error("Function call argument count mismatch: expected {expected}, got {got}")]
+#[error("Function call argument count mismatch: expected {expected_size}, got {got_size}")]
 #[diagnostic(code("timu::error::function_call_argument_count_mismatch"))]
 pub struct FunctionCallArgumentCountMismatch {
-    pub expected: usize,
+    pub expected_size: usize,
+    pub got_size: usize,
 
-    #[label("this is what expected")]
-    pub expected_position: Range<usize>,
+    #[reference]
+    pub expected: TypeWithSpan,
 
-    pub got: usize,
-
-    #[label("this is defined")]
-    pub got_position: Range<usize>,
-    
-    #[source_code]
-    pub code: SourceCode,
+    #[reference]
+    pub got: TypeWithSpan,
 }
 
 #[derive(Clone, Debug, TimuError, thiserror::Error)]
-#[error("{path} not valid call path. It is not class or pointer")]
+#[error("`{path}` not valid call path. It is not class or pointer")]
 #[diagnostic(code("timu::error::call_path_not_valid"))]
 pub struct CallPathNotValid {
     pub path: String,
@@ -58,9 +54,6 @@ pub struct ArgumentTypeMismatch {
 
     #[reference]
     pub got: TypeWithSpan,
-    
-    #[source_code]
-    pub code: SourceCode,
 }
 
 #[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
@@ -130,6 +123,17 @@ impl<'base> BodyStatementAst<'base> {
                             panic!("Function argument not found: {}", path);
                         }
                     },
+                    Some(TypeValue::Module(module_ref)) => {
+                        let module = module_ref.upgrade(context).unwrap();
+                        callee_object_location = match module.types.get(path) {
+                            Some(item) => *item,
+                            None => return Err(FunctionCallError::CallPathNotValid(CallPathNotValid {
+                                path: path.to_string(),
+                                position: span.to_range(),
+                                code: span.state.file.clone().into()
+                            }.into()).into())
+                        };
+                    },
                     _ => return Err(FunctionCallError::CallPathNotValid(CallPathNotValid {
                         path: path.to_string(),
                         position: span.to_range(),
@@ -164,11 +168,18 @@ impl<'base> BodyStatementAst<'base> {
         /* Validate parameters */
         if callee.arguments.len() != arguments.len() {
             return Err(FunctionCallError::FunctionCallArgumentCountMismatch(FunctionCallArgumentCountMismatch {
-                expected: callee.arguments.len(),
-                got: arguments.len(),
-                got_position: function_call.arguments_span.to_range(),
-                expected_position: callee.ast.arguments_span.to_range(),
-                code: callee_object.file.clone().into(),
+                expected_size: callee.arguments.len(),
+                got_size: arguments.len(),
+                expected: TypeWithSpan {
+                        ty: callee.ast.arguments_span.text.to_string(),
+                        at: callee.ast.arguments_span.to_range(),
+                        source_code: callee.ast.arguments_span.state.file.clone().into()
+                    },
+                got: TypeWithSpan {
+                    ty: function_call.arguments_span.text.to_string(),
+                    at: function_call.arguments_span.position.clone(),
+                    source_code: function_call.arguments_span.state.file.clone().into()
+                }
 
             }.into()).into());
         }
@@ -179,11 +190,10 @@ impl<'base> BodyStatementAst<'base> {
             let call_argument_signature = context.types.get_from_location(*call_arg).unwrap();
             if !callee_argument_signature.value.compare_skeleton(context, &call_argument_signature.value) {
                 return Err(FunctionCallError::ArgumentTypeMismatch(ArgumentTypeMismatch {
-                    code: callee_object.file.clone().into(),
                     expected: TypeWithSpan {
-                        ty: callee_arg.name.text.to_string(),
-                        at: callee_arg.name.to_range(),
-                        source_code: callee_arg.name.state.file.clone().into()
+                        ty: callee_arg.field_type_span.text.to_string(),
+                        at: callee_arg.field_type_span.to_range(),
+                        source_code: callee_arg.field_type_span.state.file.clone().into()
                     },
                     got: TypeWithSpan {
                         ty: call_argument_signature.value.get_name().to_string(),
@@ -200,7 +210,7 @@ impl<'base> BodyStatementAst<'base> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{file::SourceFile, nom_tools::State, process_code, tir::TirError};
+    use crate::{file::SourceFile, nom_tools::State, process_ast, process_code, tir::TirError};
 
     #[test]
     fn func_call_1() -> Result<(), TirError> {
@@ -464,5 +474,75 @@ func abc(a:string): string {
 "#.to_string()));
         let ast = process_code(&state).unwrap();
         crate::tir::build(vec![ast.into()]).unwrap();
+    }
+
+    #[test]
+    fn func_call_13() {
+        let state1 = State::new(SourceFile::new(vec!["lib".into()], r#"
+        interface ITest {
+            func test(a: string): string;
+            a: main.TestClass;
+        }
+        func abc(a:string): string {
+        }
+
+        "#.to_string()));
+
+
+        let state2 = State::new(SourceFile::new(vec!["main".into()], r#"
+        use lib.ITest;
+
+        extend TestClass: ITest {
+            func test(a: string): string { }
+            a: main.TestClass;
+        }
+
+        class TestClass {
+            func init(this): string {
+                lib.abc();
+            }
+        }
+
+        "#.to_string()));
+        let ast1 = process_code(&state1).unwrap();
+        let ast2 = process_code(&state2).unwrap();
+
+        process_ast(vec![ast1.into(), ast2.into()]).unwrap_err();
+    }
+
+    #[test]
+    fn func_call_14() {
+        let state1 = State::new(SourceFile::new(vec!["lib".into()], r#"
+        interface ITest {
+            func test(a: string): string;
+            a: main.TestClass;
+        }
+        func abc(a:string): string {
+        }
+
+        "#.to_string()));
+
+
+        let state2 = State::new(SourceFile::new(vec!["main".into()], r#"
+        use lib.ITest;
+        use lib.abc;
+
+        extend TestClass: ITest {
+            func test(a: string): string { }
+            a: main.TestClass;
+        }
+
+        class TestClass {
+            func init(this): string {
+                lib.abc("hello");
+                abc("hello");
+            }
+        }
+
+        "#.to_string()));
+        let ast1 = process_code(&state1).unwrap();
+        let ast2 = process_code(&state2).unwrap();
+
+        process_ast(vec![ast1.into(), ast2.into()]).unwrap();
     }
 }

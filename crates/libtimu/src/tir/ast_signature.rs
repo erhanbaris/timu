@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use simplelog::debug;
 
 use crate::{
-    ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst}, map::TimuHashMap, nom_tools::ToRange
+    ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst}, map::TimuHashMap, nom_tools::ToRange, tir::{TypeSignature, TypeValue}
 };
 
 use super::{
@@ -160,7 +160,10 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
         None
     );
 
+    let module_ref = module.get_ref();
+
     context.add_ast_signature(module_name.clone().into(), signature)?;
+    context.types.add_signature(SignaturePath::owned(module_name.clone()), TypeSignature::new(TypeValue::Module(module_ref), module.file.clone(), 0..0, None)).unwrap();
     context.modules.insert(module_name.into(), module);
     Ok(())
 }

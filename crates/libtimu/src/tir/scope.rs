@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use libtimu_macros::TimuError;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{map::TimuHashMap, nom_tools::{Span, SpanInfo}};
+use crate::{map::TimuHashMap, nom_tools::{Span, SpanInfo}, tir::resolver::{BuildFullNameLocater, ResolveAst}};
 
 use super::{module::ModuleRef, resolver::{ResolverError, TypeLocation}, signature::LocationTrait, TirContext, TirError};
 
@@ -68,7 +68,27 @@ impl<'base> Scope<'base> {
                 return Some(*type_location);
             }
         }
-        
+
+        if let Some(type_location) = context.types.location(name.as_ref()) {
+            return Some(type_location);
+        }
+
+        if let Some(ast_location) = module.ast_imported_modules.get(name.as_ref()) {
+            if let Some(signature) = context.ast_signatures.get_from_location(ast_location.clone()) {
+                let full_name = signature.value.build_full_name(context, BuildFullNameLocater::Module(signature.extra.as_ref().unwrap()), None);
+
+                if let Some(type_location) = context.types.location(full_name.as_str()) {
+                    return Some(type_location)
+                }
+            }
+        }
+
+        if let Some(module_ref) = context.modules.get(name.as_ref()) {
+            if let Some(type_location) = module.types.get(module_ref.path.as_ref()) {
+                return Some(*type_location);
+            }
+        }
+
         None
     }
 

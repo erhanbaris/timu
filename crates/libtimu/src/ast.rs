@@ -150,13 +150,12 @@ pub enum ExtendDefinitionFieldAst<'base> {
 pub struct TypeNameAst<'base> {
     pub nullable: bool,
     pub names: Vec<Span<'base>>,
+    pub names_span: Span<'base>
 }
 
 impl ToRange for TypeNameAst<'_> {
     fn to_range(&self) -> std::ops::Range<usize> {
-        let start = self.names.first().map_or(0, |path| path.position.start);
-        let end = self.names.last().map_or(0, |path| path.position.end + path.text.len());
-        start..end
+        self.names_span.position.clone()
     }
 }
 

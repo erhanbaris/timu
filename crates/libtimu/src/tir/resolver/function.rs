@@ -14,6 +14,7 @@ use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, Resolv
 pub struct FunctionArgument<'base> {
     pub name: Span<'base>,
     pub field_type: TypeLocation,
+    pub field_type_span: Span<'base>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -131,14 +132,14 @@ impl<'base> FunctionDefinitionAst<'base> {
                 }
             };
             
-            let type_name = match argument {
+            let (field_type_span, type_name) = match argument {
                 FunctionArgumentAst::This(this) => {
-                    match context.types.get_signature_from_location(unwrap_for_this(&parent_type, this)?).unwrap() {
+                    (this.clone(), match context.types.get_signature_from_location(unwrap_for_this(&parent_type, this)?).unwrap() {
                         SignatureInfo::Reserved(reservation) => reservation.name.clone(),
                         SignatureInfo::Value(value) => Cow::Owned(value.value.get_name().to_string())
-                    }
+                    })
                 },
-                FunctionArgumentAst::Argument { field_type, .. } => Cow::Owned(build_type_name(field_type)),
+                FunctionArgumentAst::Argument { field_type, .. } => (field_type.names_span.clone(), Cow::Owned(build_type_name(field_type))),
             };
 
             let field_type = match try_resolve_signature(context, module, type_name.as_ref())? {
@@ -156,6 +157,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                     FunctionArgumentAst::Argument { name, .. } => name.clone()
                 },
                 field_type,
+                field_type_span
             });
         }
 
