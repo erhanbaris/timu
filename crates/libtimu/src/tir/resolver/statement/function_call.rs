@@ -4,7 +4,7 @@ use libtimu_macros::TimuError;
 use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::{SpanInfo, ToRange}, tir::{resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::{SpanInfo, ToRange}, tir::{object_signature::GetItem, resolver::{statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
 #[derive(thiserror::Error, TimuError, Debug, Clone, PartialEq)]
 #[error("")]
@@ -108,32 +108,12 @@ impl<'base> BodyStatementAst<'base> {
                     panic!("Function argument or object not found: '{}'", path);
                 }
             } else {
-                match context.types.get_from_location(callee_object_location).map(|signature| signature.value.as_ref()) {
-                    Some(TypeValue::Class(class)) => {
-                        if let Some(field) = class.fields.get(path) {
-                            callee_object_location = *field;
-                        } else {
-                            panic!("Field not found in class: {}", path);
-                        }
-                    },
-                    Some(TypeValue::Function(function)) => {
-                        if let Some(argument) = function.arguments.iter().find(|argument| argument.name.text == path) {
-                            callee_object_location = argument.field_type;
-                        } else {
-                            panic!("Function argument not found: {}", path);
-                        }
-                    },
-                    Some(TypeValue::Module(module_ref)) => {
-                        let module = module_ref.upgrade(context).unwrap();
-                        callee_object_location = match module.types.get(path) {
-                            Some(item) => *item,
-                            None => return Err(FunctionCallError::CallPathNotValid(CallPathNotValid {
-                                path: path.to_string(),
-                                position: span.to_range(),
-                                code: span.state.file.clone().into()
-                            }.into()).into())
-                        };
-                    },
+                callee_object_location = match context
+                        .types
+                        .get_from_location(callee_object_location)
+                        .map(|signature| signature.value.as_ref())
+                        .and_then(|value| value.get_item_location(context, path)) {
+                        Some(type_location) => type_location,
                     _ => return Err(FunctionCallError::CallPathNotValid(CallPathNotValid {
                         path: path.to_string(),
                         position: span.to_range(),

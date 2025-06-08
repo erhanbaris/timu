@@ -2,7 +2,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use indexmap::IndexMap;
 
-use crate::{ast::FileAst, file::SourceFile, map::TimuHashMap};
+use crate::{ast::FileAst, file::SourceFile, map::TimuHashMap, tir::object_signature::GetItem};
 
 use super::{resolver::{AstSignatureLocation, TypeLocation}, signature::SignaturePath, TirContext};
 
@@ -58,6 +58,17 @@ impl<'base> Module<'base> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModuleRef<'base>(pub Cow<'base, str>, SourceFile);
+
+impl GetItem for ModuleRef<'_> {
+    fn get_item_location(&self, context: &TirContext<'_>, path: &str) -> Option<TypeLocation> {
+        self
+            .upgrade(context)
+            .unwrap()
+            .types
+            .get(path)
+            .map(|item| item.clone())
+    }
+}
 
 impl<'base> ModuleRef<'base> {
     pub fn new(path: Cow<'base, str>, file: SourceFile) -> Self {

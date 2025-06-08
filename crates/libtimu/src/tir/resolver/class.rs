@@ -1,7 +1,7 @@
 use std::{borrow::Cow, rc::Rc};
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::TypeValue, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::{GetItem, TypeValue}, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{TypeLocation, ResolveAst};
@@ -19,6 +19,15 @@ pub struct ClassDefinition<'base> {
     pub name: Span<'base>,
     pub fields: TimuHashMap<Cow<'base, str>, TypeLocation>,
     pub extends:Vec<TypeNameAst<'base>>,
+}
+
+impl GetItem for ClassDefinition<'_> {
+    fn get_item_location(&self, _: &TirContext<'_>, path: &str) -> Option<TypeLocation> {
+        self
+            .fields
+            .get(path)
+            .map(|item| item.clone())
+    }
 }
 
 impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {

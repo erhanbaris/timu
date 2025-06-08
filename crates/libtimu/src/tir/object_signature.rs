@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use strum_macros::EnumIs;
 
-use crate::tir::module::ModuleRef;
+use crate::tir::{module::ModuleRef, resolver::TypeLocation};
 
 use super::{resolver::{class::ClassDefinition, function::FunctionDefinition, interface::{InterfaceDefinition, InterfaceFunctionDefinition}}, TirContext};
 
@@ -21,6 +21,12 @@ pub enum PrimitiveType {
     Float,
     Double,
     Void,
+}
+
+impl GetItem for PrimitiveType {
+    fn get_item_location(&self, _: &TirContext<'_>, _: &str) -> Option<TypeLocation> {
+        None
+    }
 }
 
 #[derive(Debug, Clone, EnumIs, PartialEq)]
@@ -56,6 +62,22 @@ impl<'base> AsMut<TypeValue<'base>> for TypeValue<'base> {
     }
 }
 
+pub trait GetItem {
+    fn get_item_location(&self, context: &TirContext<'_>, path: &str) -> Option<TypeLocation>;
+}
+
+impl GetItem for TypeValue<'_> {
+    fn get_item_location(&self, context: &TirContext<'_>, path: &str) -> Option<TypeLocation> {
+        match self {
+            TypeValue::PrimitiveType(primitive_type) => primitive_type.get_item_location(context, path),
+            TypeValue::Function(function_definition) => function_definition.get_item_location(context, path),
+            TypeValue::Class(class_definition) => class_definition.get_item_location(context, path),
+            TypeValue::Module(module_ref) => module_ref.get_item_location(context, path),
+            TypeValue::Interface(interface_definition) => interface_definition.get_item_location(context, path),
+            TypeValue::InterfaceFunction(interface_function_definition) => interface_function_definition.get_item_location(context, path),
+        }
+    }
+}
 impl TypeValue<'_> {
     pub fn compare_skeleton(&self, _: &TirContext<'_>, other: &Self) -> bool {
         match (self, other) {

@@ -4,7 +4,7 @@ use libtimu_macros::TimuError;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{
-    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue}, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
 };
 
 use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
@@ -26,6 +26,16 @@ pub struct FunctionDefinition<'base> {
     pub return_type: TypeLocation,
     pub signature_path: SignaturePath<'base>,
     pub ast: FunctionDefinitionAst<'base>
+}
+
+impl GetItem for FunctionDefinition<'_> {
+    fn get_item_location(&self, _: &TirContext<'_>, path: &str) -> Option<TypeLocation> {
+        self
+            .arguments
+            .iter()
+            .find(|argument| argument.name.text == path)
+            .map(|argument| argument.field_type)
+    }
 }
 
 pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>) -> Result<TypeLocation, TirError> {

@@ -2,7 +2,7 @@ use core::panic;
 use std::borrow::Cow;
 
 use crate::{
-    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::TypeValue, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue}, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
@@ -14,12 +14,24 @@ pub struct InterfaceDefinition<'base> {
     pub fields: TimuHashMap<Span<'base>, TypeLocation>,
 }
 
+impl GetItem for InterfaceDefinition<'_> {
+    fn get_item_location(&self, _: &TirContext<'_>, _: &str) -> Option<TypeLocation> {
+        None
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct InterfaceFunctionDefinition<'base> {
     pub name: Span<'base>,
     pub arguments: Vec<FunctionArgument<'base>>,
     pub return_type: TypeLocation,
+}
+
+impl GetItem for InterfaceFunctionDefinition<'_> {
+    fn get_item_location(&self, _: &TirContext<'_>, _: &str) -> Option<TypeLocation> {
+        None
+    }
 }
 
 impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
