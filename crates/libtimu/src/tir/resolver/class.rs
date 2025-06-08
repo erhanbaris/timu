@@ -23,12 +23,12 @@ pub struct ClassDefinition<'base> {
 
 impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
-        simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.fragment());
+        simplelog::debug!("Resolving class: <u><b>{}</b></u>", self.name.text);
 
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
         let module_ref = context.get_scope(scope_location).expect("Scope not found").module_ref.clone();
 
-        let (signature_path, class_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.extra.file.clone())?;
+        let (signature_path, class_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
         let mut fields = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
 
         context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").set_current_type(class_location);
@@ -40,7 +40,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
                 ClassDefinitionFieldAst::Field(field) => {
                     let field_type = get_object_location_or_resolve(context, &field.field_type, &module_ref)?;
 
-                    fields.validate_insert((*field.name.fragment()).into(), field_type, &field.name)?;
+                    fields.validate_insert((*field.name.text).into(), field_type, &field.name)?;
                     context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(field.name.clone(), field_type).unwrap();
                 }
                 ClassDefinitionFieldAst::Function(function) => {
@@ -48,7 +48,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
 
                     let child_scope_location = context.create_child_scope(type_name.into(), scope_location, None);
                     let type_location = function.resolve(context, child_scope_location)?;
-                    fields.validate_insert((*function.name.fragment()).into(), type_location, &function.name)?;
+                    fields.validate_insert((*function.name.text).into(), type_location, &function.name)?;
                     context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(function.name.clone(), type_location).unwrap();
                     function_signatures.push((type_location, function));
                 }
@@ -59,7 +59,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
             name: self.name.clone(),
             fields,
             extends: Default::default(),
-        }), self.name.extra.file.clone(), self.name.to_range(), None);
+        }), self.name.state.file.clone(), self.name.to_range(), None);
 
         context.publish_object_location(signature_path.clone(), class_signature);
 
@@ -85,7 +85,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
     }
     
     fn name(&self) -> Cow<'base, str> {
-        Cow::Borrowed(*self.name.fragment())
+        Cow::Borrowed(self.name.text)
     }
 }
 

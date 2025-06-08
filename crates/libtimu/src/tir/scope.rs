@@ -73,8 +73,8 @@ impl<'base> Scope<'base> {
     }
 
     pub fn add_variable(&mut self, name: Span<'base>, location: TypeLocation) -> Result<(), TirError> {
-        simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>", name.fragment(), location);
-        self.variables.validate_insert((*name.fragment()).into(), location, &name)?;
+        simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>", name.text, location);
+        self.variables.validate_insert((*name.text).into(), location, &name)?;
         Ok(())
     }
 

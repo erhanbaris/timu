@@ -10,7 +10,7 @@ use nom::{IResult, Parser};
 use nom_language::error::{VerboseError, VerboseErrorKind};
 
 use crate::ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst, UseAst};
-use crate::nom_tools::{Span, State, cleanup};
+use crate::nom_tools::{NomSpan, State, cleanup};
 
 mod body;
 mod class;
@@ -29,13 +29,13 @@ mod type_info;
 mod variable;
 pub mod splited_path;
 
-pub type TimuParserError<'base> = VerboseError<Span<'base>>;
+pub type TimuParserError<'base> = VerboseError<NomSpan<'base>>;
 
-pub fn parse<'base>(state: &'base State) -> IResult<Span<'base>, FileAst<'base>, TimuParserError<'base>> {
+pub fn parse<'base>(state: &'base State) -> IResult<NomSpan<'base>, FileAst<'base>, TimuParserError<'base>> {
     let file = state.file.clone();
     let extra = state.clone();
 
-    let input = Span::new_extra(state.file.code().as_str(), extra);
+    let input = NomSpan::new_extra(state.file.code().as_str(), extra);
     let (remaining, statements) =
         many0(alt((
             cleanup(UseAst::parse_for_file),
@@ -63,23 +63,23 @@ pub fn parse<'base>(state: &'base State) -> IResult<Span<'base>, FileAst<'base>,
 }
 
 #[allow(warnings)]
-pub fn comment<'base>(input: Span<'base>) -> IResult<Span<'base>, Span<'base>, TimuParserError<'base>> {
+pub fn comment<'base>(input: NomSpan<'base>) -> IResult<NomSpan<'base>, NomSpan<'base>, TimuParserError<'base>> {
     preceded(char('/'), alt((preceded(char('*'), cut(terminated(take_until("*/"), tag("*/")))),))).parse(input)
 }
 
-pub fn is_public(input: Span<'_>) -> IResult<Span<'_>, Option<Span<'_>>, TimuParserError<'_>> {
+pub fn is_public(input: NomSpan<'_>) -> IResult<NomSpan<'_>, Option<NomSpan<'_>>, TimuParserError<'_>> {
     cleanup(opt(tag("pub"))).parse(input)
 }
 
-pub fn is_nullable(input: Span<'_>) -> IResult<Span<'_>, bool, TimuParserError<'_>> {
+pub fn is_nullable(input: NomSpan<'_>) -> IResult<NomSpan<'_>, bool, TimuParserError<'_>> {
     cleanup(map(opt(char('?')), |item| item.is_some())).parse(input)
 }
 
-pub fn expected_ident<'base>(message: &'static str, input: Span<'base>) -> IResult<Span<'base>, Span<'base>, TimuParserError<'base>> {
+pub fn expected_ident<'base>(message: &'static str, input: NomSpan<'base>) -> IResult<NomSpan<'base>, NomSpan<'base>, TimuParserError<'base>> {
     context(message, cut(ident())).parse(input)
 }
 
-pub fn ident<'base>() -> impl Parser<Span<'base>, Output = Span<'base>, Error = TimuParserError<'base>> {
+pub fn ident<'base>() -> impl Parser<NomSpan<'base>, Output = NomSpan<'base>, Error = TimuParserError<'base>> {
     cleanup(recognize(pair(alt((alpha1, tag("_"))), many0_count(alt((alphanumeric1, tag("_")))))))
 }
 
@@ -95,7 +95,7 @@ mod tests {
         file::SourceFile, nom_tools::State, parser::primitive::{number, string},
     };
 
-    use super::Span;
+    use super::NomSpan;
 
     #[rstest]
     #[case(r#""hello""#, PrimitiveValue::String("hello".into()))]
@@ -112,7 +112,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(code, state);
+        let input = NomSpan::new_extra(code, state);
         let (_, string) = string(input).unwrap();
 
         assert_eq!(string, expected, "Parsed string does not match expected");
@@ -129,7 +129,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(code, state);
+        let input = NomSpan::new_extra(code, state);
         let (_, (_, boolean)) = PrimitiveValue::parse(input).unwrap();
 
         assert_eq!(boolean, expected, "Parsed boolean does not match expected");
@@ -153,7 +153,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(code, state);
+        let input = NomSpan::new_extra(code, state);
         let (_, number) = number(input).unwrap();
 
         assert_eq!(number, expected, "Parsed integer does not match expected");
@@ -175,14 +175,14 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(code, state);
+        let input = NomSpan::new_extra(code, state);
         let result = TypeNameAst::parse(input);
         assert!(result.is_ok(), "Failed to parse type name: {:?}", result.err());
         let (_, parsed) = result.unwrap();
 
         assert_eq!(parsed.nullable, nullable, "nullable info does not match expected");
 
-        let parsed: Vec<_> = parsed.names.into_iter().map(|s| s.fragment().to_string()).collect();
+        let parsed: Vec<_> = parsed.names.into_iter().map(|s| s.text.to_string()).collect();
         assert_eq!(parsed, expected, "Parsed type name does not match expected");
     }
 
@@ -203,7 +203,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(code, state);
+        let input = NomSpan::new_extra(code, state);
         let (_, number) = number(input).unwrap();
 
         assert_eq!(number, PrimitiveValue::Float(expected, dot_place), "Parsed type name does not match expected");
@@ -219,7 +219,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(code, state);
+        let input = NomSpan::new_extra(code, state);
         let (_, number) = number(input).unwrap();
 
         assert_eq!(number, PrimitiveValue::Double(expected, dot_place), "Parsed type name does not match expected");

@@ -154,8 +154,8 @@ pub struct TypeNameAst<'base> {
 
 impl ToRange for TypeNameAst<'_> {
     fn to_range(&self) -> std::ops::Range<usize> {
-        let start = self.names.first().map_or(0, |path| path.location_offset());
-        let end = self.names.last().map_or(0, |path| path.location_offset() + path.fragment().len());
+        let start = self.names.first().map_or(0, |path| path.position.start);
+        let end = self.names.last().map_or(0, |path| path.position.end + path.text.len());
         start..end
     }
 }
@@ -231,8 +231,8 @@ impl FunctionCallType<'_> {
 
     pub fn call(&self) -> String {
         match self {
-            FunctionCallType::This(path) => format!("this.{}", path.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join(".")),
-            FunctionCallType::Direct(path) => path.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."),
+            FunctionCallType::This(path) => format!("this.{}", path.iter().map(|p| p.text).collect::<Vec<_>>().join(".")),
+            FunctionCallType::Direct(path) => path.iter().map(|p| p.text).collect::<Vec<_>>().join("."),
         }
     }
 

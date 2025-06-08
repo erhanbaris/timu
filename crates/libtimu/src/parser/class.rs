@@ -9,12 +9,12 @@ use nom::multi::many0;
 use nom::{IResult, Parser, sequence::delimited};
 
 use crate::ast::{AstIndex, ClassDefinitionFieldAst, FieldAst, FunctionDefinitionAst};
-use crate::{ast::{ClassDefinitionAst, FileStatementAst}, nom_tools::{cleanup, Span}};
+use crate::{ast::{ClassDefinitionAst, FileStatementAst}, nom_tools::{cleanup, NomSpan}};
 
 use super::{expected_ident, TimuParserError};
 
 impl ClassDefinitionAst<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("class")).parse(input)?;
         let (input, name) = expected_ident("Missing class name", input)?;
         let (input, _) = context("Class's opening '{' missing", cut(peek(cleanup(char('{'))))).parse(input)?;
@@ -34,7 +34,7 @@ impl ClassDefinitionAst<'_> {
         Ok((
             input,
             FileStatementAst::Class(ClassDefinitionAst {
-                name,
+                name: name.into(),
                 fields,
                 index
             }.into()),
@@ -44,7 +44,7 @@ impl ClassDefinitionAst<'_> {
 
 impl Display for ClassDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "class {} {{", self.name.fragment())?;
+        write!(f, "class {} {{", self.name.text)?;
         for field in self.fields.iter() {
             write!(f, "{}", field)?;
         }

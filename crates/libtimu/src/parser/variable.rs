@@ -9,18 +9,18 @@ use nom::{IResult, Parser};
 use nom_language::error::{VerboseError, VerboseErrorKind};
 
 use crate::ast::{BodyStatementAst, ExpressionAst, TypeNameAst, VariableAssignAst, VariableDefinitionAst, VariableDefinitionType};
-use crate::nom_tools::{Span, cleanup};
+use crate::nom_tools::{NomSpan, cleanup};
 use crate::parser::{expected_ident, ident};
 
 use super::TimuParserError;
 
 impl VariableDefinitionAst<'_> {
-    pub fn parse_body_statement(input: Span<'_>) -> IResult<Span<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse_body_statement(input: NomSpan<'_>) -> IResult<NomSpan<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, variable) = Self::parse(input)?;
         Ok((input, BodyStatementAst::VariableDefinition(variable)))
     }
 
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, VariableDefinitionAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, VariableDefinitionAst<'_>, TimuParserError<'_>> {
         let (input, variable_definition_type) = cleanup(alt((
             map(tag("var"), |_| VariableDefinitionType::Var),
             map(tag("const"), |_| VariableDefinitionType::Const))
@@ -63,7 +63,7 @@ impl VariableDefinitionAst<'_> {
             input,
             VariableDefinitionAst {
                 variable_definition_type,
-                name,
+                name: name.into(),
                 expected_type,
                 expression,
             },
@@ -73,7 +73,7 @@ impl VariableDefinitionAst<'_> {
 
 impl Display for VariableDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}", self.variable_definition_type, self.name.fragment())?;
+        write!(f, "{} {}", self.variable_definition_type, self.name.text)?;
         if let Some(expected_type) = &self.expected_type {
             write!(f, ": {}", expected_type)?;
         }
@@ -85,12 +85,12 @@ impl Display for VariableDefinitionAst<'_> {
 }
 
 impl VariableAssignAst<'_> {
-    pub fn parse_body_statement(input: Span<'_>) -> IResult<Span<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse_body_statement(input: NomSpan<'_>) -> IResult<NomSpan<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, variable) = Self::parse(input)?;
         Ok((input, BodyStatementAst::VariableAssign(variable)))
     }
 
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, VariableAssignAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, VariableAssignAst<'_>, TimuParserError<'_>> {
         let (input, name) = ident().parse(input)?;
         let (input, _) = context("Missing '='", cleanup(char('='))).parse(input)?;
         let (input, expression) = context("Invalid expression", cut(ExpressionAst::parse)).parse(input)?;
@@ -99,7 +99,7 @@ impl VariableAssignAst<'_> {
         Ok((
             input,
             VariableAssignAst {
-                name,
+                name: name.into(),
                 expression,
             },
         ))
@@ -108,7 +108,7 @@ impl VariableAssignAst<'_> {
 
 impl Display for VariableAssignAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} = {};", self.name.fragment(), self.expression)
+        write!(f, "{} = {};", self.name.text, self.expression)
     }
 }
 
@@ -126,7 +126,7 @@ mod tests {
     use nom_language::error::VerboseErrorKind;
     use rstest::rstest;
 
-    use crate::{ast::VariableDefinitionAst, file::SourceFile, nom_tools::{Span, State}};
+    use crate::{ast::VariableDefinitionAst, file::SourceFile, nom_tools::{NomSpan, State}};
     
     #[rstest]
     #[case("var a = false;", "var a = false;")]
@@ -151,7 +151,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(code, state);
+        let input = NomSpan::new_extra(code, state);
         let result = VariableDefinitionAst::parse(input);
         assert!(result.is_ok(), "Failed to parse type name: {:?}", result.err());
         let (_, parsed) = result.unwrap();
@@ -171,7 +171,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(code, state);
+        let input = NomSpan::new_extra(code, state);
         let result = VariableDefinitionAst::parse(input);
         let error = result.unwrap_err();
 

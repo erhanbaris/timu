@@ -8,12 +8,12 @@ use nom::sequence::preceded;
 use nom::{IResult, Parser};
 
 use crate::ast::{BodyAst, BodyStatementAst, ExpressionAst, IfConditionAst};
-use crate::nom_tools::{cleanup, Span};
+use crate::nom_tools::{cleanup, NomSpan};
 
 use super::TimuParserError;
 
 impl IfConditionAst<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, IfConditionAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, IfConditionAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("if")).parse(input)?;
         let (input, expression) = context("Missing if expression", cut(ExpressionAst::parse)).parse(input)?;
         let (input, true_body) = context("Missing true body", cut(BodyAst::parse)).parse(input)?;
@@ -43,7 +43,7 @@ impl IfConditionAst<'_> {
         ))
     }
 
-    pub fn parse_body_statement(input: Span<'_>) -> IResult<Span<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse_body_statement(input: NomSpan<'_>) -> IResult<NomSpan<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, if_condition) = Self::parse(input)?;
         Ok((input, BodyStatementAst::IfCondition(if_condition)))
     }
@@ -72,7 +72,7 @@ mod tests {
         file::SourceFile, nom_tools::State,
     };
 
-    use super::Span;
+    use super::NomSpan;
 
     #[rstest]
     #[case(r#"if true {}"#, r#"if true {}"#)]
@@ -100,7 +100,7 @@ else if false {}
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(source_file.code().as_str(), state);
+        let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = IfConditionAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }

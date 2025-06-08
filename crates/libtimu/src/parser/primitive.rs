@@ -11,7 +11,7 @@ use nom::{IResult, Parser, sequence::delimited};
 use nom_language::error::VerboseErrorKind;
 
 use crate::ast::{ExpressionAst, PrimitiveValue};
-use crate::nom_tools::{cleanup, Between, Span};
+use crate::nom_tools::{cleanup, Between, NomSpan};
 
 use super::TimuParserError;
 
@@ -30,7 +30,7 @@ static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..(u64::MAX as i128)
 static FLOAT_RANGE: std::ops::Range<f64> = (f32::MIN as f64)..(f32::MAX as f64);
 
 
-fn character(input: Span<'_>) -> IResult<Span<'_>, char, TimuParserError<'_>> {
+fn character(input: NomSpan<'_>) -> IResult<NomSpan<'_>, char, TimuParserError<'_>> {
     let (input, c) = none_of("\"")(input)?;
     if c == '\\' {
         alt((value('\n', char('n')), value('\r', char('r')), value('\t', char('t')), value('\\', char('\\')), value('"', char('"')), value('/', char('/'))))
@@ -40,7 +40,7 @@ fn character(input: Span<'_>) -> IResult<Span<'_>, char, TimuParserError<'_>> {
     }
 }
 
-pub fn string(input: Span<'_>) -> IResult<Span<'_>, PrimitiveValue, TimuParserError<'_>> {
+pub fn string(input: NomSpan<'_>) -> IResult<NomSpan<'_>, PrimitiveValue, TimuParserError<'_>> {
     let (input, string) = delimited(
         char('"'),
         fold(0.., character, String::new, |mut string, c| {
@@ -54,20 +54,20 @@ pub fn string(input: Span<'_>) -> IResult<Span<'_>, PrimitiveValue, TimuParserEr
     Ok((input, PrimitiveValue::String(string.into())))
 }
 
-pub fn number<'base>(input: Span<'base>) -> IResult<Span<'base>, PrimitiveValue<'base>, TimuParserError<'base>> {
+pub fn number<'base>(input: NomSpan<'base>) -> IResult<NomSpan<'base>, PrimitiveValue<'base>, TimuParserError<'base>> {
     let (input, (representing, (number, floating))) = (
         opt(one_of("+-")),
         (
-            recognize::<Span<'base>, TimuParserError<'base>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
+            recognize::<NomSpan<'base>, TimuParserError<'base>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
             opt(preceded(
                 char('.'),
                 (
-                    recognize::<Span<'base>, TimuParserError<'base>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
+                    recognize::<NomSpan<'base>, TimuParserError<'base>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
                     opt(preceded(
                         one_of("Ee"),
                         (
                             opt(alt((value(true, char('-')), value(false, char('+'))))),
-                            recognize::<Span<'base>, TimuParserError<'base>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
+                            recognize::<NomSpan<'base>, TimuParserError<'base>, _>(many1(terminated(one_of("0123456789"), many0(char('_'))))),
                         ),
                     )),
                 ),
@@ -145,7 +145,7 @@ pub fn number<'base>(input: Span<'base>) -> IResult<Span<'base>, PrimitiveValue<
 }
 
 impl PrimitiveValue<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, (Span<'_>, PrimitiveValue), TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, (NomSpan<'_>, PrimitiveValue), TimuParserError<'_>> {
         let (input, value) =
             consumed(cleanup(alt((
                 number, 
@@ -157,11 +157,11 @@ impl PrimitiveValue<'_> {
         Ok((input, value))
     }
 
-    pub fn parse_for_expression(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
+    pub fn parse_for_expression(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
         let (input, (span, value)) = Self::parse(input)?;
         Ok((
             input,
-            ExpressionAst::Primitive { span, value },
+            ExpressionAst::Primitive { span: span.into(), value },
         ))
     }
 }

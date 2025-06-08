@@ -2,14 +2,14 @@ use std::fmt::{Display, Formatter};
 
 use nom::{branch::alt, bytes::complete::tag, character::complete::char, combinator::{cut, not, value}, error::context, multi::many, sequence::{delimited, pair, preceded}, IResult, Parser};
 
-use crate::{ast::{ExpressionAst, ExpressionOperatorType, FunctionCallAst, PrimitiveValue, RefAst}, nom_tools::{cleanup, Span}};
+use crate::{ast::{ExpressionAst, ExpressionOperatorType, FunctionCallAst, PrimitiveValue, RefAst}, nom_tools::{cleanup, NomSpan}};
 
 use super::{ident, TimuParserError};
 
 pub type ControlExpressionGeneratorFn<'base, T> = fn(ExpressionAst<'base>, T, ExpressionAst<'base>) -> ExpressionAst<'base>;
 
 pub trait TimuExpressionParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>>;
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>>;
 }
 
 struct OrParser;
@@ -25,37 +25,37 @@ struct MulDivModParser;
 struct InnerParser;
 
 impl TimuExpressionParser for OrParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::single_parser::<'_, AndParser, _, _>(input, ExpressionOperatorType::Or, tag("||"), ExpressionAst::expr_builder)
     }
 }
 
 impl TimuExpressionParser for AndParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::single_parser::<'_, BitwiseXorParser, _, _>(input, ExpressionOperatorType::And, tag("&&"), ExpressionAst::expr_builder)
     }
 }
 
 impl TimuExpressionParser for BitwiseXorParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::single_parser::<'_, BitwiseOrParser, _, _>(input, ExpressionOperatorType::Xor, char('^'), ExpressionAst::expr_builder)
     }
 }
 
 impl TimuExpressionParser for BitwiseOrParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::single_parser::<'_, BitwiseAndParser, _, _>(input, ExpressionOperatorType::LogicalOr, (char('|'), not(char('|'))), ExpressionAst::expr_builder)
     }
 }
 
 impl TimuExpressionParser for BitwiseAndParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::single_parser::<'_, EqualParser, _, _>(input, ExpressionOperatorType::LogicalAnd, (char('&'), not(char('&'))), ExpressionAst::expr_builder)
     }
 }
 
 impl TimuExpressionParser for EqualParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::value_parser::<'_, LessEqualParser, _, _>(input, alt((
             value(ExpressionOperatorType::Equal, tag("==")),
             value(ExpressionOperatorType::NotEqual, tag("!="))
@@ -64,7 +64,7 @@ impl TimuExpressionParser for EqualParser {
 }
 
 impl TimuExpressionParser for LessEqualParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::value_parser::<'_, BitwiseShiftParser, _, _>(input, alt((
             value(ExpressionOperatorType::LessEqualThan, tag("<=")),
             value(ExpressionOperatorType::GreaterEqualThan, tag(">=")),
@@ -75,7 +75,7 @@ impl TimuExpressionParser for LessEqualParser {
 }
 
 impl TimuExpressionParser for BitwiseShiftParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::value_parser::<'_, AddSubParser, _, _>(input, alt((
             value(ExpressionOperatorType::BitwiseShiftRight, tag(">>")),
             value(ExpressionOperatorType::BitwiseShiftLeft, tag("<<")),
@@ -84,7 +84,7 @@ impl TimuExpressionParser for BitwiseShiftParser {
 }
 
 impl TimuExpressionParser for AddSubParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::value_parser::<'_, MulDivModParser, _, _>(input, alt((
             value(ExpressionOperatorType::Add, char('+')),
             value(ExpressionOperatorType::Sub, char('-'))
@@ -93,7 +93,7 @@ impl TimuExpressionParser for AddSubParser {
 }
 
 impl TimuExpressionParser for MulDivModParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::value_parser::<'_, InnerParser, _, _>(input, alt((
             value(ExpressionOperatorType::Div, char('/')),
             value(ExpressionOperatorType::Mul, char('*')),
@@ -103,17 +103,17 @@ impl TimuExpressionParser for MulDivModParser {
 }
 
 impl TimuExpressionParser for InnerParser {
-    fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         ExpressionAst::inner(input)
     }
 }
 
 impl ExpressionAst<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         OrParser::parse(input)
     }
 
-    fn inner(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    fn inner(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         let (input, expression) = cleanup(alt((
             RefAst::parse_for_expression,
             FunctionCallAst::parse_for_expression,
@@ -126,12 +126,12 @@ impl ExpressionAst<'_> {
         Ok((input, expression))
     }
 
-    pub fn parentheses(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    pub fn parentheses(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         let (input, expr) = delimited(char('('), cleanup(Self::parse), char(')')).parse(input)?;
         Ok((input, expr))
     }
 
-    pub fn not(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst, TimuParserError<'_>> {
+    pub fn not(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         let (input, _) = cleanup(char('!')).parse(input)?;
         let (input, expression) = context("Expression missinh", cut(Self::inner)).parse(input)?;
         Ok((
@@ -140,11 +140,11 @@ impl ExpressionAst<'_> {
         ))
     }
 
-    fn ident_for_expression(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
+    fn ident_for_expression(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
         let (input, ident) = ident().parse(input)?;
         Ok((
             input,
-            ExpressionAst::Ident(ident),
+            ExpressionAst::Ident(ident.into()),
         ))
     }
 
@@ -157,18 +157,18 @@ impl ExpressionAst<'_> {
     }
 
     #[allow(private_bounds)]
-    pub fn single_parser<'base, P: TimuExpressionParser, T: Copy, F: Parser<Span<'base>, Error = TimuParserError<'base>>>(input: Span<'base>, val: T, parser: F, expr_func: ControlExpressionGeneratorFn<'base, T>) -> IResult<Span<'base>, ExpressionAst<'base>, TimuParserError<'base>> {
+    pub fn single_parser<'base, P: TimuExpressionParser, T: Copy, F: Parser<NomSpan<'base>, Error = TimuParserError<'base>>>(input: NomSpan<'base>, val: T, parser: F, expr_func: ControlExpressionGeneratorFn<'base, T>) -> IResult<NomSpan<'base>, ExpressionAst<'base>, TimuParserError<'base>> {
         let (input, initial) = P::parse(input)?;
-        let (input, remainder): (Span<'_>, Vec<ExpressionAst<'_>>) = many(0.., preceded(parser, P::parse)).parse(input)?;
+        let (input, remainder): (NomSpan<'_>, Vec<ExpressionAst<'_>>) = many(0.., preceded(parser, P::parse)).parse(input)?;
         Ok((input, Self::single_fold_exprs::<T>(initial, val, remainder, expr_func)))
     }
     
     #[allow(private_bounds)]
-    pub fn value_parser<'base, P: TimuExpressionParser, T: Copy, F: Parser<Span<'base>, Error = TimuParserError<'base>>>(input: Span<'base>, parser: F, expr_func: ControlExpressionGeneratorFn<'base, T>) -> IResult<Span<'base>, ExpressionAst<'base>, TimuParserError<'base>> 
-        where Vec<(T, ExpressionAst<'base>)>: Extend<(<F as Parser<Span<'base>>>::Output, ExpressionAst<'base>)>
+    pub fn value_parser<'base, P: TimuExpressionParser, T: Copy, F: Parser<NomSpan<'base>, Error = TimuParserError<'base>>>(input: NomSpan<'base>, parser: F, expr_func: ControlExpressionGeneratorFn<'base, T>) -> IResult<NomSpan<'base>, ExpressionAst<'base>, TimuParserError<'base>> 
+        where Vec<(T, ExpressionAst<'base>)>: Extend<(<F as Parser<NomSpan<'base>>>::Output, ExpressionAst<'base>)>
     {
         let (input, initial) = P::parse(input)?;
-        let (input, remainder): (Span<'_>, Vec<(T, ExpressionAst<'_>)>) = many(0.., pair(parser, P::parse)).parse(input)?;
+        let (input, remainder): (NomSpan<'_>, Vec<(T, ExpressionAst<'_>)>) = many(0.., pair(parser, P::parse)).parse(input)?;
         Ok((input, Self::value_fold_exprs::<T>(initial, remainder, expr_func)))
     }
 
@@ -233,7 +233,7 @@ impl Display for ExpressionOperatorType {
 mod tests {
     use rstest::rstest;
 
-    use crate::{ast::ExpressionAst, file::SourceFile, nom_tools::{Span, State}};
+    use crate::{ast::ExpressionAst, file::SourceFile, nom_tools::{NomSpan, State}};
 
     #[rstest]
     #[case("1", "1")]
@@ -253,7 +253,7 @@ mod tests {
         indexer: Default::default(),
     };
 
-        let input = Span::new_extra(source_file.code().as_str(), state);
+        let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }
@@ -273,7 +273,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(source_file.code().as_str(), state);
+        let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }
@@ -299,7 +299,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(source_file.code().as_str(), state);
+        let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }

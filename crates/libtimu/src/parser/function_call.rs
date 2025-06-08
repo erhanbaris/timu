@@ -11,13 +11,13 @@ use nom::{IResult, Parser, sequence::delimited};
 use crate::ast::{
     BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallPathAst, FunctionCallType
 };
-use crate::nom_tools::{Span, cleanup};
+use crate::nom_tools::{NomSpan, cleanup};
 use crate::parser::ident;
 
 use super::TimuParserError;
 
 impl FunctionCallAst<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
         let (input, this) = match opt(tag("this")).parse(input)? {
             (input, Some(this)) => {
                 let (input, _) = opt(char('.')).parse(input)?;
@@ -39,34 +39,34 @@ impl FunctionCallAst<'_> {
         Ok((
             input,
             FunctionCallAst {
-                call_span,
-                arguments_span,
+                call_span: call_span.into(),
+                arguments_span: arguments_span.into(),
                 path: match this {
-                    Some(_) => FunctionCallType::This(paths),
-                    None => FunctionCallType::Direct(paths),
+                    Some(_) => FunctionCallType::This(paths.into_iter().map(|item| item.into()).collect::<Vec<_>>()),
+                    None => FunctionCallType::Direct(paths.into_iter().map(|item| item.into()).collect::<Vec<_>>()),
                 },
                 arguments,
             },
         ))
     }
 
-    pub fn parse_body_statement(input: Span<'_>) -> IResult<Span<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse_body_statement(input: NomSpan<'_>) -> IResult<NomSpan<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, function_call) = Self::parse(input)?;
         let (input, _) = context("Missing ';'", cleanup(char(';'))).parse(input)?;
         Ok((input, BodyStatementAst::FunctionCall(function_call)))
     }
 
-    pub fn parse_for_expression(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
+    pub fn parse_for_expression(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
         let (input, function_call) = Self::parse(input)?;
         Ok((input, ExpressionAst::FunctionCall(function_call)))
     }
 
     #[allow(dead_code)]
-    fn ident_for_function_path(input: Span<'_>) -> IResult<Span<'_>, FunctionCallPathAst<'_>, TimuParserError<'_>> {
+    fn ident_for_function_path(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FunctionCallPathAst<'_>, TimuParserError<'_>> {
         let (input, path) = ident().parse(input)?;
         Ok((
             input,
-            FunctionCallPathAst::Ident(path),
+            FunctionCallPathAst::Ident(path.into()),
         ))
     }
 }
@@ -85,10 +85,10 @@ impl Display for FunctionCallAst<'_> {
                 if paths.is_empty() {
                     "this".to_string()
                 } else {
-                    format!("this.{}", paths.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."))
+                    format!("this.{}", paths.iter().map(|p| p.text).collect::<Vec<_>>().join("."))
                 }
             }
-            FunctionCallType::Direct(paths) => paths.iter().map(|p| *p.fragment()).collect::<Vec<_>>().join("."),
+            FunctionCallType::Direct(paths) => paths.iter().map(|p| p.text).collect::<Vec<_>>().join("."),
         };
         write!(f, "{}", call_path)?;
         write!(f, "(")?;
@@ -106,7 +106,7 @@ impl Display for FunctionCallAst<'_> {
 impl Display for FunctionCallPathAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            FunctionCallPathAst::Ident(ident) => write!(f, "{}", ident.fragment()),
+            FunctionCallPathAst::Ident(ident) => write!(f, "{}", ident.text),
             FunctionCallPathAst::TypeName(type_name) => write!(f, "{}", type_name),
         }
     }
@@ -116,7 +116,7 @@ impl Display for FunctionCallPathAst<'_> {
 mod tests {
     use rstest::rstest;
 
-    use crate::{ast::FunctionCallAst, file::SourceFile, nom_tools::{Span, State}};
+    use crate::{ast::FunctionCallAst, file::SourceFile, nom_tools::{NomSpan, State}};
 
     #[rstest]
     #[case("test()", "test()")]
@@ -134,7 +134,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(source_file.code().as_str(), state);
+        let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = FunctionCallAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }

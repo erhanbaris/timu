@@ -12,26 +12,26 @@ use nom_language::error::{VerboseError, VerboseErrorKind};
 use crate::ast::{
     AstIndex, BodyAst, ClassDefinitionFieldAst, ExtendDefinitionFieldAst, FileStatementAst, FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst, TypeNameAst
 };
-use crate::nom_tools::{Span, cleanup};
+use crate::nom_tools::{NomSpan, cleanup};
 use crate::parser::{expected_ident, ident, is_public};
 
 use super::TimuParserError;
 
 impl<'base> FunctionDefinitionAst<'base> {
-    pub fn parse_for_file(input: Span<'base>) -> IResult<Span<'base>, FileStatementAst<'base>, TimuParserError<'base>> {
-        let (input, function) = Self::parse(input)?;
+    pub fn parse_for_file(input: NomSpan<'base>) -> IResult<NomSpan<'base>, FileStatementAst<'base>, TimuParserError<'base>> {
+        let (input, (_, function)) = Self::parse(input)?;
         Ok((input, FileStatementAst::Function(function.into())))
     }
 
-    pub fn parse_class_function(input: Span<'base>, class_name: Span<'base>) -> IResult<Span<'base>, ClassDefinitionFieldAst<'base>, TimuParserError<'base>> {
-        let (input, mut function) = Self::parse(input)?;
-        function.location = FunctionDefinitionLocationAst::Class(class_name).into();
+    pub fn parse_class_function(input: NomSpan<'base>, class_name: NomSpan<'base>) -> IResult<NomSpan<'base>, ClassDefinitionFieldAst<'base>, TimuParserError<'base>> {
+        let (input, (_, mut function)) = Self::parse(input)?;
+        function.location = FunctionDefinitionLocationAst::Class(class_name.into()).into();
         Ok((input, ClassDefinitionFieldAst::Function(function)))
     }
 
-    pub fn parse_extend_function(input: Span<'base>) -> IResult<Span<'base>, ExtendDefinitionFieldAst<'base>, TimuParserError<'base>> {
-        let (input, function) = Self::parse(input)?;
-        if let Some(is_public) = function.is_public {
+    pub fn parse_extend_function(input: NomSpan<'base>) -> IResult<NomSpan<'base>, ExtendDefinitionFieldAst<'base>, TimuParserError<'base>> {
+        let (input, (is_public, function)) = Self::parse(input)?;
+        if let Some(is_public) = is_public {
             let error = VerboseError {
                 errors: vec![(is_public, VerboseErrorKind::Context("All extended functions already public"))],
             };
@@ -41,8 +41,8 @@ impl<'base> FunctionDefinitionAst<'base> {
     }
 
     pub fn parse(
-        input: Span<'base>,
-    ) -> IResult<Span<'base>, FunctionDefinitionAst<'base>, TimuParserError<'base>> {
+        input: NomSpan<'base>,
+    ) -> IResult<NomSpan<'base>, (Option<NomSpan<'base>>, FunctionDefinitionAst<'base>), TimuParserError<'base>> {
         let (input, is_public) = is_public(input)?;
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
@@ -58,26 +58,27 @@ impl<'base> FunctionDefinitionAst<'base> {
 
         let (input, body) = BodyAst::parse(input)?;
         let index = AstIndex(input.extra.indexer.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+        let original_is_public = is_public.clone();
 
         Ok((
             input,
-            FunctionDefinitionAst {
-                is_public,
-                name,
+            (original_is_public, FunctionDefinitionAst {
+                is_public: is_public.map(|item| item.into()),
+                name: name.into(),
                 arguments,
-                arguments_span,
+                arguments_span: arguments_span.into(),
                 body: body.into(),
                 return_type,
                 location: FunctionDefinitionLocationAst::Module.into(),
                 index
             },
-        ))
+        )))
     }
 }
 
 impl Display for FunctionDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}func {}(", if self.is_public.is_some() { "pub " } else { "" }, self.name.fragment())?;
+        write!(f, "{}func {}(", if self.is_public.is_some() { "pub " } else { "" }, self.name.text)?;
         for (index, arg) in self.arguments.iter().enumerate() {
             write!(f, "{}", arg)?;
             if index < self.arguments.len() - 1 {
@@ -89,18 +90,18 @@ impl Display for FunctionDefinitionAst<'_> {
 }
 
 impl FunctionArgumentAst<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FunctionArgumentAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FunctionArgumentAst<'_>, TimuParserError<'_>> {
         let (input, this) = cleanup(opt(tag("this"))).parse(input)?;
 
         if let Some(this) = this {
-            return Ok((input, FunctionArgumentAst::This(this)));
+            return Ok((input, FunctionArgumentAst::This(this.into())));
         }
 
         let (input, (name, field_type)) = (cleanup(terminated(ident(), cleanup(char(':')))), cleanup(TypeNameAst::parse)).parse(input)?;
         Ok((
             input,
             FunctionArgumentAst::Argument {
-                name,
+                name: name.into(),
                 field_type,
             },
         ))
@@ -111,7 +112,7 @@ impl Display for FunctionArgumentAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FunctionArgumentAst::This(_) => write!(f, "this"),
-            FunctionArgumentAst::Argument { name, field_type } => write!(f, "{}: {}", name.fragment(), field_type),
+            FunctionArgumentAst::Argument { name, field_type } => write!(f, "{}: {}", name.text, field_type),
         }
     }
 }

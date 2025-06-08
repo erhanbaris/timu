@@ -86,11 +86,11 @@ impl TypeValue<'_> {
                 PrimitiveType::Double => "Double",
                 PrimitiveType::Void => "Void",
             },
-            TypeValue::Function(function) => function.name.fragment(),
-            TypeValue::Class(class) => class.name.fragment(),
+            TypeValue::Function(function) => function.name.text,
+            TypeValue::Class(class) => class.name.text,
             TypeValue::Module => "Module",
-            TypeValue::Interface(interface) => interface.name.fragment(),
-            TypeValue::InterfaceFunction(interface_function) => interface_function.name.fragment(),
+            TypeValue::Interface(interface) => interface.name.text,
+            TypeValue::InterfaceFunction(interface_function) => interface_function.name.text,
         }
     }
 
@@ -103,14 +103,14 @@ impl TypeValue<'_> {
     }
 
     fn compare_interface_functions(left: &InterfaceFunctionDefinition, right: &InterfaceFunctionDefinition) -> bool {
-        if left.name.fragment() != right.name.fragment() ||
+        if left.name.text != right.name.text ||
             left.arguments.len() != right.arguments.len() ||
             left.return_type != right.return_type {
             return false;
         }
 
         for (left_arg, right_arg) in left.arguments.iter().zip(right.arguments.iter()) {
-            if left_arg.name.fragment() != right_arg.name.fragment() || left_arg.field_type != right_arg.field_type {
+            if left_arg.name.text != right_arg.name.text || left_arg.field_type != right_arg.field_type {
                 return false;
             }
         }
@@ -119,14 +119,14 @@ impl TypeValue<'_> {
     }
 
     fn compare_interface_function_and_function(left: &InterfaceFunctionDefinition, right: &FunctionDefinition) -> bool {
-        if left.name.fragment() != right.name.fragment() ||
+        if left.name.text != right.name.text ||
             left.arguments.len() != right.arguments.len() ||
             left.return_type != right.return_type {
             return false;
         }
 
         for (left_arg, right_arg) in left.arguments.iter().zip(right.arguments.iter()) {
-            if left_arg.name.fragment() != right_arg.name.fragment() || left_arg.field_type != right_arg.field_type {
+            if left_arg.name.text != right_arg.name.text || left_arg.field_type != right_arg.field_type {
                 return false;
             }
         }
@@ -135,7 +135,7 @@ impl TypeValue<'_> {
     }
 
     fn compare_functions(left: &FunctionDefinition, right: &FunctionDefinition) -> bool {
-        if left.name.fragment() != right.name.fragment() ||
+        if left.name.text != right.name.text ||
             left.arguments.len() != right.arguments.len() ||
             left.return_type != right.return_type ||
             left.is_public != right.is_public {
@@ -143,7 +143,7 @@ impl TypeValue<'_> {
         }
 
         for (left_arg, right_arg) in left.arguments.iter().zip(right.arguments.iter()) {
-            if left_arg.name.fragment() != right_arg.name.fragment() || left_arg.field_type != right_arg.field_type {
+            if left_arg.name.text != right_arg.name.text || left_arg.field_type != right_arg.field_type {
                 return false;
             }
         }

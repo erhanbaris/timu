@@ -34,7 +34,7 @@ impl<K: Hash + Eq, V> TimuHashMap<K, V> {
 
     pub fn validate_insert<'base>(&mut self, key: K, value: V, span: &Span<'base>) -> Result<(), TirError> {
         match self.map.insert(key, Value { value, positon: span.to_range() }) {
-            Some(old) => Err(TirError::already_defined(span.to_range(), old.positon, span.extra.file.clone())),
+            Some(old) => Err(TirError::already_defined(span.to_range(), old.positon, span.state.file.clone())),
             None => Ok(())
         }
     }

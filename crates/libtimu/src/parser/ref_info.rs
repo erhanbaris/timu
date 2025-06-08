@@ -2,23 +2,23 @@ use std::fmt::{Display, Formatter};
 
 use nom::{character::complete::char, combinator::{cut, not}, error::context, multi::separated_list1, IResult, Parser};
 
-use crate::{ast::{ExpressionAst, RefAst}, nom_tools::{cleanup, Span}};
+use crate::{ast::{ExpressionAst, RefAst}, nom_tools::{cleanup, NomSpan, Span}};
 
 use super::{ident, TimuParserError};
 
 impl RefAst<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, RefAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, RefAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup((char('&'), not(char('&')))).parse(input)?;
         let (input, names) = context("Reference name missing", cut(separated_list1(cleanup(char('.')), ident()))).parse(input)?;
         Ok((
             input,
             RefAst {
-                names,
+                names: names.into_iter().map(Span::from).collect::<Vec<_>>(),
             },
         ))
     }
 
-    pub fn parse_for_expression(input: Span<'_>) -> IResult<Span<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
+    pub fn parse_for_expression(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
         let (input, path) = Self::parse(input)?;
         Ok((
             input,
@@ -35,7 +35,7 @@ impl Display for RefAst<'_> {
             if i > 0 {
                 write!(f, ".")?;
             }
-            write!(f, "{}", name.fragment())?;
+            write!(f, "{}", name.text)?;
         }
         Ok(())
     }
@@ -45,7 +45,7 @@ impl Display for RefAst<'_> {
 mod tests {
     use rstest::rstest;
 
-    use crate::{ast::RefAst, file::SourceFile, nom_tools::{Span, State}};
+    use crate::{ast::RefAst, file::SourceFile, nom_tools::{NomSpan, State}};
 
     #[rstest]
     #[case("&erha_1n", "&erha_1n")]
@@ -60,7 +60,7 @@ mod tests {
             indexer: Default::default(),
         };
 
-        let input = Span::new_extra(source_file.code().as_str(), state);
+        let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = RefAst::parse(input).unwrap();
         assert_eq!(response.to_string(), expected, "{}", code);
     }

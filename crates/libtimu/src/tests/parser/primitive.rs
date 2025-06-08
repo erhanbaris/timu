@@ -3,7 +3,7 @@ use pretty_assertions::assert_eq;
 use rstest::*;
 
 use crate::ast::PrimitiveValue;
-use crate::nom_tools::Span;
+use crate::nom_tools::NomSpan;
 use crate::{file::SourceFile, nom_tools::State};
 
 #[rstest]
@@ -36,7 +36,7 @@ fn parse_primitive_test<'base>(#[case] code: &'base str, #[case] expected: Primi
         indexer: Default::default(),
     };
 
-    let input = Span::new_extra(code, state);
+    let input = NomSpan::new_extra(code, state);
     let (_, (_, value)) = PrimitiveValue::parse(input).unwrap();
 
     assert_eq!(value, expected, "Parsed primitive type does not match expected");
@@ -53,7 +53,7 @@ fn invalid_primitive_test<'base>(#[case] code: &'base str, #[case] expected: &'b
         indexer: Default::default(),
     };
 
-    let input = Span::new_extra(code, state);
+    let input = NomSpan::new_extra(code, state);
     let error = PrimitiveValue::parse(input).unwrap_err();
 
     if let nom::Err::Failure(error) = error {

@@ -10,8 +10,8 @@ impl<'base> ResolveAst<'base> for UseAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         if let Some(signature_location) = context.get_ast_location(&self.import.text) {
             let name = match &self.alias {
-                Some(alias) => std::borrow::Cow::Borrowed(*alias.fragment()),
-                None => std::borrow::Cow::Borrowed(*self.ast_name().fragment()),
+                Some(alias) => std::borrow::Cow::Borrowed(alias.text),
+                None => std::borrow::Cow::Borrowed(self.ast_name().text),
             };
 
             let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
@@ -21,14 +21,14 @@ impl<'base> ResolveAst<'base> for UseAst<'base> {
                 return Err(TirError::ModuleAlreadyImported(ModuleAlreadyImported {
                     new_position: self.import.to_range(),
                     old_position: old_signature.position.clone(),
-                    code: self.ast_name().extra.file.clone().into(),
+                    code: self.ast_name().state.file.clone().into(),
                 }.into()));
             }
         } else {
             return Err(TirError::ImportNotFound(ImportNotFound {
                 module: self.import.text.to_string(),
                 position: self.import.to_range(),
-                code: self.ast_name().extra.file.into(),
+                code: self.ast_name().state.file.into(),
             }.into()));
         }
 
@@ -39,9 +39,9 @@ impl<'base> ResolveAst<'base> for UseAst<'base> {
     
     fn name(&self) -> Cow<'base, str> {
         if let Some(alias) = &self.alias {
-            Cow::Borrowed(*alias.fragment())
+            Cow::Borrowed(alias.text)
         } else {
-            Cow::Borrowed(*self.ast_name().fragment())
+            Cow::Borrowed(self.ast_name().text)
         }
     }
 }

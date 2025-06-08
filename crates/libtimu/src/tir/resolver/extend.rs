@@ -10,7 +10,7 @@ use super::{build_type_name, ResolveAst, TypeLocation};
 
 impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
-        simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().fragment());
+        simplelog::debug!("Resolving extend: <u><b>{}</b></u>", self.name.names.first().unwrap().text);
         
         let mut extend_fields = TimuHashMap::<Cow<'_, str>, (Span<'base>, TypeLocation)>::default();
         let mut extend_fields_for_track = IndexMap::<Cow<'_, str>, Span<'base>>::default();
@@ -28,7 +28,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         /* Validate */
         if !extend_fields_for_track.is_empty() {
             for (_, span) in extend_fields_for_track.into_iter() {
-                context.add_error(TirError::extra_field_in_extend(span.to_range(), span.extra.file));
+                context.add_error(TirError::extra_field_in_extend(span.to_range(), span.state.file));
             }
 
             return Err(TirError::TemporaryError);
@@ -38,9 +38,9 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         let class = match class_binding {
             Some(signature) => match signature.value.as_mut() {
                 TypeValue::Class(class) => class,
-                _ => return Err(TirError::invalid_type(self.name.to_range(), "only class type is valid", self.name.names.first().unwrap().extra.file.clone())),
+                _ => return Err(TirError::invalid_type(self.name.to_range(), "only class type is valid", self.name.names.first().unwrap().state.file.clone())),
             },
-            None => return Err(TirError::type_not_found(context, self.name.to_string(), self.name.to_range(), self.name.names.first().unwrap().extra.file.clone())),
+            None => return Err(TirError::type_not_found(context, self.name.to_string(), self.name.to_range(), self.name.names.first().unwrap().state.file.clone())),
         };
 
         for (key, (_, value)) in extend_fields.iter() {
@@ -59,7 +59,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
     fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
-        let name = self.name.names.first().unwrap().fragment();
+        let name = self.name.names.first().unwrap().text;
         let interfaces = self.base_interfaces
             .iter()
             .map(|item| build_type_name(item))
@@ -79,17 +79,17 @@ impl<'base> ExtendDefinitionAst<'base> {
                     let full_name = format!("{}::{}", class_name, function.name()); 
                     let child_scope_location = context.create_child_scope(full_name.into(), class_scope_location, None);
                     let class_type_location = function.resolve(context, child_scope_location)?;
-                    extend_fields.validate_insert((*function.name.fragment()).into(), (function.name.clone(), class_type_location), &function.name)?;
-                    extend_fields_for_track.insert((*function.name.fragment()).into(), function.name.clone());
+                    extend_fields.validate_insert((function.name.text).into(), (function.name.clone(), class_type_location), &function.name)?;
+                    extend_fields_for_track.insert((function.name.text).into(), function.name.clone());
                 }
                 ExtendDefinitionFieldAst::Field(field) => {
                     if field.is_public.is_some() {
-                        return Err(TirError::extra_accessibility_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.extra.file.clone()));
+                        return Err(TirError::extra_accessibility_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.state.file.clone()));
                     }
 
                     let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
-                    extend_fields.validate_insert((*field.name.fragment()).into(), (field.name.clone(), field_type), &field.name)?;
-                    extend_fields_for_track.insert((*field.name.fragment()).into(), field.name.clone());
+                    extend_fields.validate_insert((field.name.text).into(), (field.name.clone(), field_type), &field.name)?;
+                    extend_fields_for_track.insert((field.name.text).into(), field.name.clone());
                 }
             };
         }
@@ -107,7 +107,7 @@ impl<'base> ExtendDefinitionAst<'base> {
             let interface_signature = match interface_signature {
                 Some(interface_signature) => interface_signature,
                 None => {
-                    errors.push(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone()));
+                    errors.push(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().state.file.clone()));
                     continue;
                 }
             };
@@ -116,22 +116,22 @@ impl<'base> ExtendDefinitionAst<'base> {
                 match signature.value.as_ref() {
                     TypeValue::Interface(interface) => interface,
                     _ => {
-                        errors.push(TirError::invalid_type(interface_ast.to_range(), "only interface type is valid", interface_ast.names.last().unwrap().extra.file.clone()));
+                        errors.push(TirError::invalid_type(interface_ast.to_range(), "only interface type is valid", interface_ast.names.last().unwrap().state.file.clone()));
                         continue;
                     },
                 }
             } else {
-                errors.push(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone()));
+                errors.push(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().state.file.clone()));
                 continue;
             };
 
             for interface_field in interface.fields.iter() {
-                let (_, extend_field) = match extend_fields.get(*interface_field.0.fragment()) {
+                let (_, extend_field) = match extend_fields.get(interface_field.0.text) {
                     Some(defined_field) => defined_field,
 
                     // Field not defined in the extend
                     None => {
-                        errors.push(TirError::interface_field_not_defined(self.name.to_range(), self.name.names.last().unwrap().extra.file.clone()));
+                        errors.push(TirError::interface_field_not_defined(self.name.to_range(), self.name.names.last().unwrap().state.file.clone()));
                         continue;
                     }
                 };
@@ -140,7 +140,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                 let defined_field_type = match context.types.get_from_location(*extend_field) {
                     Some(field_type) => field_type,
                     None => {
-                        errors.push(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone()));
+                        errors.push(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().state.file.clone()));
                         continue;
                     }
                 };
@@ -148,16 +148,16 @@ impl<'base> ExtendDefinitionAst<'base> {
                 let interface_field_type = match context.types.get_from_location(*interface_field.1) {
                     Some(field_type) => field_type,
                     None => {
-                        errors.push(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().extra.file.clone()));
+                        errors.push(TirError::type_not_found(context, interface_ast.to_string(), interface_ast.to_range(), interface_ast.names.last().unwrap().state.file.clone()));
                         continue;
                     }
                 };
 
                 if !defined_field_type.value.compare_skeleton(context, &interface_field_type.value) {
-                    errors.push(TirError::types_do_not_match(interface_field.0.to_range(), interface_field.0.extra.file.clone()));
+                    errors.push(TirError::types_do_not_match(interface_field.0.to_range(), interface_field.0.state.file.clone()));
                 }
                 else {
-                    extend_fields_for_track.swap_remove(*interface_field.0.fragment());
+                    extend_fields_for_track.swap_remove(interface_field.0.text);
                 }
             }
         }
@@ -227,14 +227,14 @@ class TestClass { }
             let field2 = context.types.get_from_location(*class.fields.get("a").unwrap()).unwrap();
 
             if let TypeValue::Function(function) = field1.value.as_ref() {
-                assert_eq!(*function.name.fragment(), "test");
+                assert_eq!(function.name.text, "test");
                 assert_eq!(function.arguments.len(), 0);
             } else {
                 panic!("Expected ObjectSignatureValue::Function but got {:?}", field1.value);
             }
 
             if let TypeValue::Class(field) = field2.value.as_ref() {
-                assert_eq!(*field.name.fragment(), "TestClass");
+                assert_eq!(field.name.text, "TestClass");
             } else {
                 panic!("Expected ObjectSignatureValue::Class but got {:?}", field2.value);
             }

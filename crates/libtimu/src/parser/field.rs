@@ -6,38 +6,39 @@ use nom::{IResult, Parser};
 use nom_language::error::{VerboseError, VerboseErrorKind};
 
 use crate::ast::{ClassDefinitionFieldAst, ExtendDefinitionFieldAst, FieldAst, InterfaceDefinitionFieldAst, TypeNameAst};
-use crate::nom_tools::{cleanup, Span};
+use crate::nom_tools::{cleanup, NomSpan};
 
 use super::{ident, is_public, TimuParserError};
 
 impl FieldAst<'_> {
-    pub fn parse_field(input: Span<'_>) -> IResult<Span<'_>, FieldAst<'_>, TimuParserError<'_>> {
+    pub fn parse_field(input: NomSpan<'_>) -> IResult<NomSpan<'_>, (Option<NomSpan<'_>>, FieldAst<'_>), TimuParserError<'_>> {
         let (input, (is_public, name, field_type, _)) =
             (is_public, cleanup(terminated(ident(), cleanup(char(':')))), cleanup(TypeNameAst::parse), cleanup(char(';'))).parse(input)?;
 
+        let original_is_public = is_public.clone();
         Ok((
             input,
-            FieldAst {
-                is_public,
-                name,
+            (original_is_public, FieldAst {
+                is_public: is_public.map(|item| item.into()),
+                name: name.into(),
                 field_type,
             },
-        ))
+        )))
     }
 
-    pub fn parse_class_field(input: Span<'_>) -> IResult<Span<'_>, ClassDefinitionFieldAst<'_>, TimuParserError<'_>> {
-        let (input, field) = Self::parse_field(input)?;
+    pub fn parse_class_field(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ClassDefinitionFieldAst<'_>, TimuParserError<'_>> {
+        let (input, (_, field)) = Self::parse_field(input)?;
         Ok((input, ClassDefinitionFieldAst::Field(field)))
     }
 
-    pub fn parse_interface_field(input: Span<'_>) -> IResult<Span<'_>, InterfaceDefinitionFieldAst<'_>, TimuParserError<'_>> {
-        let (input, field) = Self::parse_field(input)?;
+    pub fn parse_interface_field(input: NomSpan<'_>) -> IResult<NomSpan<'_>, InterfaceDefinitionFieldAst<'_>, TimuParserError<'_>> {
+        let (input, (_, field)) = Self::parse_field(input)?;
         Ok((input, InterfaceDefinitionFieldAst::Field(field)))
     }
 
-    pub fn parse_extend_field(input: Span<'_>) -> IResult<Span<'_>, ExtendDefinitionFieldAst<'_>, TimuParserError<'_>> {
-        let (input, field) = Self::parse_field(input)?;
-        if let Some(is_public) = field.is_public {
+    pub fn parse_extend_field(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExtendDefinitionFieldAst<'_>, TimuParserError<'_>> {
+        let (input, (is_public, field)) = Self::parse_field(input)?;
+        if let Some(is_public) = is_public {
             let error = VerboseError {
                 errors: vec![(is_public, VerboseErrorKind::Context("All extended fields already public"))],
             };
@@ -57,7 +58,7 @@ impl Display for FieldAst<'_> {
                 Some(_) => "pub ",
                 None => "",
             },
-            self.name.fragment(),
+            self.name.text,
             self.field_type
         )
     }

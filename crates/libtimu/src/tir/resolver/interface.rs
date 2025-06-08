@@ -24,14 +24,14 @@ pub struct InterfaceFunctionDefinition<'base> {
 
 impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
-        simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.fragment());
+        simplelog::debug!("Resolving interface: <u><b>{}</b></u>", self.name.text);
 
         let (module_ref, parent) = { 
             let scope = context.get_scope(scope_location).expect("Scope not found, it is a bug");
             (scope.module_ref.clone(), scope.parent_type)
         };
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), parent);
-        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.extra.file.clone())?;
+        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
 
         let mut fields = TimuHashMap::<Span<'_>, TypeLocation>::default();
         let mut base_interfaces = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
@@ -41,7 +41,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
         let signature = TypeSignature::new(TypeValue::Interface(InterfaceDefinition {
             name: self.name.clone(),
             fields,
-        }), self.name.extra.file.clone(), self.name.to_range(),None);
+        }), self.name.state.file.clone(), self.name.to_range(),None);
 
         context.publish_object_location(signature_path.clone(), signature);
         Ok(signature_location)
@@ -50,14 +50,14 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
     fn finish(&self, _: &mut TirContext<'base>, _: ScopeLocation) -> Result<(), TirError> { Ok(()) }
     
     fn name(&self) -> Cow<'base, str> {
-        Cow::Borrowed(*self.name.fragment())
+        Cow::Borrowed(self.name.text)
     }
 }
 
 impl<'base> InterfaceDefinitionAst<'base> {
     #[allow(clippy::only_used_in_recursion)]
     fn resolve_interface(context: &mut TirContext<'base>, resolve_interface: &InterfaceDefinitionAst<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut TimuHashMap<Span<'base>, TypeLocation>, base_interfaces: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<(), TirError>  {
-        let interface_path = build_signature_path(context, &interface.name, module);
+        let interface_path = build_signature_path(context, interface.name.text, module);
 
         // Check if the interface is already defined
         if let Some(TypeValue::Interface(interface)) = context.types.get(interface_path.get_raw_path()).map(|signature| signature.value.as_ref()){
@@ -76,7 +76,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                 }
                 InterfaceDefinitionFieldAst::Field(field) => {
                     if field.is_public.is_some() {
-                        return Err(TirError::extra_accessibility_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.extra.file.clone()));
+                        return Err(TirError::extra_accessibility_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.state.file.clone()));
                     }
 
                     let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
@@ -92,23 +92,23 @@ impl<'base> InterfaceDefinitionAst<'base> {
             let base_interface_location = match find_ast_signature(context, module, base_interface_name) {
                 Some(location) => location,
                 None => {
-                    return Err(TirError::type_not_found(context, base_interface.to_string(), base_interface.to_range(), base_interface.names.last().unwrap().extra.file.clone()));
+                    return Err(TirError::type_not_found(context, base_interface.to_string(), base_interface.to_range(), base_interface.names.last().unwrap().state.file.clone()));
                 }
             };
 
             let base_interface_signature = context.ast_signatures.get_from_location(base_interface_location)
-                .ok_or_else(|| TirError::type_not_found(context, base_interface.to_string(), base_interface.to_range(), base_interface.names.last().unwrap().extra.file.clone()))?;
+                .ok_or_else(|| TirError::type_not_found(context, base_interface.to_string(), base_interface.to_range(), base_interface.names.last().unwrap().state.file.clone()))?;
 
             match base_interface_signature.value.clone() {
                 AstSignatureValue::Interface(base_interface) => {
 
                     if base_interface.index == resolve_interface.index {
-                        return Err(TirError::circular_reference(resolve_interface.name.to_range(), resolve_interface.name.extra.file.clone()));
+                        return Err(TirError::circular_reference(resolve_interface.name.to_range(), resolve_interface.name.state.file.clone()));
                     }
 
                     Self::resolve_interface(context, resolve_interface, &base_interface, fields, base_interfaces, module, parent)?
                 },
-                _ => return Err(TirError::invalid_type(base_interface.to_range(), "only interface type is valid", base_interface.names.last().unwrap().extra.file.clone()))
+                _ => return Err(TirError::invalid_type(base_interface.to_range(), "only interface type is valid", base_interface.names.last().unwrap().state.file.clone()))
             };
         }
         
@@ -116,13 +116,13 @@ impl<'base> InterfaceDefinitionAst<'base> {
     }
 
     fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, interface_function: &InterfaceFunctionDefinitionAst<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError> {
-        simplelog::debug!("Resolving interface function: <u><b>{}</b></u>", self.name.fragment());
+        simplelog::debug!("Resolving interface function: <u><b>{}</b></u>", self.name.text);
       
-        let full_name: Cow<'base, str> = Cow::Owned(format!("{}::{}", self.name.fragment(), interface_function.name.fragment()));
+        let full_name: Cow<'base, str> = Cow::Owned(format!("{}::{}", self.name.text, interface_function.name.text));
         
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
         let signature_path = SignaturePath::owned(format!("{}.{}", tmp_module.path, full_name));
-        let signature_location = context.types.reserve(signature_path.clone(), Cow::Borrowed(*interface_function.name.fragment()), interface_function.name.extra.file.clone(), interface_function.name.to_range())?;
+        let signature_location = context.types.reserve(signature_path.clone(), Cow::Borrowed(interface_function.name.text), interface_function.name.state.file.clone(), interface_function.name.to_range())?;
         tmp_module.types.insert(SignaturePath::cow(full_name), signature_location);
 
         let mut arguments = vec![];
@@ -131,9 +131,9 @@ impl<'base> InterfaceDefinitionAst<'base> {
             let (argument_name, range, file) = match argument {
                 FunctionArgumentAst::This(this) => {
                     let parent = context.types.get_from_location(unwrap_for_this(&parent, this)?).unwrap();
-                    (Cow::Owned(parent.value.get_name().to_string()), this.to_range(), this.extra.file.clone())
+                    (Cow::Owned(parent.value.get_name().to_string()), this.to_range(), this.state.file.clone())
                 },
-                FunctionArgumentAst::Argument { name, .. } => (Cow::Borrowed(*name.fragment()), name.to_range(), name.extra.file.clone())
+                FunctionArgumentAst::Argument { name, .. } => (Cow::Borrowed(name.text), name.to_range(), name.state.file.clone())
             };
             
             let type_name: String = match argument {
@@ -149,7 +149,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                 None => return Err(TirError::type_not_found(context, type_name, range, file))
             };
 
-            if let Some(old) = arguments.iter().find(|item: &&FunctionArgument<'_>| *item.name.fragment() == argument_name) {
+            if let Some(old) = arguments.iter().find(|item: &&FunctionArgument<'_>| *item.name.text == argument_name) {
                 return Err(TirError::already_defined(old.name.to_range(), range, file));
             }
 
@@ -172,7 +172,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                     return_type,
                 },
             ),
-            self.name.extra.file.clone(),
+            self.name.state.file.clone(),
             self.name.to_range(),
             None,
         );

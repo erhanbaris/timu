@@ -118,9 +118,9 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
         // Interface signatures
         for interface in ast.get_interfaces() {
             let signature = Signature::from((interface.clone(), module.get_ref()));
-            let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.fragment()).into(), signature)?;
+            let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.text).into(), signature)?;
 
-            ast_signature.validate_insert(SignaturePath::borrowed(interface.name.fragment()), location, &interface.name)?;
+            ast_signature.validate_insert(SignaturePath::borrowed(interface.name.text), location, &interface.name)?;
         }
 
         // Extend signatures
@@ -134,17 +134,17 @@ pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module
         // Class signatures
         for class in ast.get_classes() {
             let signature = Signature::from((class.clone(), module.get_ref()));
-            let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), class.name.fragment()).into(), signature)?;
+            let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), class.name.text).into(), signature)?;
 
-            ast_signature.validate_insert(SignaturePath::borrowed(class.name.fragment()), location, &class.name)?;
+            ast_signature.validate_insert(SignaturePath::borrowed(class.name.text), location, &class.name)?;
         }
 
         // Function signatures
         for func in ast.get_functions() {
             let signature = Signature::from((func.clone(), module.get_ref()));
-            let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), func.name.fragment()).into(), signature)?;
+            let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), func.name.text).into(), signature)?;
 
-            ast_signature.validate_insert(SignaturePath::borrowed(func.name.fragment()), location, &func.name)?;
+            ast_signature.validate_insert(SignaturePath::borrowed(func.name.text), location, &func.name)?;
         }
     }
 
@@ -170,7 +170,7 @@ impl<'base> From<(Rc<FunctionDefinitionAst<'base>>, ModuleRef<'base>)> for Signa
         let (function, module) = value;
 
         let position = function.name.to_range();
-        let file = function.name.extra.file.clone();
+        let file = function.name.state.file.clone();
         Signature::new_with_extra(AstSignatureValue::Function(function), file, position, module)
     }
 }
@@ -180,7 +180,7 @@ impl<'base> From<(Rc<ClassDefinitionAst<'base>>, ModuleRef<'base>)> for Signatur
         let (class, module) = value;
 
         let position = class.name.to_range();
-        let file = class.name.extra.file.clone();
+        let file = class.name.state.file.clone();
         Signature::new_with_extra(AstSignatureValue::Class(class), file, position, module)
     }
 }
@@ -190,7 +190,7 @@ impl<'base> From<(Rc<InterfaceDefinitionAst<'base>>, ModuleRef<'base>)> for Sign
         let (interface, module) = value;
 
         let position = interface.name.to_range();
-        let file = interface.name.extra.file.clone();
+        let file = interface.name.state.file.clone();
         Signature::new_with_extra(AstSignatureValue::Interface(interface), file, position, module)
     }
 }
@@ -201,7 +201,7 @@ impl<'base> From<(Rc<ExtendDefinitionAst<'base>>, ModuleRef<'base>)> for Signatu
         let (extend, module) = value;
 
         let position = extend.name.to_range();
-        let file = extend.name.names.first().unwrap().extra.file.clone();
+        let file = extend.name.names.first().unwrap().state.file.clone();
         Signature::new_with_extra(AstSignatureValue::Extend(extend), file, position, module)
     }
 }

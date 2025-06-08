@@ -8,17 +8,17 @@ use nom::multi::separated_list1;
 use nom::{IResult, Parser};
 
 use crate::ast::{FileStatementAst, UseAst};
-use crate::nom_tools::{Span, cleanup};
+use crate::nom_tools::{NomSpan, cleanup};
 use crate::parser::ident;
 
 use super::splited_path::SplitedPath;
 use super::TimuParserError;
 
 impl UseAst<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, UseAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, UseAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("use")).parse(input)?;
         let (input, (import_span, splited_import)) = context("Module path missing", cut(consumed(cleanup(separated_list1(char('.'), ident()))))).parse(input)?;
-        let import = SplitedPath::new(import_span.clone(), splited_import);
+        let import = SplitedPath::new(import_span.into(), splited_import.into_iter().map(|item| item.into()).collect::<Vec<_>>());
         
         let (input, alias) = match opt(cleanup(tag("as"))).parse(input)? {
             (input, Some(_)) => {
@@ -34,12 +34,12 @@ impl UseAst<'_> {
             input,
             UseAst {
                 import,
-                alias,
+                alias: alias.map(|item| item.into()),
             },
         ))
     }
 
-    pub fn parse_for_file(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse_for_file(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
         let (input, import) = Self::parse(input)?;
         Ok((input, FileStatementAst::Use(import.into())))
     }
@@ -50,7 +50,7 @@ impl Display for UseAst<'_> {
         write!(f, "use ")?;
         write!(f, "{}", self.import.text)?;
         if let Some(alias) = &self.alias {
-            write!(f, " as {}", alias.fragment())?;
+            write!(f, " as {}", alias.text)?;
         }
         write!(f, ";")
     }

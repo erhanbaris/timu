@@ -9,12 +9,12 @@ use nom::multi::{many0, separated_list1};
 use nom::{IResult, Parser, sequence::delimited};
 
 use crate::ast::{ExtendDefinitionAst, ExtendDefinitionFieldAst, FieldAst, FunctionDefinitionAst, TypeNameAst};
-use crate::{ast::FileStatementAst, nom_tools::{cleanup, Span}};
+use crate::{ast::FileStatementAst, nom_tools::{cleanup, NomSpan}};
 
 use super::{expected_ident, TimuParserError};
 
 impl ExtendDefinitionAst<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("extend")).parse(input)?;
         let (input, name) = expected_ident("Missing class name", input)?;
         let (input, _) = context("Missing ':'", cut(cleanup(char(':')))).parse(input)?;
@@ -33,7 +33,7 @@ impl ExtendDefinitionAst<'_> {
     
         let name = TypeNameAst {
             nullable: false,
-            names: vec![name],
+            names: vec![name.into()],
         };
 
         Ok((
@@ -49,7 +49,7 @@ impl ExtendDefinitionAst<'_> {
 
 impl Display for ExtendDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "extend {}", self.name.names.first().unwrap().fragment())?;
+        write!(f, "extend {}", self.name.names.first().unwrap().text)?;
 
         if !self.base_interfaces.is_empty() {
             write!(f, ": ")?;

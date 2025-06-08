@@ -106,7 +106,7 @@ impl<'base> BodyStatementAst<'base> {
         };
 
         for (index, span) in paths.iter().enumerate() {
-            let path = *span.fragment();
+            let path = span.text;
 
             if index == 0 {
                 if let Some(argument) = scope.get_variable(context, path) {
@@ -124,7 +124,7 @@ impl<'base> BodyStatementAst<'base> {
                         }
                     },
                     Some(TypeValue::Function(function)) => {
-                        if let Some(argument) = function.arguments.iter().find(|argument| *argument.name.fragment() == path) {
+                        if let Some(argument) = function.arguments.iter().find(|argument| argument.name.text == path) {
                             callee_object_location = argument.field_type;
                         } else {
                             panic!("Function argument not found: {}", path);
@@ -133,7 +133,7 @@ impl<'base> BodyStatementAst<'base> {
                     _ => return Err(FunctionCallError::CallPathNotValid(CallPathNotValid {
                         path: path.to_string(),
                         position: span.to_range(),
-                        code: span.extra.file.clone().into()
+                        code: span.state.file.clone().into()
                     }.into()).into()),
                 }
             }
@@ -181,9 +181,9 @@ impl<'base> BodyStatementAst<'base> {
                 return Err(FunctionCallError::ArgumentTypeMismatch(ArgumentTypeMismatch {
                     code: callee_object.file.clone().into(),
                     expected: TypeWithSpan {
-                        ty: callee_arg.name.fragment().to_string(),
+                        ty: callee_arg.name.text.to_string(),
                         at: callee_arg.name.to_range(),
-                        source_code: callee_arg.name.extra.file.clone().into()
+                        source_code: callee_arg.name.state.file.clone().into()
                     },
                     got: TypeWithSpan {
                         ty: call_argument_signature.value.get_name().to_string(),

@@ -101,7 +101,7 @@ pub trait ResolveAst<'base> {
 }
 
 fn build_type_name(type_name: &TypeNameAst) -> String {
-    type_name.names.iter().map(|path| *path.fragment()).collect::<Vec<&str>>().join(".")
+    type_name.names.iter().map(|path| path.text).collect::<Vec<&str>>().join(".")
 }
 
 fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<TypeLocation, TirError> {
@@ -109,7 +109,7 @@ fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_n
     let field_type = match try_resolve_signature(context, module, type_name_str.as_str())? {
         Some(field_type) => field_type,
         None => {
-            return Err(TirError::type_not_found(context, type_name.to_string(), type_name.to_range(), type_name.names.last().unwrap().extra.file.clone()));
+            return Err(TirError::type_not_found(context, type_name.to_string(), type_name.to_range(), type_name.names.last().unwrap().state.file.clone()));
         }
     };
 

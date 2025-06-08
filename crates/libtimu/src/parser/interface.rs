@@ -9,12 +9,12 @@ use nom::multi::{many0, separated_list0};
 use nom::{IResult, Parser, sequence::delimited};
 
 use crate::ast::{AstIndex, FieldAst, FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst, TypeNameAst};
-use crate::{ast::FileStatementAst, nom_tools::{cleanup, Span}};
+use crate::{ast::FileStatementAst, nom_tools::{cleanup, NomSpan}};
 
 use super::{expected_ident, TimuParserError};
 
 impl InterfaceDefinitionAst<'_> {
-    pub fn parse(input: Span<'_>) -> IResult<Span<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
+    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("interface")).parse(input)?;
         let (input, name) = expected_ident("Missing interface name", input)?;
 
@@ -41,7 +41,7 @@ impl InterfaceDefinitionAst<'_> {
         Ok((
             input,
             FileStatementAst::Interface(InterfaceDefinitionAst {
-                name,
+                name: name.into(),
                 fields,
                 base_interfaces,
                 index,
@@ -52,7 +52,7 @@ impl InterfaceDefinitionAst<'_> {
 
 impl Display for InterfaceDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "interface {}", self.name.fragment())?;
+        write!(f, "interface {}", self.name.text)?;
 
         if !self.base_interfaces.is_empty() {
             write!(f, ": ")?;
@@ -81,8 +81,8 @@ impl Display for InterfaceDefinitionAst<'_> {
 
 impl InterfaceFunctionDefinitionAst<'_> {
     pub fn parse(
-        input: Span<'_>,
-    ) -> IResult<Span<'_>, InterfaceDefinitionFieldAst<'_>, TimuParserError<'_>> {
+        input: NomSpan<'_>,
+    ) -> IResult<NomSpan<'_>, InterfaceDefinitionFieldAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup(tag("func")).parse(input)?;
         let (input, name) = expected_ident("Missing function name", input)?;
         let (input, _) = context("Missing '('", cut(peek(cleanup(char('('))))).parse(input)?;
@@ -97,7 +97,7 @@ impl InterfaceFunctionDefinitionAst<'_> {
         Ok((
             input,
             InterfaceDefinitionFieldAst::Function(InterfaceFunctionDefinitionAst {
-                name,
+                name: name.into(),
                 arguments,
                 return_type,
             }),
@@ -107,7 +107,7 @@ impl InterfaceFunctionDefinitionAst<'_> {
 
 impl Display for InterfaceFunctionDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "func {}(", self.name.fragment())?;
+        write!(f, "func {}(", self.name.text)?;
         for (index, arg) in self.arguments.iter().enumerate() {
             write!(f, "{}", arg)?;
             if index < self.arguments.len() - 1 {

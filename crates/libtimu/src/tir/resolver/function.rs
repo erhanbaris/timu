@@ -43,13 +43,13 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
             let scope = context.get_scope(scope_location).expect("Scope not found, it is a bug");
             (scope.module_ref.clone(), scope.parent_type, scope.parent_scope)
         };
-        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.extra.file.clone())?;
+        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
 
         let definition = self.build_definition(context, scope_location, parent_scope, &module_ref, parent_type, signature_path.clone())?;
 
         let signature = TypeSignature::new(
             TypeValue::Function (definition.into()),
-            self.name.extra.file.clone(),
+            self.name.state.file.clone(),
             self.name.to_range(),
             parent_type,
         );
@@ -70,8 +70,8 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
     
     fn name(&self) -> Cow<'base, str> {
         match self.location.as_ref() {
-            FunctionDefinitionLocationAst::Module => (*self.name.fragment()).into(),
-            FunctionDefinitionLocationAst::Class(class) => format!("{}::{}", class.fragment(), self.name.fragment()).into(),
+            FunctionDefinitionLocationAst::Module => (*self.name.text).into(),
+            FunctionDefinitionLocationAst::Class(class) => format!("{}::{}", class.text, self.name.text).into(),
         }
     }
 
@@ -85,8 +85,8 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
         };
         
         match self.location.as_ref() {
-            FunctionDefinitionLocationAst::Module => format!("{}.{}", module.path, self.name.fragment()),
-            FunctionDefinitionLocationAst::Class(class) => format!("{}.{}::{}", module.path, class.fragment(), self.name.fragment()),
+            FunctionDefinitionLocationAst::Module => format!("{}.{}", module.path, self.name.text),
+            FunctionDefinitionLocationAst::Class(class) => format!("{}.{}::{}", module.path, class.text, self.name.text),
         }
     }
 }
@@ -118,7 +118,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                             (reservation.name, reservation.position, reservation.file)
                         },
                         SignatureInfo::Value(value) => {
-                            (Cow::Owned(value.value.get_name().to_string()), this.to_range(), this.extra.file.clone())
+                            (Cow::Owned(value.value.get_name().to_string()), this.to_range(), this.state.file.clone())
                         }
                     }
                 },
@@ -127,7 +127,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                     let scope = context.get_mut_scope(scope_location).unwrap();
 
                     scope.add_variable(name.clone(), field_type)?;
-                    (Cow::Borrowed(*name.fragment()), name.to_range(), name.extra.file.clone())
+                    (Cow::Borrowed(name.text), name.to_range(), name.state.file.clone())
                 }
             };
             
@@ -146,7 +146,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                 None => return Err(TirError::type_not_found(context, type_name.to_string(), range, file))
             };
 
-            if let Some(old) = arguments.iter().find(|item: &&FunctionArgument| *item.name.fragment() == argument_name) {
+            if let Some(old) = arguments.iter().find(|item: &&FunctionArgument| *item.name.text == argument_name) {
                 return Err(TirError::already_defined(old.name.to_range(), range.clone(), file));
             }
 

@@ -2,7 +2,7 @@ use pretty_assertions::assert_eq;
 use rstest::*;
 
 use crate::ast::VariableAssignAst;
-use crate::nom_tools::Span;
+use crate::nom_tools::NomSpan;
 use crate::{file::SourceFile, nom_tools::State};
 
 #[rstest]
@@ -26,7 +26,7 @@ fn custom_variable_test<'base>(#[case] code: &'base str, #[case] expected: &'bas
         indexer: Default::default(),
     };
 
-    let input = Span::new_extra(code, state);
+    let input = NomSpan::new_extra(code, state);
     let result = VariableAssignAst::parse(input);
     assert!(result.is_ok(), "Failed to parse type name: {:?}", result.err());
     let (_, parsed) = result.unwrap();

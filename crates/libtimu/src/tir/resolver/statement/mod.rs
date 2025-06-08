@@ -48,7 +48,7 @@ pub fn try_resolve_primitive<'base>(context: &mut TirContext<'base>, primitive: 
     let location = context.types.find_by_value(&TypeValue::PrimitiveType(primitive.to_type()));
     match location {
         Some(location) => Ok(location),
-        None => Err(TirError::type_not_found(context, span.to_string(), span.to_range(), span.extra.file.clone())),
+        None => Err(TirError::type_not_found(context, span.to_string(), span.to_range(), span.state.file.clone())),
     }
 }
 
