@@ -1,3 +1,4 @@
+use core::panic;
 use std::borrow::Cow;
 
 use indexmap::IndexMap;
@@ -23,7 +24,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         let class_scope = *context.types_scope.get(class_name.as_str()).unwrap();
 
         self.resolve_fields(context, class_name.as_str(), class_scope, &module_ref, &mut extend_fields, &mut extend_fields_for_track, class_location)?;
-        self.resolve_interfaces(context, &module_ref, &extend_fields, &mut extend_fields_for_track)?;
+        self.resolve_interfaces(context, class_scope, &module_ref, &extend_fields, &mut extend_fields_for_track)?;
 
         /* Validate */
         if !extend_fields_for_track.is_empty() {
@@ -97,8 +98,21 @@ impl<'base> ExtendDefinitionAst<'base> {
         Ok(())
     }
     
-    fn resolve_interfaces(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, Span<'base>>) -> Result<(), TirError> {
+    fn resolve_interfaces(&self, context: &mut TirContext<'base>, class_scope: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, Span<'base>>) -> Result<(), TirError> {
         let mut errors = Vec::new();
+
+        let class_type_location = context.get_scope(class_scope).unwrap().current_type;
+        let class_signature = context.types.get_mut_from_location(class_type_location).unwrap();
+        
+        let class = match class_signature.value.as_mut() {
+            TypeValue::Class(class) => class,
+            _ => panic!("Expected class type")
+        };
+
+        // Copy all extend informations to class
+        for interface_ast in self.base_interfaces.iter() {
+            class.extends.insert(interface_ast.clone());
+        }
 
         for interface_ast in self.base_interfaces.iter() {
             // Find the inferface signature

@@ -45,6 +45,32 @@ pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>)
     }
 }
 
+// Search class type location
+pub fn find_class_location<'base>(context: &TirContext<'base>, scope_location: ScopeLocation) -> Option<TypeLocation> {
+    let mut scope_location = scope_location;
+
+    loop {
+        let scope =  context.get_scope(scope_location).unwrap();
+        match context.types.get_from_location(scope.current_type).cloned().map(|signature| signature.value) {
+            // This scope belong to class so return the type location
+            Some(TypeValue::Class(_)) => return Some(scope.current_type),
+
+            // We are still in some of the child scope, continue to search
+            Some(_) => match scope.parent_scope {
+
+                // There is parent scope, lets continue to search
+                Some(parent_scope) => scope_location = parent_scope,
+
+                // End of the search, not found, return None
+                None => return None
+            },
+
+            // There is no more scope to search, so, we can stop and return the error
+            None => return None
+        };
+    }
+}
+
 impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {    
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
@@ -188,7 +214,7 @@ pub enum FunctionResolveError {
     #[error("'this' needs to be first argument in function definition")]
     ThisArgumentMustBeFirst(SpanInfo),
 
-    #[error("'this' need to define in class function")]
+    #[error("'this' need to defined in class function")]
     ThisNeedToDefineInClass(SpanInfo),
 }
 

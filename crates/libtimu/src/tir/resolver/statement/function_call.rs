@@ -4,10 +4,10 @@ use libtimu_macros::TimuError;
 use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::ToRange, tir::{object_signature::GetItem, resolver::{function::unwrap_for_this, statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::ToRange, tir::{object_signature::GetItem, resolver::{function::{find_class_location, FunctionResolveError}, statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
 #[derive(thiserror::Error, TimuError, Debug, Clone, PartialEq)]
-#[error("")]
+#[error("{ty}")]
 pub struct TypeWithSpan {
     pub ty: String,
 
@@ -98,6 +98,43 @@ impl From<FunctionCallError> for TirError {
 }
 
 impl<'base> BodyStatementAst<'base> {
+    pub fn get_type_locatom_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<TypeLocation, TirError>{
+        let location = match argument {
+            ExpressionAst::FunctionCall(func_call) => Self::resolve_function_call(context, scope_location, func_call)?,
+            ExpressionAst::Primitive { span, value } => try_resolve_primitive(context, value, span)?,
+            ExpressionAst::Ident(ident) => {
+                match ident.text == "this" {
+                    true => {
+                        // Find the class
+                        let class_search = find_class_location(context, scope_location)
+                            .and_then(|location| context.types.get_from_location(location).map(|item| (location, item)))
+                            .map(|(location, signature)| (location, &signature.value));
+
+                        match class_search {
+                            Some((location, TypeValue::Class(_))) => location,
+                            _ => return Err(FunctionResolveError::ThisNeedToDefineInClass(ident.into()).into())
+                        }
+                    }
+                    false => {
+                        let scope = context.get_scope(function_scope_location).unwrap();
+                        match scope.get_variable(context, ident.text) {
+                            Some(location) => location,
+                            None => return Err(FunctionResolveError::ThisNeedToDefineInClass(ident.into()).into())
+                        }
+                    }
+                }
+            },
+            _ => {
+                return Err(FunctionCallError::UnsupportedArgumentType(UnsupportedArgumentType {
+                    position: function_call.call_span.to_range(),
+                    code: function_call.call_span.state.file.clone().into()
+                }.into()).into());
+            }
+        };
+
+        Ok(location)
+    }
+
     pub fn resolve_function_call(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>) -> Result<TypeLocation, TirError> {
         simplelog::debug!("Resolving function call: <u><b>{}(..)</b></u>", function_call.path.call());
         let (scope, paths, mut callee_object_location) = match &function_call.path {
@@ -134,23 +171,10 @@ impl<'base> BodyStatementAst<'base> {
             }
         }
 
+        let function_scope_location = scope.location.clone();
         let mut arguments = Vec::new();
         for argument in function_call.arguments.iter() {
-            let argument_location = match argument {
-                ExpressionAst::FunctionCall(func_call) => Self::resolve_function_call(context, scope_location, func_call)?,
-                ExpressionAst::Primitive { span, value } => try_resolve_primitive(context, value, span)?,
-                ExpressionAst::Ident(ident) => {
-                    let scope =  context.get_scope(scope_location).unwrap();
-                    unwrap_for_this(&Some(scope.current_type), ident)?
-                },
-                _ => {
-                    return Err(FunctionCallError::UnsupportedArgumentType(UnsupportedArgumentType {
-                        position: function_call.call_span.to_range(),
-                        code: function_call.call_span.state.file.clone().into()
-                    }.into()).into());
-                }
-            };
-
+            let argument_location = Self::get_type_locatom_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
             arguments.push(argument_location);
         }
 

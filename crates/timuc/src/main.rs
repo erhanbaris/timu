@@ -13,37 +13,29 @@ fn main() -> Result<(), TirError> {
         .build();
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
 
-let state1 = State::new(SourceFile::new(vec!["lib".into()], r#"
+let state = State::new(SourceFile::new(vec!["main".into()], r#"
 interface ITest {
-    func test(a: string): string;
-    a: main.TestClass;
-}
-func abc(a:string): string {
+    func hello(): string;
 }
 
-"#.to_string()));
-
-
-let state2 = State::new(SourceFile::new(vec!["main".into()], r#"
-use lib.ITest;
-use lib.abc;
 
 extend TestClass: ITest {
-    func test(a: string): string { }
-    a: main.TestClass;
+    func hello(): string { }
 }
 
 class TestClass {
-    func init(this): string {
-        lib.abc("erhan");
-        abc("baris");
+    func call(this): string {
+        echo(this);
     }
+}
+
+func echo(a: ITest): string {
 }
 
 "#.to_string()));
 
 
-    let ast1 = match process_code(&state1) {
+    let ast = match process_code(&state) {
         Ok(ast) => ast,
         Err(error) => {
             CodeSpanReportGenerator::generate(error);
@@ -51,15 +43,7 @@ class TestClass {
         }
     };
 
-    let ast2 = match process_code(&state2) {
-        Ok(ast) => ast,
-        Err(error) => {
-            CodeSpanReportGenerator::generate(error);
-            exit(1);
-        }
-    };
-
-    match process_ast(vec![ast1.into(), ast2.into()]) {
+    match process_ast(vec![ast.into()]) {
         Ok(ast) => ast,
         Err(error) => {
             CodeSpanReportGenerator::generate(error);

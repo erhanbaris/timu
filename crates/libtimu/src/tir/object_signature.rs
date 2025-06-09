@@ -92,7 +92,6 @@ impl TypeValue<'_> {
         }
     }
 
-
     pub fn get_name(&self) -> &str {
         match self {
             TypeValue::PrimitiveType(primitive) => match primitive {
