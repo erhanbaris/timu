@@ -171,7 +171,7 @@ impl<'base> BodyStatementAst<'base> {
             }
         }
 
-        let function_scope_location = scope.location.clone();
+        let function_scope_location = scope.location;
         let mut arguments = Vec::new();
         for argument in function_call.arguments.iter() {
             let argument_location = Self::get_type_locatom_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
