@@ -98,7 +98,7 @@ impl From<FunctionCallError> for TirError {
 }
 
 impl<'base> BodyStatementAst<'base> {
-    pub fn get_type_locatom_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<(Span<'base>, TypeLocation), TirError>{
+    pub fn get_type_information_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<(Span<'base>, TypeLocation), TirError>{
         let value = match argument {
             ExpressionAst::FunctionCall(func_call) => (func_call.call_span.clone(), Self::resolve_function_call(context, scope_location, func_call)?),
             ExpressionAst::Primitive { span, value } => (span.clone(), try_resolve_primitive(context, value, span)?),
@@ -174,7 +174,7 @@ impl<'base> BodyStatementAst<'base> {
         let function_scope_location = scope.location;
         let mut arguments = Vec::new();
         for argument in function_call.arguments.iter() {
-            let (span, type_location) = Self::get_type_locatom_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
+            let (span, type_location) = Self::get_type_information_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
             arguments.push((span, type_location));
         }
 
