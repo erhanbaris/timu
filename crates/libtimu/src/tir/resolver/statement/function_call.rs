@@ -4,7 +4,7 @@ use libtimu_macros::TimuError;
 use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::ToRange, tir::{object_signature::GetItem, resolver::{function::{find_class_location, FunctionResolveError}, statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::{Span, ToRange}, tir::{object_signature::GetItem, resolver::{function::{find_class_location, FunctionResolveError}, statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
 
 #[derive(thiserror::Error, TimuError, Debug, Clone, PartialEq)]
 #[error("{ty}")]
@@ -98,10 +98,10 @@ impl From<FunctionCallError> for TirError {
 }
 
 impl<'base> BodyStatementAst<'base> {
-    pub fn get_type_locatom_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<TypeLocation, TirError>{
-        let location = match argument {
-            ExpressionAst::FunctionCall(func_call) => Self::resolve_function_call(context, scope_location, func_call)?,
-            ExpressionAst::Primitive { span, value } => try_resolve_primitive(context, value, span)?,
+    pub fn get_type_locatom_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<(Span<'base>, TypeLocation), TirError>{
+        let value = match argument {
+            ExpressionAst::FunctionCall(func_call) => (func_call.call_span.clone(), Self::resolve_function_call(context, scope_location, func_call)?),
+            ExpressionAst::Primitive { span, value } => (span.clone(), try_resolve_primitive(context, value, span)?),
             ExpressionAst::Ident(ident) => {
                 match ident.text == "this" {
                     true => {
@@ -111,14 +111,14 @@ impl<'base> BodyStatementAst<'base> {
                             .map(|(location, signature)| (location, &signature.value));
 
                         match class_search {
-                            Some((location, TypeValue::Class(_))) => location,
+                            Some((location, TypeValue::Class(_))) => (ident.clone(), location),
                             _ => return Err(FunctionResolveError::ThisNeedToDefineInClass(ident.into()).into())
                         }
                     }
                     false => {
                         let scope = context.get_scope(function_scope_location).unwrap();
                         match scope.get_variable(context, ident.text) {
-                            Some(location) => location,
+                            Some(location) => (ident.clone(), location),
                             None => return Err(FunctionResolveError::ThisNeedToDefineInClass(ident.into()).into())
                         }
                     }
@@ -132,7 +132,7 @@ impl<'base> BodyStatementAst<'base> {
             }
         };
 
-        Ok(location)
+        Ok(value)
     }
 
     pub fn resolve_function_call(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>) -> Result<TypeLocation, TirError> {
@@ -174,8 +174,8 @@ impl<'base> BodyStatementAst<'base> {
         let function_scope_location = scope.location;
         let mut arguments = Vec::new();
         for argument in function_call.arguments.iter() {
-            let argument_location = Self::get_type_locatom_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
-            arguments.push(argument_location);
+            let (span, type_location) = Self::get_type_locatom_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
+            arguments.push((span, type_location));
         }
 
         let callee_object = context.types.get_from_location(callee_object_location).expect("Compiler bug");
@@ -206,7 +206,7 @@ impl<'base> BodyStatementAst<'base> {
             }.into()).into());
         }
 
-        for (callee_arg, call_arg) in callee.arguments.iter().zip(arguments.iter()) {
+        for (callee_arg, (call_arg_span, call_arg)) in callee.arguments.iter().zip(arguments.iter()) {
             let callee_argument_signature = context.types.get_from_location(callee_arg.field_type).unwrap();
         
             let call_argument_signature = context.types.get_from_location(*call_arg).unwrap();
@@ -219,8 +219,8 @@ impl<'base> BodyStatementAst<'base> {
                     },
                     got: TypeWithSpan {
                         ty: call_argument_signature.value.get_name().to_string(),
-                        at: call_argument_signature.position.clone(),
-                        source_code: call_argument_signature.file.clone().into()
+                        at: call_arg_span.position.clone(),
+                        source_code: call_arg_span.state.file.clone().into()
                     }
                 }.into()).into());
             }
