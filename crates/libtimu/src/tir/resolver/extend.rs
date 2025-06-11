@@ -1,5 +1,5 @@
 use core::panic;
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashSet};
 
 use indexmap::IndexMap;
 
@@ -100,19 +100,7 @@ impl<'base> ExtendDefinitionAst<'base> {
     
     fn resolve_interfaces(&self, context: &mut TirContext<'base>, class_scope: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, Span<'base>>) -> Result<(), TirError> {
         let mut errors = Vec::new();
-
-        let class_type_location = context.get_scope(class_scope).unwrap().current_type;
-        let class_signature = context.types.get_mut_from_location(class_type_location).unwrap();
-        
-        let class = match class_signature.value.as_mut() {
-            TypeValue::Class(class) => class,
-            _ => panic!("Expected class type")
-        };
-
-        // Copy all extend informations to class
-        for interface_ast in self.base_interfaces.iter() {
-            class.extends.insert(interface_ast.clone());
-        }
+        let mut extends = HashSet::new();
 
         for interface_ast in self.base_interfaces.iter() {
             // Find the inferface signature
@@ -126,6 +114,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                 }
             };
 
+            extends.insert(interface_signature);
             let interface = if let Some(signature) = context.types.get_from_location(interface_signature) {
                 match signature.value.as_ref() {
                     TypeValue::Interface(interface) => interface,
@@ -167,7 +156,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                     }
                 };
 
-                if !defined_field_type.value.compare_skeleton(context, &interface_field_type.value) {
+                if !defined_field_type.value.is_same_type(context, &interface_field_type.value) {
                     errors.push(TirError::types_do_not_match(interface_field.0.to_range(), interface_field.0.state.file.clone()));
                 }
                 else {
@@ -175,6 +164,16 @@ impl<'base> ExtendDefinitionAst<'base> {
                 }
             }
         }
+
+        // Copy all extend informations to class
+        let class_type_location = context.get_scope(class_scope).unwrap().current_type;
+        let class_signature = context.types.get_mut_from_location(class_type_location).unwrap();
+
+        let class = match class_signature.value.as_mut() {
+           TypeValue::Class(class) => class,
+            _ => panic!("Expected class type")
+        };
+        class.extends.extend(&mut extends.into_iter());
 
         if !errors.is_empty() {
             context.add_errors(errors);
@@ -289,6 +288,61 @@ interface ITest { func test(): TestClass; }
 extend TestClass: ITest { func test(): TmpClass { } }
 class TestClass { }
 class TmpClass { }
+    "#.to_string()));
+        let ast = process_code(&state)?;
+        crate::tir::build(vec![ast.into()]).unwrap_err();
+        Ok(())
+    }
+
+    #[test]
+    fn pass_class_to_interface_variable() -> Result<(), TirError> {
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
+interface ITest {
+    func hello(): string;
+}
+
+
+extend TestClass: ITest {
+    func hello(): string { }
+}
+
+class TestClass {
+    func call(this): string {
+        echo(this);
+    }
+}
+
+func echo(a: ITest): string {
+}
+    "#.to_string()));
+        let ast = process_code(&state)?;
+        crate::tir::build(vec![ast.into()]).unwrap();
+        Ok(())
+    }
+    
+    #[test]
+    fn pass_wrong_class_to_interface_variable() -> Result<(), TirError> {
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
+interface ITest {
+    func hello(): string;
+}
+
+interface ITest2 {
+    func hello(): string;
+}
+
+extend TestClass: ITest {
+    func hello(): string { }
+}
+
+class TestClass {
+    func call(this): string {
+        echo(this);
+    }
+}
+
+func echo(a: ITest2): string {
+}
     "#.to_string()));
         let ast = process_code(&state)?;
         crate::tir::build(vec![ast.into()]).unwrap_err();

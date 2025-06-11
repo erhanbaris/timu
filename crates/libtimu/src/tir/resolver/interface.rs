@@ -11,6 +11,7 @@ use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
 #[allow(dead_code)]
 pub struct InterfaceDefinition<'base> {
     pub name: Span<'base>,
+    pub full_name: String,
     pub fields: TimuHashMap<Span<'base>, TypeLocation>,
 }
 
@@ -43,7 +44,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
             (scope.module_ref.clone(), scope.parent_type)
         };
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), parent);
-        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
+        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name.clone()), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
 
         let mut fields = TimuHashMap::<Span<'_>, TypeLocation>::default();
         let mut base_interfaces = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
@@ -52,6 +53,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
 
         let signature = TypeSignature::new(TypeValue::Interface(InterfaceDefinition {
             name: self.name.clone(),
+            full_name,
             fields,
         }), self.name.state.file.clone(), self.name.to_range(),None);
 

@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::HashSet, rc::Rc};
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst, TypeNameAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::{GetItem, TypeValue}, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::{GetItem, TypeValue}, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{TypeLocation, ResolveAst};
@@ -18,7 +18,7 @@ pub struct ClassArgument<'base> {
 pub struct ClassDefinition<'base> {
     pub name: Span<'base>,
     pub fields: TimuHashMap<Cow<'base, str>, TypeLocation>,
-    pub extends: HashSet<TypeNameAst<'base>>,
+    pub extends: HashSet<TypeLocation>,
 }
 
 impl PartialEq for ClassDefinition<'_> {

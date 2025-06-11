@@ -18,7 +18,7 @@ pub mod module;
 pub mod module_use;
 pub mod statement;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TypeLocation(#[allow(dead_code)]pub usize);
 
 impl TypeLocation {

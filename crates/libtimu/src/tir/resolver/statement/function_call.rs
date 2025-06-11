@@ -208,9 +208,9 @@ impl<'base> BodyStatementAst<'base> {
 
         for (callee_arg, (call_arg_span, call_arg)) in callee.arguments.iter().zip(arguments.iter()) {
             let callee_argument_signature = context.types.get_from_location(callee_arg.field_type).unwrap();
-        
             let call_argument_signature = context.types.get_from_location(*call_arg).unwrap();
-            if !callee_argument_signature.value.compare_skeleton(context, &call_argument_signature.value) {
+
+            if !callee_argument_signature.value.is_same_type(context, &call_argument_signature.value) {
                 return Err(FunctionCallError::ArgumentTypeMismatch(ArgumentTypeMismatch {
                     expected: TypeWithSpan {
                         ty: callee_arg.field_type_span.text.to_string(),

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use strum_macros::EnumIs;
+use strum_macros::{EnumDiscriminants, EnumIs};
 
 use crate::tir::{module::ModuleRef, resolver::TypeLocation};
 
@@ -29,7 +29,8 @@ impl GetItem for PrimitiveType {
     }
 }
 
-#[derive(Debug, Clone, EnumIs, PartialEq)]
+#[derive(Debug, Clone, EnumIs, EnumDiscriminants, PartialEq)]
+#[strum_discriminants(vis(pub))]
 pub enum TypeValue<'base> {
     #[allow(dead_code)]
     PrimitiveType(PrimitiveType),
@@ -79,7 +80,7 @@ impl GetItem for TypeValue<'_> {
     }
 }
 impl TypeValue<'_> {
-    pub fn compare_skeleton(&self, _: &TirContext<'_>, other: &Self) -> bool {
+    pub fn is_same_type(&self, context: &TirContext<'_>, other: &Self) -> bool {
         match (self, other) {
             (TypeValue::PrimitiveType(left), TypeValue::PrimitiveType(right)) => Self::compare_primitive_types(left, right),
             (TypeValue::Function(left_function), TypeValue::Function(right_function)) => Self::compare_functions(left_function, right_function),
@@ -88,6 +89,7 @@ impl TypeValue<'_> {
             (TypeValue::InterfaceFunction(interface_function), TypeValue::Function(function)) => Self::compare_interface_function_and_function(interface_function, function),
             (TypeValue::Function(function), TypeValue::InterfaceFunction(interface_function)) => Self::compare_interface_function_and_function(interface_function, function),
             (TypeValue::InterfaceFunction(left_function), TypeValue::InterfaceFunction(right_function)) => Self::compare_interface_functions(left_function, right_function),
+            (TypeValue::Interface(interface), TypeValue::Class(class)) => Self::compare_interface_and_class(context, interface, class),
             _ => false,
         }
     }
@@ -139,6 +141,18 @@ impl TypeValue<'_> {
         }
 
         true
+    }
+
+    fn compare_interface_and_class(context: &TirContext<'_>, interface: &InterfaceDefinition, class: &ClassDefinition) -> bool {
+        for type_location in class.extends.iter() {
+            if let Some(TypeValue::Interface(class_interface)) = context.types.get_from_location(*type_location).map(|signature| signature.value.as_ref()) {
+                if class_interface.full_name == interface.full_name {
+                    return true;
+                }
+            }
+        }
+        
+        false
     }
 
     fn compare_interface_function_and_function(left: &InterfaceFunctionDefinition, right: &FunctionDefinition) -> bool {
