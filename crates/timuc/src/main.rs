@@ -24,13 +24,13 @@ extend TestClass: ITest {
 }
 
 class TestClass {
-    func call(this): string {
-        echo1(this);
+    func call(this, a: &string): string {
+        echo1(this, a);
         echo2(this);
     }
 }
 
-func echo1(a: ITest): string {
+func echo1(a: ITest, b: string): string {
     echo2(a);
 }
 
