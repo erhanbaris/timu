@@ -25,11 +25,16 @@ extend TestClass: ITest {
 
 class TestClass {
     func call(this): string {
-        echo(this);
+        echo1(this);
+        echo2(this);
     }
 }
 
-func echo(a: ITest): string {
+func echo1(a: ITest): string {
+    echo2(a);
+}
+
+func echo2(a: ITest): string {
 }
 
 "#.to_string()));

@@ -90,6 +90,7 @@ impl TypeValue<'_> {
             (TypeValue::Function(function), TypeValue::InterfaceFunction(interface_function)) => Self::compare_interface_function_and_function(interface_function, function),
             (TypeValue::InterfaceFunction(left_function), TypeValue::InterfaceFunction(right_function)) => Self::compare_interface_functions(left_function, right_function),
             (TypeValue::Interface(interface), TypeValue::Class(class)) => Self::compare_interface_and_class(context, interface, class),
+            (TypeValue::Interface(left), TypeValue::Interface(right)) => left.full_name == right.full_name,
             _ => false,
         }
     }

@@ -148,6 +148,7 @@ pub enum ExtendDefinitionFieldAst<'base> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeNameAst<'base> {
+    pub reference: bool,
     pub nullable: bool,
     pub names: Vec<Span<'base>>,
     pub names_span: Span<'base>

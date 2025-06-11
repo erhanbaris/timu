@@ -75,6 +75,10 @@ pub fn is_nullable(input: NomSpan<'_>) -> IResult<NomSpan<'_>, bool, TimuParserE
     cleanup(map(opt(char('?')), |item| item.is_some())).parse(input)
 }
 
+pub fn is_reference(input: NomSpan<'_>) -> IResult<NomSpan<'_>, bool, TimuParserError<'_>> {
+    cleanup(map(opt(char('&')), |item| item.is_some())).parse(input)
+}
+
 pub fn expected_ident<'base>(message: &'static str, input: NomSpan<'base>) -> IResult<NomSpan<'base>, NomSpan<'base>, TimuParserError<'base>> {
     context(message, cut(ident())).parse(input)
 }

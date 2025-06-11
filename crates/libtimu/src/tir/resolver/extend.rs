@@ -319,6 +319,37 @@ func echo(a: ITest): string {
         crate::tir::build(vec![ast.into()]).unwrap();
         Ok(())
     }
+
+    #[test]
+    fn pass_class_to_interface_variable_2() -> Result<(), TirError> {
+        let state = State::new(SourceFile::new(vec!["source".into()], r#"
+interface ITest {
+    func hello(): string;
+}
+
+
+extend TestClass: ITest {
+    func hello(): string { }
+}
+
+class TestClass {
+    func call(this): string {
+        echo1(this);
+        echo2(this);
+    }
+}
+
+func echo1(a: ITest): string {
+    echo2(a);
+}
+
+func echo2(a: ITest): string {
+}
+    "#.to_string()));
+        let ast = process_code(&state)?;
+        crate::tir::build(vec![ast.into()]).unwrap();
+        Ok(())
+    }
     
     #[test]
     fn pass_wrong_class_to_interface_variable() -> Result<(), TirError> {
