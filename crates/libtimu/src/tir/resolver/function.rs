@@ -41,7 +41,7 @@ impl GetItem for FunctionDefinition<'_> {
 pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>) -> Result<TypeLocation, TirError> {
     match parent {
         Some(parent) => Ok(*parent),
-        None => Err(FunctionResolveError::ThisNeedToDefineInClass(this.into()).into()),
+        None => Err(FunctionResolveError::this_need_to_define_in_class(this.into()).into()),
     }
 }
 
@@ -139,14 +139,14 @@ impl<'base> FunctionDefinitionAst<'base> {
                 FunctionArgumentAst::This(this) => {
                     let parent_type = match parent_type {
                         Some(parent_type) => parent_type,
-                        None => return Err(FunctionResolveError::ThisNeedToDefineInClass(this.into()).into())
+                        None => return Err(FunctionResolveError::this_need_to_define_in_class(this.into()).into())
                     };
 
                     let parent_scope = context.get_mut_scope(parent_scope.unwrap()).unwrap();
                     parent_scope.add_variable(this.clone(), parent_type)?;
 
                     if index != 0 {
-                        return Err(FunctionResolveError::ThisNeedToDefineInClass(this.into()).into());
+                        return Err(FunctionResolveError::this_need_to_define_in_class(this.into()).into());
                     }
                     
                     match context.types.get_signature_from_location(unwrap_for_this(&Some(parent_type), this)?).unwrap() {
@@ -221,6 +221,12 @@ pub enum FunctionResolveError {
 impl From<FunctionResolveError> for TirError {
     fn from(value: FunctionResolveError) -> Self {
         ResolverError::FunctionResolve(Box::new(value)).into()
+    }
+}
+
+impl<'base> FunctionResolveError {
+    pub fn this_need_to_define_in_class(span: SpanInfo) -> TirError {
+        FunctionResolveError::ThisNeedToDefineInClass(span).into()
     }
 }
 

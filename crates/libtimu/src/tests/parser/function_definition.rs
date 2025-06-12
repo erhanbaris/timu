@@ -15,16 +15,16 @@ use crate::{file::SourceFile, nom_tools::State};
     "func init(): string { var a = test(1,2,3);} func test(): string {}",
     "func init(): string {var a = test(1, 2, 3);}\nfunc test(): string {}"
 )]
-#[case("func init(): string { var a = 1; var b = &a;}", "func init(): string {var a = 1; var b = &a;}")]
+#[case("func init(): string { var a = 1; var b = ref a;}", "func init(): string {var a = 1; var b = ref a;}")]
 #[case(
-    "func init(a:a, b:b): string { var a = 1; var b = &a; a = 20;}",
-    "func init(a: a, b: b): string {var a = 1; var b = &a; a = 20;}"
+    "func init(a:a, b:b): string { var a = 1; var b = ref a; a = 20;}",
+    "func init(a: a, b: b): string {var a = 1; var b = ref a; a = 20;}"
 )]
 #[case(
     "func init(this): string {if (true || false) {} else if false {} else if false {} else if false {} else {}}",
     "func init(this): string {if (true || false) {} else if false {} else if false {} else if false {} else {}}"
 )]
-#[case("func init(a: &?string): string {}", "func init(a: &?string): string {}")]
+#[case("func init(a: ref ?string): string {}", "func init(a: ref ?string): string {}")]
 fn custom_function_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
     let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 

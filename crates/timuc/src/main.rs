@@ -24,7 +24,7 @@ extend TestClass: ITest {
 }
 
 class TestClass {
-    func call(this, a: &string): string {
+    func call(this, a: ref string): string {
         echo1(this, a);
         echo2(this);
     }

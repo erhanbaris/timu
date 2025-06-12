@@ -35,7 +35,7 @@ impl TypeNameAst<'_> {
 impl Display for TypeNameAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.reference {
-            write!(f, "&")?;
+            write!(f, "ref ")?;
         }
 
         if self.nullable {
