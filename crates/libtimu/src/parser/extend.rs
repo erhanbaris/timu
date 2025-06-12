@@ -32,6 +32,7 @@ impl ExtendDefinitionAst<'_> {
         .parse(input)?;
     
         let name = TypeNameAst {
+            reference: false,
             nullable: false,
             names: vec![name.clone().into()],
             names_span: name.into()

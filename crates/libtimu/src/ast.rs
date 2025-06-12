@@ -148,6 +148,7 @@ pub enum ExtendDefinitionFieldAst<'base> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeNameAst<'base> {
+    pub reference: bool,
     pub nullable: bool,
     pub names: Vec<Span<'base>>,
     pub names_span: Span<'base>
@@ -290,10 +291,11 @@ pub enum ExpressionAst<'base> {
     Ref(RefAst<'base>),
     Not(Box<ExpressionAst<'base>>),
     Ident(Span<'base>),
-    Path(Vec<Span<'base>>),
     FunctionCall(FunctionCallAst<'base>),
     Operation { left: Box<ExpressionAst<'base>>, operator: ExpressionOperatorType, right: Box<ExpressionAst<'base>> },
 }
+
+
 
 #[derive(Debug, PartialEq)]
 pub struct IfConditionAst<'base> {

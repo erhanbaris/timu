@@ -14,7 +14,7 @@ fn main() -> Result<(), TirError> {
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
 
 let state = State::new(SourceFile::new(vec!["main".into()], r#"
-func init(a: &?string): string {}
+func init(a: ref ?string): string {}
 
 interface ITest {
     func hello(): string;
@@ -26,7 +26,7 @@ extend TestClass: ITest {
 }
 
 class TestClass {
-    func call(this, a: &string): string {
+    func call(this, a: ref string): string {
         echo1(this, a);
         echo2(this);
     }
