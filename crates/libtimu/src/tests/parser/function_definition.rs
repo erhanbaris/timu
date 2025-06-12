@@ -4,6 +4,7 @@ use rstest::*;
 use crate::{file::SourceFile, nom_tools::State};
 
 #[rstest]
+#[case("func init(a: &?string): string {}", "func init(a: &?string): string {}")]
 #[case("func init(): string {}", "func init(): string {}")]
 #[case("func init(): string {} func init(): string {}", "func init(): string {}\nfunc init(): string {}")]
 #[case(
@@ -24,7 +25,6 @@ use crate::{file::SourceFile, nom_tools::State};
     "func init(this): string {if (true || false) {} else if false {} else if false {} else if false {} else {}}",
     "func init(this): string {if (true || false) {} else if false {} else if false {} else if false {} else {}}"
 )]
-#[case("func init(a: &?string): string {}", "func init(a: &?string): string {}")]
 fn custom_function_test<'base>(#[case] code: &'base str, #[case] expected: &'base str) {
     let source_file = SourceFile::new(vec!["<memory>".into()], code.to_string());
 

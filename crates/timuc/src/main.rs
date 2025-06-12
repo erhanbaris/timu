@@ -14,6 +14,8 @@ fn main() -> Result<(), TirError> {
     CombinedLogger::init(vec![TermLogger::new(LevelFilter::Debug, config, TerminalMode::Mixed, ColorChoice::Auto)]).unwrap();
 
 let state = State::new(SourceFile::new(vec!["main".into()], r#"
+func init(a: &?string): string {}
+
 interface ITest {
     func hello(): string;
 }

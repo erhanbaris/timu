@@ -148,7 +148,6 @@ pub enum ExtendDefinitionFieldAst<'base> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeNameAst<'base> {
-    pub reference: bool,
     pub nullable: bool,
     pub names: Vec<Span<'base>>,
     pub names_span: Span<'base>
@@ -160,9 +159,21 @@ impl ToRange for TypeNameAst<'_> {
     }
 }
 
+pub enum TypeUsageType<'base> {
+    TypeName(Box<TypeUsageAst<'base>>),
+    Ref(Box<RefAst<'base>>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeUsageAst<'base> {
+    pub nullable: bool,
+    pub names: Vec<Span<'base>>,
+    pub names_span: Span<'base>
+}
+
 #[derive(Debug, PartialEq)]
 pub struct RefAst<'base> {
-    pub names: Vec<Span<'base>>,
+    pub expression: Box<ExpressionAst<'base>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -279,6 +290,7 @@ pub enum ExpressionAst<'base> {
     Ref(RefAst<'base>),
     Not(Box<ExpressionAst<'base>>),
     Ident(Span<'base>),
+    Path(Vec<Span<'base>>),
     FunctionCall(FunctionCallAst<'base>),
     Operation { left: Box<ExpressionAst<'base>>, operator: ExpressionOperatorType, right: Box<ExpressionAst<'base>> },
 }

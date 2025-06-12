@@ -1,19 +1,19 @@
 use std::fmt::{Display, Formatter};
 
-use nom::{character::complete::char, combinator::{cut, not}, error::context, multi::separated_list1, IResult, Parser};
+use nom::{character::complete::char, combinator::not, IResult, Parser};
 
-use crate::{ast::{ExpressionAst, RefAst}, nom_tools::{cleanup, NomSpan, Span}};
+use crate::{ast::{ExpressionAst, RefAst}, nom_tools::{cleanup, NomSpan}};
 
-use super::{ident, TimuParserError};
+use super::TimuParserError;
 
 impl RefAst<'_> {
     pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, RefAst<'_>, TimuParserError<'_>> {
         let (input, _) = cleanup((char('&'), not(char('&')))).parse(input)?;
-        let (input, names) = context("Reference name missing", cut(separated_list1(cleanup(char('.')), ident()))).parse(input)?;
+        let (input, ast) = ExpressionAst::parse(input)?;
         Ok((
             input,
             RefAst {
-                names: names.into_iter().map(Span::from).collect::<Vec<_>>(),
+                expression: ast.into(),
             },
         ))
     }
@@ -30,13 +30,7 @@ impl RefAst<'_> {
 impl Display for RefAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "&")?;
-
-        for (i, name) in self.names.iter().enumerate() {
-            if i > 0 {
-                write!(f, ".")?;
-            }
-            write!(f, "{}", name.text)?;
-        }
+        write!(f, "{}", self.expression)?;
         Ok(())
     }
 }

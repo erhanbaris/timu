@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use nom::{branch::alt, bytes::complete::tag, character::complete::char, combinator::{cut, not, value}, error::context, multi::many, sequence::{delimited, pair, preceded}, IResult, Parser};
+use nom::{branch::alt, bytes::complete::tag, character::complete::char, combinator::{cut, map, not, value}, error::context, multi::{many, separated_list1}, sequence::{delimited, pair, preceded}, IResult, Parser};
 
 use crate::{ast::{ExpressionAst, ExpressionOperatorType, FunctionCallAst, PrimitiveValue, RefAst}, nom_tools::{cleanup, NomSpan}};
 
@@ -119,6 +119,7 @@ impl ExpressionAst<'_> {
             FunctionCallAst::parse_for_expression,
             PrimitiveValue::parse_for_expression,
             Self::not,
+            Self::path_for_expression,
             Self::ident_for_expression,
             Self::parentheses,
         ))).parse(input)?;
@@ -137,6 +138,16 @@ impl ExpressionAst<'_> {
         Ok((
             input,
             ExpressionAst::Not(Box::new(expression)),
+        ))
+    }
+
+    fn path_for_expression(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
+        let (input, names) = map(separated_list1(char('.'), ident()), |items| items).parse(input)?;
+        let names = names.into_iter().map(|item| item.into()).collect::<Vec<_>>();
+        
+        Ok((
+            input,
+            ExpressionAst::Path(names),
         ))
     }
 
@@ -199,6 +210,16 @@ impl Display for ExpressionAst<'_> {
             },
             ExpressionAst::Not(expression) => {
                 write!(f, "!{}", expression)
+            },
+            ExpressionAst::Path(path) => {
+
+                for (i, segment) in path.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ".")?;
+                    }
+                    write!(f, "{}", segment.text)?;
+                }
+                Ok(())
             },
         }
     }
