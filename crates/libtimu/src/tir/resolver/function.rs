@@ -1,6 +1,7 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Range};
 
 use libtimu_macros::TimuError;
+use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{
@@ -209,13 +210,24 @@ impl<'base> FunctionDefinitionAst<'base> {
 
 }
 
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("This argument need to be defined in class function")]
+pub struct ThisNeedToDefineInClass {
+    #[label("`this` defined out of the class function")]
+    pub position: Range<usize>,
+
+    #[source_code]
+    pub code: SourceCode,
+}
+
 #[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionResolveError {
-    #[error("'this' needs to be first argument in function definition")]
+    #[error("`this` needs to be first argument in function definition")]
     ThisArgumentMustBeFirst(SpanInfo),
 
-    #[error("'this' need to defined in class function")]
-    ThisNeedToDefineInClass(SpanInfo),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ThisNeedToDefineInClass(Box<ThisNeedToDefineInClass>),
 }
 
 impl From<FunctionResolveError> for TirError {
@@ -226,7 +238,10 @@ impl From<FunctionResolveError> for TirError {
 
 impl<'base> FunctionResolveError {
     pub fn this_need_to_define_in_class(span: SpanInfo) -> TirError {
-        FunctionResolveError::ThisNeedToDefineInClass(span).into()
+        FunctionResolveError::ThisNeedToDefineInClass(ThisNeedToDefineInClass {
+            position: span.position.clone(),
+            code: span.file.clone().into(),
+        }.into()).into()
     }
 }
 
