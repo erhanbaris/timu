@@ -49,7 +49,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
         let mut fields = TimuHashMap::<Span<'_>, TypeLocation>::default();
         let mut base_interfaces = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
         
-        Self::resolve_interface(context, self, self, &mut fields, &mut base_interfaces, &module_ref, parent)?;
+        Self::resolve_interface(context, self, self, &mut fields, &mut base_interfaces, &module_ref, scope_location, parent)?;
 
         let signature = TypeSignature::new(TypeValue::Interface(InterfaceDefinition {
             name: self.name.clone(),
@@ -70,7 +70,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
 
 impl<'base> InterfaceDefinitionAst<'base> {
     #[allow(clippy::only_used_in_recursion)]
-    fn resolve_interface(context: &mut TirContext<'base>, resolve_interface: &InterfaceDefinitionAst<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut TimuHashMap<Span<'base>, TypeLocation>, base_interfaces: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, parent: Option<TypeLocation>) -> Result<(), TirError>  {
+    fn resolve_interface(context: &mut TirContext<'base>, resolve_interface: &InterfaceDefinitionAst<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut TimuHashMap<Span<'base>, TypeLocation>, base_interfaces: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, scope_location: ScopeLocation, parent: Option<TypeLocation>) -> Result<(), TirError>  {
         let interface_path = build_signature_path(context, interface.name.text, module);
 
         // Check if the interface is already defined
@@ -85,7 +85,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
         for field in interface.fields.iter() {
             match field {
                 InterfaceDefinitionFieldAst::Function(function) => {
-                    let signature = interface.resolve_function(context, module, function, parent)?;
+                    let signature = interface.resolve_function(context, module, scope_location, function, parent)?;
                     fields.validate_insert(function.name.clone(), signature, &function.name)?;
                 }
                 InterfaceDefinitionFieldAst::Field(field) => {
@@ -93,7 +93,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                         return Err(TirError::extra_accessibility_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.state.file.clone()));
                     }
 
-                    let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
+                    let field_type = get_object_location_or_resolve(context, &field.field_type, module, scope_location)?;
                     fields.validate_insert(field.name.clone(), field_type, &field.name)?;
                 }
             };
@@ -120,7 +120,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                         return Err(TirError::circular_reference(resolve_interface.name.to_range(), resolve_interface.name.state.file.clone()));
                     }
 
-                    Self::resolve_interface(context, resolve_interface, &base_interface, fields, base_interfaces, module, parent)?
+                    Self::resolve_interface(context, resolve_interface, &base_interface, fields, base_interfaces, module, scope_location, parent)?
                 },
                 _ => return Err(TirError::invalid_type(base_interface.to_range(), "only interface type is valid", base_interface.names.last().unwrap().state.file.clone()))
             };
@@ -129,7 +129,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
         Ok(())
     }
 
-    fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, interface_function: &InterfaceFunctionDefinitionAst<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError> {
+    fn resolve_function(&self, context: &mut TirContext<'base>, module: &ModuleRef<'base>, scope_location: ScopeLocation, interface_function: &InterfaceFunctionDefinitionAst<'base>, parent: Option<TypeLocation>) -> Result<TypeLocation, TirError> {
         simplelog::debug!("Resolving interface function: <u><b>{}</b></u>", self.name.text);
       
         let full_name: Cow<'base, str> = Cow::Owned(format!("{}::{}", self.name.text, interface_function.name.text));
@@ -158,7 +158,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
                 FunctionArgumentAst::Argument { field_type, .. } => (field_type.names_span.clone(), build_type_name(field_type)),
             };
 
-            let field_type = match try_resolve_signature(context, module, type_name.as_str())? {
+            let field_type = match try_resolve_signature(context, module, scope_location, type_name.as_str())? {
                 Some(field_type) => field_type,
                 None => return Err(TirError::type_not_found(context, type_name, range, file))
             };
@@ -177,7 +177,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
             });
         }
 
-        let return_type = get_object_location_or_resolve(context, &interface_function.return_type, module)?;
+        let return_type = get_object_location_or_resolve(context, &interface_function.return_type, module, scope_location)?;
 
         let signature = TypeSignature::new(
             TypeValue::InterfaceFunction(

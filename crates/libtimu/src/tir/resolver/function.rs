@@ -132,7 +132,7 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
 impl<'base> FunctionDefinitionAst<'base> {
     fn build_definition(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation, parent_scope: Option<ScopeLocation>, module: &ModuleRef<'base>, parent_type: Option<TypeLocation>, signature_path: SignaturePath<'base>) -> Result<FunctionDefinition<'base>, TirError> {
         let mut arguments = vec![];
-        let return_type = get_object_location_or_resolve(context, &self.return_type, module)?;
+        let return_type = get_object_location_or_resolve(context, &self.return_type, module, scope_location)?;
 
         /* Parse arguments */
         for (index, argument) in self.arguments.iter().enumerate() {
@@ -161,7 +161,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                     }
                 },
                 FunctionArgumentAst::Argument { name, field_type } => {
-                    let field_type = get_object_location_or_resolve(context, field_type, module)?;
+                    let field_type = get_object_location_or_resolve(context, field_type, module, scope_location)?;
                     let scope = context.get_mut_scope(scope_location).unwrap();
 
                     scope.add_variable(name.clone(), field_type)?;
@@ -179,7 +179,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                 FunctionArgumentAst::Argument { field_type, .. } => (field_type.names_span.clone(), Cow::Owned(build_type_name(field_type))),
             };
 
-            let field_type = match try_resolve_signature(context, module, type_name.as_ref())? {
+            let field_type = match try_resolve_signature(context, module, scope_location, type_name.as_ref())? {
                 Some(field_type) => field_type,
                 None => return Err(TirError::type_not_found(context, type_name.to_string(), range, file))
             };
@@ -220,6 +220,16 @@ pub struct ThisNeedToDefineInClass {
     pub code: SourceCode,
 }
 
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("Variable not found")]
+pub struct VariableNotFound {
+    #[label("Maybe not defined")]
+    pub position: Range<usize>,
+
+    #[source_code]
+    pub code: SourceCode,
+}
+
 #[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum FunctionResolveError {
     #[error("`this` needs to be first argument in function definition")]
@@ -228,6 +238,10 @@ pub enum FunctionResolveError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     ThisNeedToDefineInClass(Box<ThisNeedToDefineInClass>),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    VariableNotFound(Box<VariableNotFound>),
 }
 
 impl From<FunctionResolveError> for TirError {
@@ -239,6 +253,12 @@ impl From<FunctionResolveError> for TirError {
 impl<'base> FunctionResolveError {
     pub fn this_need_to_define_in_class(span: SpanInfo) -> TirError {
         FunctionResolveError::ThisNeedToDefineInClass(ThisNeedToDefineInClass {
+            position: span.position.clone(),
+            code: span.file.clone().into(),
+        }.into()).into()
+    }
+    pub fn variable_not_found(span: SpanInfo) -> TirError {
+        FunctionResolveError::VariableNotFound(VariableNotFound {
             position: span.position.clone(),
             code: span.file.clone().into(),
         }.into()).into()

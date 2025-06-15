@@ -71,12 +71,14 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             debug!("Searching module <u><b>{}</b></u>. Is missing: {}", full_module_path, is_module_missing);
 
             if is_module_missing {
+                let next_scope_location = context.get_next_scope_location();
                 let sub_module = match total_item == index + 1 {
-                    true => Module::new(name.clone().into(), full_module_path.clone().into(),file.clone(), ast.clone()),
-                    false => Module::phantom(name.clone().into(), full_module_path.clone().into(),file.clone()),
+                    true => Module::new(name.clone().into(), full_module_path.clone().into(),file.clone(), ast.clone(), next_scope_location),
+                    false => Module::phantom(name.clone().into(), full_module_path.clone().into(),file.clone(), next_scope_location),
                 };
 
-
+                // Create new scope for module
+                context.create_scope(full_module_path.clone().into(), sub_module.get_ref());
                 let sub_module_ref = sub_module.get_ref();
                 build_module_signature(context, sub_module)?;
                 
@@ -93,6 +95,7 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             }
         }
     } else {
+        let scope_location = context.get_next_scope_location();
         let module = Module {
             name: ast.file.path()[ast.file.path().len() - 1].clone().into(),
             file: ast.file.clone(),
@@ -102,7 +105,12 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
             types: IndexMap::new(),
             ast: Some(ast.clone()),
             modules: Default::default(),
+            scope_location
         };
+
+        // Create new scope for module
+        context.create_scope(ast.file.path().join(".").into(), module.get_ref());
+        
         debug!("Adding module to context: <u><b>{}</b></u>", module.path);
         build_module_signature(context, module)?;
     }

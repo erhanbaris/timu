@@ -15,8 +15,6 @@ pub struct TirContext<'base> {
     pub types: TypeSignatureHolder<'base>,
     pub scopes: Vec<Scope<'base>>,
     pub types_scope: IndexMap<Cow<'base, str>, ScopeLocation>,
-    //ast_scope: IndexMap<AstIndex, ScopeLocation>,
-    //ast_name: IndexMap<AstIndex, AstNameInfo<'base>>,
     pub ast_type: IndexMap<AstIndex, TypeLocation>,
     pub tmp_type_indexer: AtomicUsize,
     pub errors: Vec<TirError>,
@@ -59,10 +57,11 @@ impl<'base> TirContext<'base> {
         signature.resolve(self, scope_location)
     }
 
-    pub fn resolve_from_location(&mut self, signature_location: AstSignatureLocation, module_ref: &ModuleRef<'base>) -> Result<TypeLocation, TirError> {
+    pub fn resolve_from_location(&mut self, signature_location: AstSignatureLocation, module_ref: &ModuleRef<'base>, parent_scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         let signature = self.ast_signatures.get_from_location(signature_location).map(|signature| signature.value.clone()).unwrap();
         let type_name = format!("{}.{}", module_ref.as_ref(), signature.name()); // todo: maybe it will not work with class function
-        let scope_location = self.create_scope(type_name.into(), module_ref.clone());
+        let type_location = self.types.location(&type_name);
+        let scope_location = self.create_child_scope(type_name.into(), parent_scope_location, type_location);
         self.resolve(&signature, scope_location)
     }
 
@@ -79,13 +78,22 @@ impl<'base> TirContext<'base> {
         scope_location
     }
 
+    pub fn get_next_scope_location(&self) -> ScopeLocation {
+        ScopeLocation(self.scopes.len())
+    }
+
     pub fn create_scope(&mut self, type_info: Cow<'base, str>, module_ref: ModuleRef<'base>) -> ScopeLocation {
-        self.inner_create_scope(type_info, module_ref, None, None, None)
+        let scope_location = self.inner_create_scope(type_info.clone(), module_ref, None, None, None);
+        debug!("<on-yellow>New scope</>: {}(Parent) [{}]", scope_location.0, type_info);
+        scope_location
     }
 
     pub fn create_child_scope(&mut self, type_info: Cow<'base, str>, parent_scope: ScopeLocation, current_type: Option<TypeLocation>) -> ScopeLocation {
+        let tmp_parent_scope: ScopeLocation = parent_scope;
         let parent_scope = self.get_scope(parent_scope).expect("Parent scope not found, it is a bug");
-        self.inner_create_scope(type_info, parent_scope.module_ref.clone(), Some(parent_scope.location), Some(parent_scope.current_type), current_type)
+        let scope_location = self.inner_create_scope(type_info.clone(), parent_scope.module_ref.clone(), Some(parent_scope.location), Some(parent_scope.current_type), current_type);
+        debug!("<on-yellow>New scope</>: {}(Parent) -> {}(Child) [{}]", tmp_parent_scope.0, scope_location.0, type_info);
+        scope_location
     }
 
     pub fn get_scope(&self, key: ScopeLocation) -> Option<&Scope<'base>> {

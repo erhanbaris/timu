@@ -123,7 +123,7 @@ mod tests {
     use std::rc::Rc;
 
     use crate::{
-        ast::FileAst, file::SourceFile, nom_tools::State, process_code, tir::ast_signature::{build_module_signature, AstSignatureValue}
+        ast::FileAst, file::SourceFile, nom_tools::State, process_code, tir::{ast_signature::{build_module_signature, AstSignatureValue}, scope::ScopeLocation}
     };
 
     use super::{Module, TirError};
@@ -143,6 +143,7 @@ mod tests {
                 file: source_file.clone(),
                 statements: vec![],
             })),
+            scope_location: ScopeLocation::UNDEFINED
         };
 
         let module2 = Module {
@@ -157,6 +158,7 @@ mod tests {
                 file: source_file.clone(),
                 statements: vec![],
             })),
+            scope_location: ScopeLocation::UNDEFINED
         };
 
         let module3 = Module {
@@ -171,6 +173,7 @@ mod tests {
                 file: source_file.clone(),
                 statements: vec![],
             })),
+            scope_location: ScopeLocation::UNDEFINED
         };
 
         let mut context = super::TirContext::default();

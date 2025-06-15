@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use libtimu_macros::TimuError;
+use simplelog::debug;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{map::TimuHashMap, nom_tools::{Span, SpanInfo}, tir::resolver::{BuildFullNameLocater, ResolveAst}};
@@ -50,6 +51,7 @@ impl<'base> Scope<'base> {
     }
 
     pub fn get_variable<T: AsRef<str>>(&self, context: &TirContext<'base>, name: T) -> Option<TypeLocation> {
+        debug!("get_variable: name: {}, scope: {}", name.as_ref(), self.location.0);
         if let Some(variable) = self.variables.get(name.as_ref()) {
             return Some(*variable);
         }
@@ -93,7 +95,7 @@ impl<'base> Scope<'base> {
     }
 
     pub fn add_variable(&mut self, name: Span<'base>, location: TypeLocation) -> Result<(), TirError> {
-        simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>", name.text, location);
+        simplelog::debug!("Adding variable: <u><b><on-green>{}</></b></u>, location <u><b>{:?}</b></u>, scope: {}", name.text, location, self.location.0);
         self.variables.validate_insert((*name.text).into(), location, &name)?;
         Ok(())
     }

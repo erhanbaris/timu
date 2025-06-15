@@ -6,7 +6,7 @@ use simplelog::debug;
 use statement::FunctionCallError;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::TypeNameAst, nom_tools::ToRange};
+use crate::{ast::{FileStatementAst, TypeNameAst}, nom_tools::ToRange};
 
 use super::{ast_signature::AstSignatureValue, context::TirContext, error::TirError, module::ModuleRef, scope::{ScopeError, ScopeLocation}, signature::{LocationTrait, SignaturePath}};
 
@@ -104,9 +104,9 @@ fn build_type_name(type_name: &TypeNameAst) -> String {
     type_name.names.iter().map(|path| path.text).collect::<Vec<&str>>().join(".")
 }
 
-fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>) -> Result<TypeLocation, TirError> {
+fn get_object_location_or_resolve<'base>(context: &mut TirContext<'base>, type_name: &TypeNameAst<'base>, module: &ModuleRef<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
     let type_name_str = build_type_name(type_name);
-    let field_type = match try_resolve_signature(context, module, type_name_str.as_str())? {
+    let field_type = match try_resolve_signature(context, module, scope_location, type_name_str.as_str())? {
         Some(field_type) => field_type,
         None => {
             return Err(TirError::type_not_found(context, type_name.to_string(), type_name.to_range(), type_name.names.last().unwrap().state.file.clone()));
@@ -141,7 +141,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<
         execute_vector_resolve(context, module_ref.clone(), &interfaces)?;
 
         simplelog::debug!(" - Resolving all extends");
-        execute_vector_resolve(context, module_ref.clone(), &extends)?;
+        execute_extend_vector_resolve(context, module_ref.clone(), &extends)?;
 
         simplelog::debug!(" - Resolving all classes");
         execute_vector_resolve(context, module_ref.clone(), &classes)?;
@@ -157,7 +157,7 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<
         execute_vector_finish(context, module_ref.clone(), interfaces)?;
 
         simplelog::debug!(" - Finishing all extends");
-        execute_vector_finish(context, module_ref.clone(), extends)?;
+        // execute_vector_finish(context, module_ref.clone(), extends)?;
 
         simplelog::debug!(" - Finishing all classes");
         execute_vector_finish(context, module_ref.clone(), classes)?;
@@ -172,6 +172,31 @@ pub fn build_file<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<
 fn execute_vector_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, asts: &Vec<&T>) -> Result<(), TirError> {
     for item in asts.iter() {
         execute_resolve(context, module_ref.clone(), *item)?;
+    }
+    Ok(())
+}
+
+fn execute_extend_vector_resolve<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, asts: &Vec<&FileStatementAst<'base>>) -> Result<(), TirError> {
+    for item in asts.iter() {
+        let extend = match item {
+            FileStatementAst::Extend(extend) => extend,
+            _ => panic!("It should be FileStatementAst::Extend'")
+        };
+        
+        /* Lets resolve class before resolving extend
+           Otherwise it cannot find class's scope location */
+        let module_scope_location = module_ref.upgrade(context).unwrap().scope_location;
+        get_object_location_or_resolve(context, &extend.name, &module_ref, module_scope_location)?;
+
+        let class_name = extend.name.names.clone().into_iter().map(|name| name.text).collect::<Vec<_>>().join(".");
+        let class_path = build_signature_path(context, &class_name, &module_ref);
+
+        let class_scope_location = context.types_scope.get(class_path.get_raw_path().into()).unwrap();
+        
+
+        if module_ref.upgrade(context).unwrap().types.get(extend.name().as_ref()).is_none() {
+            item.resolve(context, *class_scope_location)?;
+        }
     }
     Ok(())
 }
@@ -221,7 +246,7 @@ fn find_module<'base, K: AsRef<str> + ?Sized>(context: &mut TirContext<'base>, m
 }
 
 
-fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError> {
+fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, scope_location: ScopeLocation, key: K) -> Result<Option<TypeLocation>, TirError> {
     // Check if the key is a module name
     let mut parts = key.as_ref().split('.').peekable();
     let module_name = match parts.next() {
@@ -235,7 +260,7 @@ fn try_resolve_moduled_signature<'base, K: AsRef<str>>(context: &mut TirContext<
     };
 
     let signature_name = parts.collect::<Vec<_>>().join(".");
-    try_resolve_signature(context, &found_module, signature_name)
+    try_resolve_signature(context, &found_module, scope_location, signature_name)
 }
 
 pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirContext<'base>, module_ref: &ModuleRef<'base>, key: K) -> Result<Option<TypeLocation>, TirError> {
@@ -273,7 +298,7 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
         return Ok(Some(*location));
     }
 
-    Ok(Some(context.resolve_from_location(signature_location, &module.get_ref())?))
+    Ok(Some(context.resolve_from_location(signature_location, &module.get_ref(), module.scope_location)?))
 }
 
 pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: SignaturePath<'base>) -> Option<AstSignatureLocation> {
@@ -290,11 +315,11 @@ pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &Modul
 }
 
 pub fn try_resolve_signature<'base, K: AsRef<str>>(
-    context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: K,
+    context: &mut TirContext<'base>, module: &ModuleRef<'base>, scope_location: ScopeLocation, key: K,
 ) -> Result<Option<TypeLocation>, TirError> {
     // Check if the key has a module name
     match key.as_ref().contains('.') {
-        true => try_resolve_moduled_signature(context, module, key),
+        true => try_resolve_moduled_signature(context, module, scope_location, key),
         false => try_resolve_direct_signature(context, module, key)
     }
 }

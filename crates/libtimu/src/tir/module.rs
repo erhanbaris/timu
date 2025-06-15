@@ -2,7 +2,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use indexmap::IndexMap;
 
-use crate::{ast::FileAst, file::SourceFile, map::TimuHashMap, tir::object_signature::GetItem};
+use crate::{ast::FileAst, file::SourceFile, map::TimuHashMap, tir::{object_signature::GetItem, scope::ScopeLocation}};
 
 use super::{resolver::{AstSignatureLocation, TypeLocation}, signature::SignaturePath, TirContext};
 
@@ -17,10 +17,11 @@ pub struct Module<'base> {
     pub types: IndexMap<SignaturePath<'base>, TypeLocation>,
     pub ast: Option<Rc<FileAst<'base>>>,
     pub modules: IndexMap<Cow<'base, str>, ModuleRef<'base>>,
+    pub scope_location: ScopeLocation
 }
 
 impl<'base> Module<'base> {
-    pub fn new(name: Cow<'base, str>, path: Cow<'base, str>, file: SourceFile, ast: Rc<FileAst<'base>>) -> Self {
+    pub fn new(name: Cow<'base, str>, path: Cow<'base, str>, file: SourceFile, ast: Rc<FileAst<'base>>, scope_location: ScopeLocation) -> Self {
         Self {
             name,
             path,
@@ -30,10 +31,11 @@ impl<'base> Module<'base> {
             types: IndexMap::new(),
             ast: Some(ast),
             modules: IndexMap::new(),
+            scope_location,
         }
     }
 
-    pub fn phantom(name: Cow<'base, str>, path: Cow<'base, str>, file: SourceFile) -> Self {
+    pub fn phantom(name: Cow<'base, str>, path: Cow<'base, str>, file: SourceFile, scope_location: ScopeLocation) -> Self {
         Self {
             name,
             path,
@@ -43,6 +45,7 @@ impl<'base> Module<'base> {
             types: IndexMap::new(),
             ast: None,
             modules: IndexMap::new(),
+            scope_location,
         }
     }
 

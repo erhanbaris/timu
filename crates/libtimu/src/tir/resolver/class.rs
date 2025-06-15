@@ -52,7 +52,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
         for field in self.fields.iter() {
             match field {
                 ClassDefinitionFieldAst::Field(field) => {
-                    let field_type = get_object_location_or_resolve(context, &field.field_type, &module_ref)?;
+                    let field_type = get_object_location_or_resolve(context, &field.field_type, &module_ref, scope_location)?;
 
                     fields.validate_insert((*field.name.text).into(), field_type, &field.name)?;
                     context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(field.name.clone(), field_type).unwrap();
@@ -86,6 +86,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
             if let ClassDefinitionFieldAst::Function(function) = field {
                 let module_ref = context.get_scope(scope).unwrap().module_ref.clone();
                 let full_name = format!("{}.{}", module_ref.as_cow(), function.name());
+
                 let child_scope_location = context.create_child_scope(full_name.clone().into(), scope, None);
                 let function_location = context.types.location(full_name.as_ref()).unwrap();
                 let child_scope = context.get_mut_scope(child_scope_location).expect("Child scope not found, it is a bug");

@@ -17,7 +17,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         let mut extend_fields_for_track = IndexMap::<Cow<'_, str>, Span<'base>>::default();
 
         let module_ref = context.get_scope(scope_location).unwrap().module_ref.clone();
-        let class_location = get_object_location_or_resolve(context, &self.name, &module_ref)?;
+        let class_location = get_object_location_or_resolve(context, &self.name, &module_ref, scope_location)?;
 
         let class_name = context.types.get_from_location(class_location).unwrap().value.get_name();
         let class_name = format!("{}.{}", module_ref.as_ref(), class_name);
@@ -88,7 +88,7 @@ impl<'base> ExtendDefinitionAst<'base> {
                         return Err(TirError::extra_accessibility_identifier(field.is_public.as_ref().unwrap().to_range(), field.name.state.file.clone()));
                     }
 
-                    let field_type = get_object_location_or_resolve(context, &field.field_type, module)?;
+                    let field_type = get_object_location_or_resolve(context, &field.field_type, module, class_scope_location)?;
                     extend_fields.validate_insert((field.name.text).into(), (field.name.clone(), field_type), &field.name)?;
                     extend_fields_for_track.insert((field.name.text).into(), field.name.clone());
                 }
@@ -98,14 +98,14 @@ impl<'base> ExtendDefinitionAst<'base> {
         Ok(())
     }
     
-    fn resolve_interfaces(&self, context: &mut TirContext<'base>, class_scope: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, Span<'base>>) -> Result<(), TirError> {
+    fn resolve_interfaces(&self, context: &mut TirContext<'base>, class_scope_location: ScopeLocation, module: &ModuleRef<'base>, extend_fields: &TimuHashMap<Cow<'base, str>, (Span<'base>, TypeLocation)>, extend_fields_for_track: &mut IndexMap<Cow<'base, str>, Span<'base>>) -> Result<(), TirError> {
         let mut errors = Vec::new();
         let mut extends = HashSet::new();
 
         for interface_ast in self.base_interfaces.iter() {
             // Find the inferface signature
             let type_name = build_type_name(interface_ast);
-            let interface_signature = try_resolve_signature(context, module, type_name.as_str())?;
+            let interface_signature = try_resolve_signature(context, module, class_scope_location, type_name.as_str())?;
             let interface_signature = match interface_signature {
                 Some(interface_signature) => interface_signature,
                 None => {
@@ -166,7 +166,7 @@ impl<'base> ExtendDefinitionAst<'base> {
         }
 
         // Copy all extend informations to class
-        let class_type_location = context.get_scope(class_scope).unwrap().current_type;
+        let class_type_location = context.get_scope(class_scope_location).unwrap().current_type;
         let class_signature = context.types.get_mut_from_location(class_type_location).unwrap();
 
         let class = match class_signature.value.as_mut() {
