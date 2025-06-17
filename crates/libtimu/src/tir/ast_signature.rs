@@ -2,6 +2,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use indexmap::IndexMap;
 use simplelog::debug;
+use strum_macros::EnumDiscriminants;
 
 use crate::{
     ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst}, map::TimuHashMap, nom_tools::ToRange, tir::{TypeSignature, TypeValue}
@@ -11,7 +12,8 @@ use super::{
     context::TirContext, module::{Module, ModuleRef}, resolver::{AstSignatureLocation, ResolveAst, TypeLocation}, scope::ScopeLocation, signature::{Signature, SignaturePath}, AstSignature, TirError
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, EnumDiscriminants)]
+#[strum_discriminants(vis(pub))]
 pub enum AstSignatureValue<'base> {
     Module(#[allow(dead_code)] ModuleRef<'base>),
     Class(#[allow(dead_code)] Rc<ClassDefinitionAst<'base>>),

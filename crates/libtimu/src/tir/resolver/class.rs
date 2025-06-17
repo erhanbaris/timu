@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::HashSet, rc::Rc};
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::{GetItem, TypeValue}, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::{GetItem, TypeValue, TypeValueDiscriminants}, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{TypeLocation, ResolveAst};
@@ -42,7 +42,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), None);
         let module_ref = context.get_scope(scope_location).expect("Scope not found").module_ref.clone();
 
-        let (signature_path, class_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
+        let (signature_path, class_location) = context.reserve_object_location(self.name(), TypeValueDiscriminants::Class, SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
         let mut fields = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
 
         context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").set_current_type(class_location);
@@ -60,11 +60,15 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
                 ClassDefinitionFieldAst::Function(function) => {
                     let type_name = function.build_full_name(context, BuildFullNameLocater::Module(&module_ref), None);
 
-                    let child_scope_location = context.create_child_scope(type_name.into(), scope_location, None);
-                    let type_location = function.resolve(context, child_scope_location)?;
-                    fields.validate_insert((*function.name.text).into(), type_location, &function.name)?;
-                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(function.name.clone(), type_location).unwrap();
-                    function_signatures.push((type_location, function));
+                    let function_scope_location = context.create_child_scope(type_name.into(), scope_location, None);
+                    let function_type_location = function.resolve(context, function_scope_location)?;
+                    
+                    // Set scope type information
+                    context.get_mut_scope(function_scope_location).expect("Scope not found, it is a bug").set_current_type(function_type_location);
+
+                    fields.validate_insert((*function.name.text).into(), function_type_location, &function.name)?;
+                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(function.name.clone(), function_type_location).unwrap();
+                    function_signatures.push((function_type_location, function));
                 }
             };
         }
@@ -86,13 +90,8 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
             if let ClassDefinitionFieldAst::Function(function) = field {
                 let module_ref = context.get_scope(scope).unwrap().module_ref.clone();
                 let full_name = format!("{}.{}", module_ref.as_cow(), function.name());
-
-                let child_scope_location = context.create_child_scope(full_name.clone().into(), scope, None);
-                let function_location = context.types.location(full_name.as_ref()).unwrap();
-                let child_scope = context.get_mut_scope(child_scope_location).expect("Child scope not found, it is a bug");
-                child_scope.set_current_type(function_location);
-
-                function.finish(context, child_scope_location)?;
+                let search_scope = context.types_scope.get(full_name.as_str()).unwrap();               
+                function.finish(context, *search_scope)?;
             }
         }
         

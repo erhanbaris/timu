@@ -9,7 +9,7 @@ use resolver::{build_file, AstSignatureLocation, ObjectLocation, ResolveAst, Typ
 use scope::ScopeLocation;
 use signature::{Signature, SignatureHolder, SignaturePath};
 
-use crate::{ast::{FileAst, FileStatementAst}, file::SourceFile};
+use crate::{ast::{FileAst, FileStatementAst}, file::SourceFile, tir::{ast_signature::AstSignatureValueDiscriminants, object_signature::TypeValueDiscriminants}};
 
 mod ast_signature;
 mod context;
@@ -23,10 +23,10 @@ mod scope;
 
 
 pub type AstSignature<'base> = Signature<AstSignatureValue<'base>, ModuleRef<'base>>;
-pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, AstSignatureLocation, ModuleRef<'base>>;
+pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, AstSignatureValueDiscriminants, AstSignatureLocation, ModuleRef<'base>>;
 
 pub type TypeSignature<'base> = Signature<TypeValue<'base>, TypeLocation>;
-pub type TypeSignatureHolder<'base> = SignatureHolder<'base, TypeValue<'base>, TypeLocation, TypeLocation>;
+pub type TypeSignatureHolder<'base> = SignatureHolder<'base, TypeValue<'base>, TypeValueDiscriminants, TypeLocation, TypeLocation>;
 
 pub static BOOL_FALSE_LOCATION: ObjectLocation = ObjectLocation(0);
 pub static BOOL_TRUE_LOCATION: ObjectLocation = ObjectLocation(1);

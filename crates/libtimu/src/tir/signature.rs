@@ -46,27 +46,29 @@ where
 }
 
 #[derive(Debug)]
-pub enum SignatureInfo<'base, T: Debug + Clone + AsRef<T> + AsMut<T>, E: Debug + Clone = ()> {
-    Reserved(SignatureReservation<'base>),
+pub enum SignatureInfo<'base, T: Debug + Clone + AsRef<T> + AsMut<T>, U: Clone + Debug, E: Debug + Clone = ()> {
+    Reserved(SignatureReservation<'base, U>),
     Value(Signature<T, E>),
 }
 
 #[derive(Debug, Clone)]
-pub struct SignatureReservation<'base> {
+pub struct SignatureReservation<'base, U: Clone + Debug> {
     pub name: Cow<'base, str>,
     pub file: SourceFile,
     pub position: Range<usize>,
+    pub type_shadow: U
 }
 
 #[derive(Debug)]
-pub struct SignatureHolder<'base, T: Debug + Clone + PartialEq + AsRef<T> + AsMut<T>, L: LocationTrait, E: Debug + Clone = ()> {
+pub struct SignatureHolder<'base, T: Debug + Clone + PartialEq + AsRef<T> + AsMut<T>, U: Clone + Debug, L: LocationTrait, E: Debug + Clone = ()> {
     locations: IndexMap<SignaturePath<'base>, usize>,
-    signatures: Vec<Option<SignatureInfo<'base, T, E>>>,
+    signatures: Vec<Option<SignatureInfo<'base, T, U, E>>>,
     _marker: std::marker::PhantomData<L>,
 }
 
-impl<T, E, L> Default for SignatureHolder<'_, T, L, E> where
+impl<T, U, E, L> Default for SignatureHolder<'_, T, U, L, E> where
     T: Debug + Clone + PartialEq + AsRef<T> + AsMut<T>,
+    U: Clone + Debug,
     E: Debug + Clone, 
     L: LocationTrait {
     fn default() -> Self {
@@ -74,9 +76,10 @@ impl<T, E, L> Default for SignatureHolder<'_, T, L, E> where
     }
 }
 
-impl<'base, T, E, L> SignatureHolder<'base, T, L, E>
+impl<'base, T, U, E, L> SignatureHolder<'base, T, U, L, E>
 where
     T: Debug + Clone + PartialEq + AsRef<T> + AsMut<T>,
+    U: Clone + Debug,
     E: Debug + Clone,
     L: LocationTrait
 {
@@ -88,7 +91,7 @@ where
         }
     }
 
-    fn inner_add(&mut self, name: SignaturePath<'base>, value: SignatureInfo<'base, T, E>) -> Result<L, TirError> {
+    fn inner_add(&mut self, name: SignaturePath<'base>, value: SignatureInfo<'base, T, U, E>) -> Result<L, TirError> {
         self.signatures.push(Some(value));
         let index = self.signatures.len() - 1;
         match self.locations.insert(name, index) {
@@ -109,9 +112,9 @@ where
         }
     }
 
-    pub fn reserve(&mut self, path: SignaturePath<'base>, name: Cow<'base, str>, file: SourceFile, position: Range<usize>) -> Result<L, TirError> {
+    pub fn reserve(&mut self, path: SignaturePath<'base>, name: Cow<'base, str>, type_shadow: U, file: SourceFile, position: Range<usize>) -> Result<L, TirError> {
         debug!("Reserve signature: {}", name.as_ref());
-        self.inner_add(path, SignatureInfo::Reserved(SignatureReservation { name, file, position }))
+        self.inner_add(path, SignatureInfo::Reserved(SignatureReservation { name, file, position, type_shadow }))
     }
 
     pub fn update(&mut self, name: SignaturePath<'base>, signature: Signature<T, E>) -> L {
@@ -153,6 +156,20 @@ where
         }
     }
 
+    pub fn get_reserve_from_location(&self, location: L) -> Option<&SignatureReservation<'_, U>> {
+        match self.signatures.get(location.get()) {
+            Some(Some(SignatureInfo::Reserved(reserve))) => Some(reserve),
+            _ => None,
+        }
+    }
+
+    pub fn from_location(&self, location: L) -> Option<&SignatureInfo<'_, T, U, E>> {
+        match self.signatures.get(location.get()) {
+            Some(Some(value)) => Some(value),
+            _ => None,
+        }
+    }
+
     pub fn take_from_location(&mut self, location: L) -> Option<Signature<T, E>> {
         self.signatures.get(location.get())?;
 
@@ -162,7 +179,7 @@ where
         }
     }
 
-    pub fn get_signature_from_location(&self, location: L) -> Option<&SignatureInfo<'base, T, E>> {
+    pub fn get_signature_from_location(&self, location: L) -> Option<&SignatureInfo<'base, T, U, E>> {
         match self.signatures.get(location.get()) {
             Some(Some(inner)) => Some(inner),
             _ => None,

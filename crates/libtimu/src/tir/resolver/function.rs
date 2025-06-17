@@ -5,7 +5,7 @@ use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{
-    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue}, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue, TypeValueDiscriminants}, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
 };
 
 use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
@@ -42,7 +42,7 @@ impl GetItem for FunctionDefinition<'_> {
 pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>) -> Result<TypeLocation, TirError> {
     match parent {
         Some(parent) => Ok(*parent),
-        None => Err(FunctionResolveError::this_need_to_define_in_class(this.into()).into()),
+        None => Err(FunctionResolveError::this_need_to_define_in_class(this.into())),
     }
 }
 
@@ -52,9 +52,36 @@ pub fn find_class_location<'base>(context: &TirContext<'base>, scope_location: S
 
     loop {
         let scope =  context.get_scope(scope_location).unwrap();
+        if scope.current_type == TypeLocation::UNDEFINED && scope.parent_scope.is_some() {
+            scope_location = scope.parent_scope.unwrap();
+            continue;
+        }
+
         match context.types.get_from_location(scope.current_type).cloned().map(|signature| signature.value) {
             // This scope belong to class so return the type location
             Some(TypeValue::Class(_)) => return Some(scope.current_type),
+
+            // We are still in some of the child scope, continue to search
+            Some(_) => match scope.parent_scope {
+
+                // There is parent scope, lets continue to search
+                Some(parent_scope) => {
+                    scope_location = parent_scope;
+                    continue;
+                },
+
+                // End of the search, not found
+                None => ()
+            },
+
+            // There is no more scope to search, so, we can stop
+            None => ()
+        };
+
+        // The type not saved yet, lets check the reservations
+        match context.types.get_reserve_from_location(scope.current_type).map(|reservation| reservation.type_shadow) {
+            // This scope belong to class so return the type location
+            Some(TypeValueDiscriminants::Class) => return Some(scope.current_type),
 
             // We are still in some of the child scope, continue to search
             Some(_) => match scope.parent_scope {
@@ -81,7 +108,7 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
             let scope = context.get_scope(scope_location).expect("Scope not found, it is a bug");
             (scope.module_ref.clone(), scope.parent_type, scope.parent_scope)
         };
-        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
+        let (signature_path, signature_location) = context.reserve_object_location(self.name(), TypeValueDiscriminants::Function, SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
 
         let definition = self.build_definition(context, scope_location, parent_scope, &module_ref, parent_type, signature_path.clone())?;
 
@@ -138,19 +165,19 @@ impl<'base> FunctionDefinitionAst<'base> {
         for (index, argument) in self.arguments.iter().enumerate() {
             let (argument_name, range, file) = match argument {
                 FunctionArgumentAst::This(this) => {
-                    let parent_type = match parent_type {
-                        Some(parent_type) => parent_type,
-                        None => return Err(FunctionResolveError::this_need_to_define_in_class(this.into()).into())
+                    let class_type_location = match find_class_location(context, scope_location) {
+                        Some(location) => location,
+                        None => return Err(FunctionResolveError::this_need_to_define_in_class(this.into()))
                     };
 
                     let parent_scope = context.get_mut_scope(parent_scope.unwrap()).unwrap();
-                    parent_scope.add_variable(this.clone(), parent_type)?;
+                    parent_scope.add_variable(this.clone(), class_type_location)?;
 
                     if index != 0 {
-                        return Err(FunctionResolveError::this_need_to_define_in_class(this.into()).into());
+                        return Err(FunctionResolveError::this_need_to_define_in_class(this.into()));
                     }
                     
-                    match context.types.get_signature_from_location(unwrap_for_this(&Some(parent_type), this)?).unwrap() {
+                    match context.types.get_signature_from_location(unwrap_for_this(&Some(class_type_location), this)?).unwrap() {
                         SignatureInfo::Reserved(reservation) => {
                             let reservation = reservation.clone();
                             (reservation.name, reservation.position, reservation.file)
@@ -250,7 +277,7 @@ impl From<FunctionResolveError> for TirError {
     }
 }
 
-impl<'base> FunctionResolveError {
+impl FunctionResolveError {
     pub fn this_need_to_define_in_class(span: SpanInfo) -> TirError {
         FunctionResolveError::ThisNeedToDefineInClass(ThisNeedToDefineInClass {
             position: span.position.clone(),

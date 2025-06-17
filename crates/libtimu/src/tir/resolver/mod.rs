@@ -191,7 +191,7 @@ fn execute_extend_vector_resolve<'base>(context: &mut TirContext<'base>, module_
         let class_name = extend.name.names.clone().into_iter().map(|name| name.text).collect::<Vec<_>>().join(".");
         let class_path = build_signature_path(context, &class_name, &module_ref);
 
-        let class_scope_location = context.types_scope.get(class_path.get_raw_path().into()).unwrap();
+        let class_scope_location = context.types_scope.get(class_path.get_raw_path()).unwrap();
         
 
         if module_ref.upgrade(context).unwrap().types.get(extend.name().as_ref()).is_none() {

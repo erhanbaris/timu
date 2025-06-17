@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{borrow::Cow, fmt::Debug};
 
 use strum_macros::{EnumDiscriminants, EnumIs};
 
@@ -49,6 +49,9 @@ pub enum TypeValue<'base> {
     
     #[allow(dead_code)]
     InterfaceFunction(InterfaceFunctionDefinition<'base>),
+
+    #[allow(dead_code)]
+    Reference(Box<TypeValue<'base>>),
 }
 
 impl<'base> AsRef<TypeValue<'base>> for TypeValue<'base> {
@@ -76,6 +79,7 @@ impl GetItem for TypeValue<'_> {
             TypeValue::Module(module_ref) => module_ref.get_item_location(context, path),
             TypeValue::Interface(interface_definition) => interface_definition.get_item_location(context, path),
             TypeValue::InterfaceFunction(interface_function_definition) => interface_function_definition.get_item_location(context, path),
+            TypeValue::Reference(reference) => reference.get_item_location(context, path),
         }
     }
 }
@@ -95,28 +99,29 @@ impl TypeValue<'_> {
         }
     }
 
-    pub fn get_name(&self) -> &str {
+    pub fn get_name(&self) -> Cow<'_, str> {
         match self {
             TypeValue::PrimitiveType(primitive) => match primitive {
-                PrimitiveType::String => "String",
-                PrimitiveType::Bool => "Bool",
-                PrimitiveType::I8 => "I8",
-                PrimitiveType::U8 => "U8",
-                PrimitiveType::I16 => "I16",
-                PrimitiveType::U16 => "U16",
-                PrimitiveType::I32 => "I32",
-                PrimitiveType::U32 => "U32",
-                PrimitiveType::I64 => "I64",
-                PrimitiveType::U64 => "U64",
-                PrimitiveType::Float => "Float",
-                PrimitiveType::Double => "Double",
-                PrimitiveType::Void => "Void",
+                PrimitiveType::String => "String".into(),
+                PrimitiveType::Bool => "Bool".into(),
+                PrimitiveType::I8 => "I8".into(),
+                PrimitiveType::U8 => "U8".into(),
+                PrimitiveType::I16 => "I16".into(),
+                PrimitiveType::U16 => "U16".into(),
+                PrimitiveType::I32 => "I32".into(),
+                PrimitiveType::U32 => "U32".into(),
+                PrimitiveType::I64 => "I64".into(),
+                PrimitiveType::U64 => "U64".into(),
+                PrimitiveType::Float => "Float".into(),
+                PrimitiveType::Double => "Double".into(),
+                PrimitiveType::Void => "Void".into(),
             },
-            TypeValue::Function(function) => function.name.text,
-            TypeValue::Class(class) => class.name.text,
-            TypeValue::Module(_) => "Module",
-            TypeValue::Interface(interface) => interface.name.text,
-            TypeValue::InterfaceFunction(interface_function) => interface_function.name.text,
+            TypeValue::Function(function) => function.name.text.into(),
+            TypeValue::Class(class) => class.name.text.into(),
+            TypeValue::Module(_) => "Module".into(),
+            TypeValue::Interface(interface) => interface.name.text.into(),
+            TypeValue::InterfaceFunction(interface_function) => interface_function.name.text.into(),
+            TypeValue::Reference(reference) => format!("ref {}", reference.get_name()).into()
         }
     }
 

@@ -112,14 +112,14 @@ impl<'base> BodyStatementAst<'base> {
 
                         match class_search {
                             Some((location, TypeValue::Class(_))) => (ident.clone(), location),
-                            _ => return Err(FunctionResolveError::this_need_to_define_in_class(ident.into()).into())
+                            _ => return Err(FunctionResolveError::this_need_to_define_in_class(ident.into()))
                         }
                     }
                     false => {
                         let scope = context.get_scope(function_scope_location).unwrap();
                         match scope.get_variable(context, ident.text) {
                             Some(location) => (ident.clone(), location),
-                            None => return Err(FunctionResolveError::variable_not_found(ident.into()).into())
+                            None => return Err(FunctionResolveError::variable_not_found(ident.into()))
                         }
                     }
                 }

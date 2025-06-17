@@ -2,7 +2,7 @@ use core::panic;
 use std::borrow::Cow;
 
 use crate::{
-    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue}, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, InterfaceDefinitionAst, InterfaceDefinitionFieldAst, InterfaceFunctionDefinitionAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{ast_signature::AstSignatureValue, context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue, TypeValueDiscriminants}, resolver::{build_type_name, function::{unwrap_for_this, FunctionArgument}, get_object_location_or_resolve, try_resolve_signature, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{build_signature_path, find_ast_signature, TypeLocation, ResolveAst};
@@ -44,7 +44,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
             (scope.module_ref.clone(), scope.parent_type)
         };
         let full_name = self.build_full_name(context, BuildFullNameLocater::Scope(scope_location), parent);
-        let (signature_path, signature_location) = context.reserve_object_location(self.name(), SignaturePath::owned(full_name.clone()), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
+        let (signature_path, signature_location) = context.reserve_object_location(self.name(), TypeValueDiscriminants::Interface, SignaturePath::owned(full_name.clone()), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
 
         let mut fields = TimuHashMap::<Span<'_>, TypeLocation>::default();
         let mut base_interfaces = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
@@ -70,6 +70,7 @@ impl<'base> ResolveAst<'base> for InterfaceDefinitionAst<'base> {
 
 impl<'base> InterfaceDefinitionAst<'base> {
     #[allow(clippy::only_used_in_recursion)]
+    #[allow(clippy::too_many_arguments)]
     fn resolve_interface(context: &mut TirContext<'base>, resolve_interface: &InterfaceDefinitionAst<'base>, interface: &InterfaceDefinitionAst<'base>, fields: &mut TimuHashMap<Span<'base>, TypeLocation>, base_interfaces: &mut TimuHashMap<Cow<'base, str>, TypeLocation>, module: &ModuleRef<'base>, scope_location: ScopeLocation, parent: Option<TypeLocation>) -> Result<(), TirError>  {
         let interface_path = build_signature_path(context, interface.name.text, module);
 
@@ -136,7 +137,7 @@ impl<'base> InterfaceDefinitionAst<'base> {
         
         let tmp_module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
         let signature_path = SignaturePath::owned(format!("{}.{}", tmp_module.path, full_name));
-        let signature_location = context.types.reserve(signature_path.clone(), Cow::Borrowed(interface_function.name.text), interface_function.name.state.file.clone(), interface_function.name.to_range())?;
+        let signature_location = context.types.reserve(signature_path.clone(), Cow::Borrowed(interface_function.name.text), TypeValueDiscriminants::InterfaceFunction, interface_function.name.state.file.clone(), interface_function.name.to_range())?;
         tmp_module.types.insert(SignaturePath::cow(full_name), signature_location);
 
         let mut arguments = vec![];
