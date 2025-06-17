@@ -62,16 +62,9 @@ pub fn find_class_location<'base>(context: &TirContext<'base>, scope_location: S
             Some(TypeValue::Class(_)) => return Some(scope.current_type),
 
             // We are still in some of the child scope, continue to search
-            Some(_) => match scope.parent_scope {
-
-                // There is parent scope, lets continue to search
-                Some(parent_scope) => {
-                    scope_location = parent_scope;
-                    continue;
-                },
-
-                // End of the search, not found
-                None => ()
+            Some(_) => if let Some(parent_scope) = scope.parent_scope {
+                scope_location = parent_scope;
+                continue;
             },
 
             // There is no more scope to search, so, we can stop

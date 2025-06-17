@@ -163,13 +163,6 @@ where
         }
     }
 
-    pub fn from_location(&self, location: L) -> Option<&SignatureInfo<'_, T, U, E>> {
-        match self.signatures.get(location.get()) {
-            Some(Some(value)) => Some(value),
-            _ => None,
-        }
-    }
-
     pub fn take_from_location(&mut self, location: L) -> Option<Signature<T, E>> {
         self.signatures.get(location.get())?;
 
