@@ -16,6 +16,8 @@ pub struct FunctionArgument<'base> {
     pub name: Span<'base>,
     pub field_type: TypeLocation,
     pub field_type_span: Span<'base>,
+    pub is_reference: bool,
+    pub is_nullable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -214,7 +216,15 @@ impl<'base> FunctionDefinitionAst<'base> {
                     FunctionArgumentAst::Argument { name, .. } => name.clone()
                 },
                 field_type,
-                field_type_span
+                field_type_span,
+                is_nullable: match argument {
+                    FunctionArgumentAst::This(_) => false,
+                    FunctionArgumentAst::Argument { field_type, .. } => field_type.nullable,
+                },
+                is_reference: match argument {
+                    FunctionArgumentAst::This(_) => false,
+                    FunctionArgumentAst::Argument { field_type, .. } => field_type.reference,
+                }
             });
         }
 

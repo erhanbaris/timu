@@ -97,6 +97,28 @@ impl From<FunctionCallError> for TirError {
     }
 }
 
+pub struct ExpressionTypeInformation<'base> {
+    pub span: Span<'base>,
+    pub type_location: TypeLocation,
+    pub is_nullable: bool,
+    pub is_reference: bool,
+}
+
+impl<'base> ExpressionTypeInformation<'base> {
+    pub fn new(span: Span<'base>, type_location: TypeLocation, is_nullable: bool, is_reference: bool) -> Self {
+        Self {
+            span,
+            type_location,
+            is_nullable,
+            is_reference,
+        }
+    }
+
+    pub fn basic(span: Span<'base>, type_location: TypeLocation) -> Self {
+        Self::new(span, type_location, false, false)
+    }
+}
+
 impl<'base> BodyStatementAst<'base> {
     pub fn get_type_information_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<(Span<'base>, TypeLocation), TirError>{
         let value = match argument {

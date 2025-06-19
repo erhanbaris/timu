@@ -174,7 +174,15 @@ impl<'base> InterfaceDefinitionAst<'base> {
                     FunctionArgumentAst::Argument { name, .. } => name.clone()
                 },
                 field_type,
-                field_type_span
+                field_type_span,
+                is_nullable: match argument {
+                    FunctionArgumentAst::This(_) => false,
+                    FunctionArgumentAst::Argument { field_type, .. } => field_type.nullable,
+                },
+                is_reference: match argument {
+                    FunctionArgumentAst::This(_) => false,
+                    FunctionArgumentAst::Argument { field_type, .. } => field_type.reference,
+                }
             });
         }
 
