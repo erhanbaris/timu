@@ -100,17 +100,17 @@ impl From<FunctionCallError> for TirError {
 pub struct ExpressionTypeInformation<'base> {
     pub span: Span<'base>,
     pub type_location: TypeLocation,
-    pub is_nullable: bool,
-    pub is_reference: bool,
+    pub nullable: bool,
+    pub reference: bool,
 }
 
 impl<'base> ExpressionTypeInformation<'base> {
-    pub fn new(span: Span<'base>, type_location: TypeLocation, is_nullable: bool, is_reference: bool) -> Self {
+    pub fn new(span: Span<'base>, type_location: TypeLocation, nullable: bool, reference: bool) -> Self {
         Self {
             span,
             type_location,
-            is_nullable,
-            is_reference,
+            nullable,
+            reference,
         }
     }
 
@@ -120,10 +120,10 @@ impl<'base> ExpressionTypeInformation<'base> {
 }
 
 impl<'base> BodyStatementAst<'base> {
-    pub fn get_type_information_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<(Span<'base>, TypeLocation), TirError>{
+    pub fn get_type_information_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<ExpressionTypeInformation<'base>, TirError> {
         let value = match argument {
-            ExpressionAst::FunctionCall(func_call) => (func_call.call_span.clone(), Self::resolve_function_call(context, scope_location, func_call)?),
-            ExpressionAst::Primitive { span, value } => (span.clone(), try_resolve_primitive(context, value, span)?),
+            ExpressionAst::FunctionCall(func_call) => ExpressionTypeInformation::basic(func_call.call_span.clone(), Self::resolve_function_call(context, scope_location, func_call)?),
+            ExpressionAst::Primitive { span, value } => ExpressionTypeInformation::basic(span.clone(), try_resolve_primitive(context, value, span)?),
             ExpressionAst::Ident(ident) => {
                 match ident.text == "this" {
                     true => {
@@ -133,14 +133,14 @@ impl<'base> BodyStatementAst<'base> {
                             .map(|(location, signature)| (location, &signature.value));
 
                         match class_search {
-                            Some((location, TypeValue::Class(_))) => (ident.clone(), location),
+                            Some((location, TypeValue::Class(_))) => ExpressionTypeInformation::basic(ident.clone(), location),
                             _ => return Err(FunctionResolveError::this_need_to_define_in_class(ident.into()))
                         }
                     }
                     false => {
                         let scope = context.get_scope(function_scope_location).unwrap();
                         match scope.get_variable(context, ident.text) {
-                            Some(location) => (ident.clone(), location),
+                            Some(location) => ExpressionTypeInformation::basic(ident.clone(), location),
                             None => return Err(FunctionResolveError::variable_not_found(ident.into()))
                         }
                     }
@@ -196,8 +196,8 @@ impl<'base> BodyStatementAst<'base> {
         let function_scope_location = scope.location;
         let mut arguments = Vec::new();
         for argument in function_call.arguments.iter() {
-            let (span, type_location) = Self::get_type_information_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
-            arguments.push((span, type_location));
+            let type_information = Self::get_type_information_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
+            arguments.push(type_information);
         }
 
         let callee_object = context.types.get_from_location(callee_object_location).expect("Compiler bug");
@@ -228,9 +228,9 @@ impl<'base> BodyStatementAst<'base> {
             }.into()).into());
         }
 
-        for (callee_arg, (call_arg_span, call_arg)) in callee.arguments.iter().zip(arguments.iter()) {
+        for (callee_arg, call_information_type) in callee.arguments.iter().zip(arguments.iter()) {
             let callee_argument_signature = context.types.get_from_location(callee_arg.field_type).unwrap();
-            let call_argument_signature = context.types.get_from_location(*call_arg).unwrap();
+            let call_argument_signature = context.types.get_from_location(call_information_type.type_location).unwrap();
 
             if !callee_argument_signature.value.is_same_type(context, &call_argument_signature.value) {
                 return Err(FunctionCallError::ArgumentTypeMismatch(ArgumentTypeMismatch {
@@ -241,8 +241,8 @@ impl<'base> BodyStatementAst<'base> {
                     },
                     got: TypeWithSpan {
                         ty: call_argument_signature.value.get_name().to_string(),
-                        at: call_arg_span.position.clone(),
-                        source_code: call_arg_span.state.file.clone().into()
+                        at: call_information_type.span.position.clone(),
+                        source_code: call_information_type.span.state.file.clone().into()
                     }
                 }.into()).into());
             }
