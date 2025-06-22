@@ -1,27 +1,40 @@
-use std::hash::Hash;
+use std::{hash::Hash, marker::PhantomData};
 
 use indexmap::{Equivalent, IndexMap};
 
 use crate::{nom_tools::{Span, ToRange}, tir::TirError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TimuHashMap<K: Hash + Eq, V> {
-    map: IndexMap<K, Value<V>>,
+pub struct TimuHashMap<'base, K: Hash + Eq, V: ValueTrait<'base>> {
+    map: IndexMap<K, Value<'base, V>>,
 }
 
-impl<K: Hash + Eq, V> Default for TimuHashMap<K, V> {
+impl<'base, K, V> Default for TimuHashMap<'base, K, V>
+where
+    K: Hash + Eq,
+    V: ValueTrait<'base>
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Value<V> {
-    value: V,
-    positon: std::ops::Range<usize>,
+pub trait ValueTrait<'base> {
+    fn get_span(&self) -> Span<'base>;
 }
 
-impl<K: Hash + Eq, V> TimuHashMap<K, V> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Value<'base, V: ValueTrait<'base>> {
+    value: V,
+    positon: std::ops::Range<usize>,
+    marker: std::marker::PhantomData<&'base ()>,
+}
+
+impl<'base, K, V> TimuHashMap<'base, K, V> 
+where
+    K: Hash + Eq,
+    V: ValueTrait<'base>
+{
     pub fn new() -> Self {
         Self {
             map: IndexMap::new(),
@@ -29,11 +42,13 @@ impl<K: Hash + Eq, V> TimuHashMap<K, V> {
     }
 
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-        self.map.insert(key, Value { value, positon: 0..0 }).map(|item| item.value)
+        self.map.insert(key, Value { value, positon: 0..0, marker: PhantomData }).map(|item| item.value)
     }
 
-    pub fn validate_insert<'base>(&mut self, key: K, value: V, span: &Span<'base>) -> Result<(), TirError> {
-        match self.map.insert(key, Value { value, positon: span.to_range() }) {
+    pub fn validate_insert(&mut self, key: K, value: V) -> Result<(), TirError> {
+        let span = value.get_span();
+
+        match self.map.insert(key, Value { value, positon: span.to_range(), marker: PhantomData }) {
             Some(old) => Err(TirError::already_defined(span.to_range(), old.positon, span.state.file.clone())),
             None => Ok(())
         }

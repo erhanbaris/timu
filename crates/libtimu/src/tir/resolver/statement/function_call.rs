@@ -4,7 +4,7 @@ use libtimu_macros::TimuError;
 use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
-use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::{Span, ToRange}, tir::{object_signature::GetItem, resolver::{function::{find_class_location, FunctionResolveError}, statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::ScopeLocation, TirContext, TirError, TypeValue}};
+use crate::{ast::{BodyStatementAst, ExpressionAst, FunctionCallAst, FunctionCallType}, nom_tools::ToRange, tir::{object_signature::GetItem, resolver::{function::{find_class_location, FunctionResolveError}, statement::try_resolve_primitive, ResolverError, TypeLocation}, scope::{ScopeLocation, TypeVariableInformation, VariableInformation}, TirContext, TirError, TypeValue}};
 
 #[derive(thiserror::Error, TimuError, Debug, Clone, PartialEq)]
 #[error("{ty}")]
@@ -97,33 +97,11 @@ impl From<FunctionCallError> for TirError {
     }
 }
 
-pub struct ExpressionTypeInformation<'base> {
-    pub span: Span<'base>,
-    pub type_location: TypeLocation,
-    pub nullable: bool,
-    pub reference: bool,
-}
-
-impl<'base> ExpressionTypeInformation<'base> {
-    pub fn new(span: Span<'base>, type_location: TypeLocation, nullable: bool, reference: bool) -> Self {
-        Self {
-            span,
-            type_location,
-            nullable,
-            reference,
-        }
-    }
-
-    pub fn basic(span: Span<'base>, type_location: TypeLocation) -> Self {
-        Self::new(span, type_location, false, false)
-    }
-}
-
 impl<'base> BodyStatementAst<'base> {
-    pub fn get_type_information_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<ExpressionTypeInformation<'base>, TirError> {
+    pub fn get_type_information_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<TypeVariableInformation<'base>, TirError> {
         let value = match argument {
-            ExpressionAst::FunctionCall(func_call) => ExpressionTypeInformation::basic(func_call.call_span.clone(), Self::resolve_function_call(context, scope_location, func_call)?),
-            ExpressionAst::Primitive { span, value } => ExpressionTypeInformation::basic(span.clone(), try_resolve_primitive(context, value, span)?),
+            ExpressionAst::FunctionCall(func_call) => VariableInformation::basic(func_call.call_span.clone(), Self::resolve_function_call(context, scope_location, func_call)?),
+            ExpressionAst::Primitive { span, value } => VariableInformation::basic(span.clone(), try_resolve_primitive(context, value, span)?),
             ExpressionAst::Ident(ident) => {
                 match ident.text == "this" {
                     true => {
@@ -133,14 +111,14 @@ impl<'base> BodyStatementAst<'base> {
                             .map(|(location, signature)| (location, &signature.value));
 
                         match class_search {
-                            Some((location, TypeValue::Class(_))) => ExpressionTypeInformation::basic(ident.clone(), location),
+                            Some((location, TypeValue::Class(_))) => VariableInformation::basic(ident.clone(), location),
                             _ => return Err(FunctionResolveError::this_need_to_define_in_class(ident.into()))
                         }
                     }
                     false => {
                         let scope = context.get_scope(function_scope_location).unwrap();
                         match scope.get_variable(context, ident.text) {
-                            Some(location) => ExpressionTypeInformation::basic(ident.clone(), location),
+                            Some(variable) => variable,
                             None => return Err(FunctionResolveError::variable_not_found(ident.into()))
                         }
                     }
@@ -173,7 +151,7 @@ impl<'base> BodyStatementAst<'base> {
 
             if index == 0 {
                 if let Some(argument) = scope.get_variable(context, path) {
-                    callee_object_location = argument
+                    callee_object_location = argument.location;
                 } else {
                     panic!("Function argument or object not found: '{}'", path);
                 }
@@ -197,6 +175,10 @@ impl<'base> BodyStatementAst<'base> {
         let mut arguments = Vec::new();
         for argument in function_call.arguments.iter() {
             let type_information = Self::get_type_information_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
+            
+            let scope = context.get_scope(scope_location).expect("Scope not found, but this is a bug");
+            let variable = scope.get_variable(context, type_information.span.text).unwrap();
+
             arguments.push(type_information);
         }
 
@@ -230,7 +212,7 @@ impl<'base> BodyStatementAst<'base> {
 
         for (callee_arg, call_information_type) in callee.arguments.iter().zip(arguments.iter()) {
             let callee_argument_signature = context.types.get_from_location(callee_arg.field_type).unwrap();
-            let call_argument_signature = context.types.get_from_location(call_information_type.type_location).unwrap();
+            let call_argument_signature = context.types.get_from_location(call_information_type.location).unwrap();
 
             if !callee_argument_signature.value.is_same_type(context, &call_argument_signature.value) {
                 return Err(FunctionCallError::ArgumentTypeMismatch(ArgumentTypeMismatch {

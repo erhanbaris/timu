@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::HashSet, rc::Rc};
 
 use crate::{
-    ast::{ClassDefinitionAst, ClassDefinitionFieldAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::{GetItem, TypeValue, TypeValueDiscriminants}, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::ScopeLocation, signature::SignaturePath, TirError, TypeSignature}
+    ast::{ClassDefinitionAst, ClassDefinitionFieldAst}, map::TimuHashMap, nom_tools::{Span, ToRange}, tir::{context::TirContext, object_signature::{GetItem, TypeValue, TypeValueDiscriminants}, resolver::{get_object_location_or_resolve, BuildFullNameLocater}, scope::{ScopeLocation, TypeVariableInformation, VariableInformation}, signature::SignaturePath, TirError, TypeSignature}
 };
 
 use super::{TypeLocation, ResolveAst};
@@ -17,7 +17,7 @@ pub struct ClassArgument<'base> {
 #[allow(dead_code)]
 pub struct ClassDefinition<'base> {
     pub name: Span<'base>,
-    pub fields: TimuHashMap<Cow<'base, str>, TypeLocation>,
+    pub fields: TimuHashMap<'base, Cow<'base, str>, TypeVariableInformation<'base>>,
     pub extends: HashSet<TypeLocation>,
 }
 
@@ -31,7 +31,8 @@ impl GetItem for ClassDefinition<'_> {
     fn get_item_location(&self, _: &TirContext<'_>, path: &str) -> Option<TypeLocation> {
         self
             .fields
-            .get(path).copied()
+            .get(path)
+            .map(|item| item.location)
     }
 }
 
@@ -43,7 +44,7 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
         let module_ref = context.get_scope(scope_location).expect("Scope not found").module_ref.clone();
 
         let (signature_path, class_location) = context.reserve_object_location(self.name(), TypeValueDiscriminants::Class, SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
-        let mut fields = TimuHashMap::<Cow<'_, str>, TypeLocation>::default();
+        let mut fields = TimuHashMap::<'base, Cow<'_, str>, TypeVariableInformation<'base>>::default();
 
         context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").set_current_type(class_location);
 
@@ -54,8 +55,9 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
                 ClassDefinitionFieldAst::Field(field) => {
                     let field_type = get_object_location_or_resolve(context, &field.field_type, &module_ref, scope_location)?;
 
-                    fields.validate_insert((*field.name.text).into(), field_type, &field.name)?;
-                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(field.name.clone(), field_type).unwrap();
+                    let variable = TypeVariableInformation::basic(field.name.clone(), field_type);
+                    fields.validate_insert(Cow::Borrowed(field.name.text), variable)?;
+                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(VariableInformation::basic(field.name.clone(), field_type))?;
                 }
                 ClassDefinitionFieldAst::Function(function) => {
                     let type_name = function.build_full_name(context, BuildFullNameLocater::Module(&module_ref), None);
@@ -66,8 +68,9 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
                     // Set scope type information
                     context.get_mut_scope(function_scope_location).expect("Scope not found, it is a bug").set_current_type(function_type_location);
 
-                    fields.validate_insert((*function.name.text).into(), function_type_location, &function.name)?;
-                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(function.name.clone(), function_type_location).unwrap();
+                    let variable = TypeVariableInformation::basic(function.name.clone(), function_type_location);
+                    fields.validate_insert((*function.name.text).into(), variable)?;
+                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(VariableInformation::basic(function.name.clone(), function_type_location))?;
                     function_signatures.push((function_type_location, function));
                 }
             };

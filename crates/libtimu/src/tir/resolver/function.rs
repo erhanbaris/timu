@@ -5,7 +5,7 @@ use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{
-    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue, TypeValueDiscriminants}, resolver::get_object_location_or_resolve, scope::ScopeLocation, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue, TypeValueDiscriminants}, resolver::get_object_location_or_resolve, scope::{ScopeLocation, VariableInformation}, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
 };
 
 use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
@@ -166,7 +166,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                     };
 
                     let parent_scope = context.get_mut_scope(parent_scope.unwrap()).unwrap();
-                    parent_scope.add_variable(this.clone(), class_type_location)?;
+                    parent_scope.add_variable(VariableInformation::basic(this.clone(), class_type_location))?;
 
                     if index != 0 {
                         return Err(FunctionResolveError::this_need_to_define_in_class(this.into()));
@@ -186,7 +186,7 @@ impl<'base> FunctionDefinitionAst<'base> {
                     let field_type = get_object_location_or_resolve(context, field_type, module, scope_location)?;
                     let scope = context.get_mut_scope(scope_location).unwrap();
 
-                    scope.add_variable(name.clone(), field_type)?;
+                    scope.add_variable(VariableInformation::basic(name.clone(), field_type))?;
                     (Cow::Borrowed(name.text), name.to_range(), name.state.file.clone())
                 }
             };

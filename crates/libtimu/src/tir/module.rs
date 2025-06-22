@@ -2,7 +2,7 @@ use std::{borrow::Cow, rc::Rc};
 
 use indexmap::IndexMap;
 
-use crate::{ast::FileAst, file::SourceFile, map::TimuHashMap, tir::{object_signature::GetItem, scope::ScopeLocation}};
+use crate::{ast::FileAst, file::SourceFile, map::TimuHashMap, tir::{object_signature::GetItem, scope::{AstVariableInformation, ScopeLocation}}};
 
 use super::{resolver::{AstSignatureLocation, TypeLocation}, signature::SignaturePath, TirContext};
 
@@ -12,7 +12,7 @@ pub struct Module<'base> {
     pub name: Cow<'base, str>,
     pub path: Cow<'base, str>,
     pub file: SourceFile,
-    pub ast_signatures: TimuHashMap<SignaturePath<'base>, AstSignatureLocation>,
+    pub ast_signatures: TimuHashMap<'base, SignaturePath<'base>, AstVariableInformation<'base>>,
     pub ast_imported_modules: IndexMap<Cow<'base, str>, AstSignatureLocation>,
     pub types: IndexMap<SignaturePath<'base>, TypeLocation>,
     pub ast: Option<Rc<FileAst<'base>>>,
@@ -54,7 +54,7 @@ impl<'base> Module<'base> {
     }
 
     pub fn get_ast_signature<T: AsRef<str>>(&self, key: T) -> Option<AstSignatureLocation> {
-        self.ast_signatures.get(key.as_ref()).cloned()
+        self.ast_signatures.get(key.as_ref()).map(|item| item.location)
     }
 }
     

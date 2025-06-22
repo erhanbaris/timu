@@ -5,7 +5,7 @@ use simplelog::debug;
 use strum_macros::EnumDiscriminants;
 
 use crate::{
-    ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst}, map::TimuHashMap, nom_tools::ToRange, tir::{TypeSignature, TypeValue}
+    ast::{ClassDefinitionAst, ExtendDefinitionAst, FileAst, FunctionDefinitionAst, InterfaceDefinitionAst}, map::TimuHashMap, nom_tools::ToRange, tir::{scope::AstVariableInformation, TypeSignature, TypeValue}
 };
 
 use super::{
@@ -122,39 +122,43 @@ pub fn build_module<'base>(context: &mut TirContext<'base>, ast: Rc<FileAst<'bas
 
 pub fn build_module_signature<'base>(context: &mut TirContext<'base>, mut module: Module<'base>) -> Result<(), TirError> {
     let module_name = module.path.to_string();
-    let mut ast_signature: TimuHashMap<SignaturePath<'base>, AstSignatureLocation> = TimuHashMap::new();
+    let mut ast_signature: TimuHashMap<SignaturePath<'base>, AstVariableInformation> = TimuHashMap::new();
 
     if let Some(ast) = &module.ast {
         // Interface signatures
         for interface in ast.get_interfaces() {
             let signature = Signature::from((interface.clone(), module.get_ref()));
             let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), interface.name.text).into(), signature)?;
+            let variable = AstVariableInformation::basic(interface.name.clone(), location);
 
-            ast_signature.validate_insert(SignaturePath::borrowed(interface.name.text), location, &interface.name)?;
+            ast_signature.validate_insert(SignaturePath::borrowed(interface.name.text), variable)?;
         }
 
         // Extend signatures
         for extend in ast.get_extends() {
             let signature = Signature::from((extend.clone(), module.get_ref()));
             let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), extend.name()).into(), signature)?;
+            let variable = AstVariableInformation::basic(extend.name.names.last().unwrap().clone(), location);
 
-            ast_signature.validate_insert(SignaturePath::cow(extend.name()), location, extend.name.names.last().unwrap())?;
+            ast_signature.validate_insert(SignaturePath::cow(extend.name()), variable)?;
         }
 
         // Class signatures
         for class in ast.get_classes() {
             let signature = Signature::from((class.clone(), module.get_ref()));
             let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), class.name.text).into(), signature)?;
+            let variable = AstVariableInformation::basic(class.name.clone(), location);
 
-            ast_signature.validate_insert(SignaturePath::borrowed(class.name.text), location, &class.name)?;
+            ast_signature.validate_insert(SignaturePath::borrowed(class.name.text), variable)?;
         }
 
         // Function signatures
         for func in ast.get_functions() {
             let signature = Signature::from((func.clone(), module.get_ref()));
             let location = context.add_ast_signature(format!("{}.{}", module.path.clone(), func.name.text).into(), signature)?;
+            let variable = AstVariableInformation::basic(func.name.clone(), location);
 
-            ast_signature.validate_insert(SignaturePath::borrowed(func.name.text), location, &func.name)?;
+            ast_signature.validate_insert(SignaturePath::borrowed(func.name.text), variable)?;
         }
     }
 

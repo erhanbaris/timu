@@ -304,8 +304,8 @@ pub fn try_resolve_direct_signature<'base, K: AsRef<str>>(context: &mut TirConte
 pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &ModuleRef<'base>, key: SignaturePath<'base>) -> Option<AstSignatureLocation> {
     let module = context.modules.get_mut(module.as_ref()).unwrap_or_else(|| panic!("Module({}) not found, but this is a bug", module.as_ref()));
 
-    if let Some(location) = module.ast_signatures.get(key.get_name()) {
-        return Some(*location);
+    if let Some(variable) = module.ast_signatures.get(key.get_name()) {
+        return Some(variable.location);
     }
 
     match module.ast_imported_modules.get(key.get_name()) {
