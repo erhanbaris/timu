@@ -5,7 +5,7 @@ use libtimu_macros_core::SourceCode;
 use strum_macros::{EnumDiscriminants, EnumProperty};
 
 use crate::{
-    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue, TypeValueDiscriminants}, resolver::get_object_location_or_resolve, scope::{ScopeLocation, VariableInformation}, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
+    ast::{FunctionArgumentAst, FunctionDefinitionAst, FunctionDefinitionLocationAst}, nom_tools::{Span, SpanInfo, ToRange}, tir::{context::TirContext, module::ModuleRef, object_signature::{GetItem, TypeValue, TypeValueDiscriminants}, resolver::get_object_location_or_resolve, scope::{ScopeLocation, TypeVariableInformation, VariableInformation}, signature::{SignatureInfo, SignaturePath}, TirError, TypeSignature}
 };
 
 use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
@@ -104,8 +104,12 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
             (scope.module_ref.clone(), scope.parent_type, scope.parent_scope)
         };
         let (signature_path, signature_location) = context.reserve_object_location(self.name(), TypeValueDiscriminants::Function, SignaturePath::owned(full_name), &module_ref, self.name.to_range(), self.name.state.file.clone())?;
-
+        
         let definition = self.build_definition(context, scope_location, parent_scope, &module_ref, parent_type, signature_path.clone())?;
+                
+        /* Add function information as a variable */
+        let parent_scope = context.get_mut_scope(scope_location).expect("Scope not found, it is a bug");
+        parent_scope.add_variable(TypeVariableInformation::new(self.name.clone(), signature_location, false, true, true))?;
 
         let signature = TypeSignature::new(
             TypeValue::Function (definition.into()),

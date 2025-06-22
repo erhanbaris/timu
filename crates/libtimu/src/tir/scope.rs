@@ -115,11 +115,6 @@ impl<'base> Scope<'base> {
 
         /* Search in module level */
         let module = self.module_ref.upgrade(context).unwrap();
-        if let Some(type_location) = module.types.get(name.as_ref()) {
-            println!("0 Found type location in module: {:?}", type_location);
-            //return Some(*type_location);
-        }
-
         let module_scope = context.get_scope(module.scope_location).expect(&format!("Module scope not found for module: {}", module.path));
 
         if module_scope.location != self.location {
@@ -128,17 +123,21 @@ impl<'base> Scope<'base> {
             }
         }
 
+        if let Some(type_location) = module.types.get(name.as_ref()) {
+            panic!("0 Found type location in module: {:?}", type_location);
+            //return Some(*type_location);
+        }
+
         /* Search as a module name  */
         if let Some(module_ref) = context.modules.get(name.as_ref()) {
             if let Some(type_location) = module.types.get(module_ref.path.as_ref()) {
-                println!("1 Found type location in module: {:?}", type_location);
+                panic!("1 Found type location in module: {:?}", type_location);
                 //return Some(*type_location);
-                return None;
             }
         }
 
         if let Some(type_location) = context.types.location(name.as_ref()) {
-            println!("2 Found type location in module: {:?}", type_location);
+            panic!("2 Found type location in module: {:?}", type_location);
             //return Some(type_location);
         }
 
@@ -148,7 +147,7 @@ impl<'base> Scope<'base> {
 
                 if let Some(type_location) = context.types.location(full_name.as_str()) {
 
-                    println!("3 Found type location: {:?}", type_location);
+                    panic!("3 Found type location: {:?}", type_location);
                     //return Some(type_location)
                 }
             }
@@ -156,7 +155,7 @@ impl<'base> Scope<'base> {
 
         if let Some(module_ref) = context.modules.get(name.as_ref()) {
             if let Some(type_location) = module.types.get(module_ref.path.as_ref()) {
-                println!("4 Found type location in module: {:?}", type_location);
+                panic!("4 Found type location in module: {:?}", type_location);
                 //return Some(*type_location);
             }
         }

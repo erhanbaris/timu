@@ -31,7 +31,6 @@ class TestClass {
 
 func echo(a: ITest): string {
 }
-
 "#.to_string()));
 
 

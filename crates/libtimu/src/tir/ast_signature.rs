@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    context::TirContext, module::{Module, ModuleRef}, resolver::{AstSignatureLocation, ResolveAst, TypeLocation}, scope::ScopeLocation, signature::{Signature, SignaturePath}, AstSignature, TirError
+    context::TirContext, module::{Module, ModuleRef}, resolver::{ResolveAst, TypeLocation}, scope::ScopeLocation, signature::{Signature, SignaturePath}, AstSignature, TirError
 };
 
 #[derive(Debug, Clone, PartialEq, EnumDiscriminants)]
