@@ -98,7 +98,7 @@ impl From<FunctionCallError> for TirError {
 }
 
 impl<'base> BodyStatementAst<'base> {
-    pub fn get_type_information_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<TypeVariableInformation<'base>, TirError> {
+    pub fn get_type_information_from_expression(context: &mut TirContext<'base>, scope_location: ScopeLocation, function_scope_location: ScopeLocation, function_call: &FunctionCallAst<'base>, argument: &ExpressionAst<'base>) -> Result<TypeVariableInformation<'base>, TirError> {        
         let value = match argument {
             ExpressionAst::FunctionCall(func_call) => VariableInformation::basic(func_call.call_span.clone(), Self::resolve_function_call(context, scope_location, func_call)?),
             ExpressionAst::Primitive { span, value } => VariableInformation::basic(span.clone(), try_resolve_primitive(context, value, span)?),
@@ -175,10 +175,6 @@ impl<'base> BodyStatementAst<'base> {
         let mut arguments = Vec::new();
         for argument in function_call.arguments.iter() {
             let type_information = Self::get_type_information_from_expression(context, scope_location, function_scope_location, function_call, argument)?;
-            
-            let scope = context.get_scope(scope_location).expect("Scope not found, but this is a bug");
-            let variable = scope.get_variable(context, type_information.span.text).unwrap();
-
             arguments.push(type_information);
         }
 

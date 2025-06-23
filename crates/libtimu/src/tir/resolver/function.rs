@@ -108,9 +108,16 @@ impl<'base> ResolveAst<'base> for FunctionDefinitionAst<'base> {
         let definition = self.build_definition(context, scope_location, parent_scope, &module_ref, parent_type, signature_path.clone())?;
                 
         /* Add function information as a variable */
-        let parent_scope = context.get_mut_scope(scope_location).expect("Scope not found, it is a bug");
-        parent_scope.add_variable(TypeVariableInformation::new(self.name.clone(), signature_location, false, true, true))?;
-
+        let parent_scope = context.get_mut_scope(parent_scope.expect("Parent scope not found, it is a bug")).expect("Scope not found, it is a bug");
+        
+        /*
+        It parent has not a parent, it means function is not in the Class and class resolve operation will add function to variable list.
+        It could be better to have function type like, ClassFunction and PureFunction etc. etc.
+        */
+        if parent_scope.parent_scope.is_none() {
+            parent_scope.add_variable(TypeVariableInformation::new(self.name.clone(), signature_location, false, true, true))?;
+        }
+        
         let signature = TypeSignature::new(
             TypeValue::Function (definition.into()),
             self.name.state.file.clone(),

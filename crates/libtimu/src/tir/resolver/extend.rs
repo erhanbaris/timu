@@ -47,8 +47,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
         for (key, argument) in extend_fields.iter() {
             class.fields.validate_insert(key.clone(), argument.clone())?;
         }
-
-
+        
         let class_scope = context.get_mut_scope(class_scope).expect("Scope not found, it is a bug");
         for (_, argument) in extend_fields.into_iter() {
             class_scope.add_variable(argument)?;

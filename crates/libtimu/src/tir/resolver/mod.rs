@@ -202,9 +202,11 @@ fn execute_extend_vector_resolve<'base>(context: &mut TirContext<'base>, module_
 }
 
 fn execute_resolve<'base, T: ResolveAst<'base>>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>, ast: &T) -> Result<(), TirError> {
-    if module_ref.upgrade(context).unwrap().types.get(ast.name().as_ref()).is_none() {
+    let module = module_ref.upgrade(context).unwrap();
+
+    if module.types.get(ast.name().as_ref()).is_none() {
         let type_name = format!("{}.{}", module_ref.as_ref(), ast.name());
-        let scope_location = context.create_scope(type_name.into(), module_ref.clone());
+        let scope_location = context.create_child_scope(type_name.into(), module.scope_location, None);
         ast.resolve(context, scope_location)?;
     }
     Ok(())
