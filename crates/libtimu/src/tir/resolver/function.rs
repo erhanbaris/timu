@@ -1,3 +1,100 @@
+//! Function definition resolution for the TIR system.
+//!
+//! This module handles the resolution of function definitions, including parameter
+//! type checking, return type validation, method resolution within classes, and
+//! proper handling of the special `this` parameter for object-oriented features.
+//! Function resolution is one of the most complex parts of the TIR system due to
+//! the need to handle various contexts and language features.
+//!
+//! # Function Resolution Process
+//!
+//! Function resolution operates in the standard two-phase approach:
+//!
+//! ## Phase 1: Signature Resolution
+//! 1. **Parameter processing**: Resolve all parameter types and validate syntax
+//! 2. **Return type resolution**: Ensure return type exists and is valid
+//! 3. **Scope creation**: Create function scope for local variables
+//! 4. **Context validation**: Verify function is in correct context (class vs module)
+//! 5. **Signature registration**: Register function signature in type system
+//!
+//! ## Phase 2: Body Resolution
+//! 1. **Statement processing**: Resolve all statements in function body
+//! 2. **Variable resolution**: Ensure all variable references are valid
+//! 3. **Type checking**: Validate all expressions and assignments
+//! 4. **Return validation**: Ensure function returns match declared type
+//!
+//! # Function Contexts
+//!
+//! Functions can be defined in different contexts with varying rules:
+//!
+//! ## Module-Level Functions
+//! ```timu
+//! func moduleFunction(param: Type): ReturnType {
+//!     // Function body
+//! }
+//! 
+//! pub func publicFunction(): void {
+//!     // Public function accessible from other modules
+//! }
+//! ```
+//!
+//! ## Class Methods
+//! ```timu
+//! class MyClass {
+//!     func method(this): void {
+//!         // Method with access to class instance
+//!     }
+//!     
+//!     func methodWithParams(this, param: Type): ReturnType {
+//!         // Method with additional parameters
+//!     }
+//! }
+//! ```
+//!
+//! ## Extension Methods
+//! ```timu
+//! extend ExistingType : Interface {
+//!     func extensionMethod(this): void {
+//!         // Method added to existing type
+//!     }
+//! }
+//! ```
+//!
+//! # The `this` Parameter
+//!
+//! The `this` parameter is special and has specific rules:
+//! - **Must be first parameter** if present
+//! - **Only valid in class/extension methods** 
+//! - **Automatically typed** to the containing class
+//! - **Provides instance access** within method body
+//!
+//! # Type Resolution Features
+//!
+//! ## Parameter Type Resolution
+//! - Supports qualified type names (`module.Type`)
+//! - Handles nullable types (`?Type`)
+//! - Processes reference types (`ref Type`)
+//! - Validates parameter name uniqueness
+//!
+//! ## Return Type Processing
+//! - Resolves return type before function body
+//! - Supports all type modifiers (nullable, reference)
+//! - Enables forward references to types defined later
+//!
+//! ## Scope Management
+//! - Creates dedicated scope for each function
+//! - Manages parameter visibility within function body
+//! - Handles nested scope resolution for local variables
+//!
+//! # Error Handling
+//!
+//! Comprehensive error reporting for:
+//! - Invalid `this` parameter usage
+//! - Missing or invalid parameter types
+//! - Duplicate parameter names
+//! - Missing return types
+//! - Context mismatches (e.g., `this` in module function)
+
 use std::{borrow::Cow, ops::Range};
 
 use libtimu_macros::TimuError;
@@ -10,6 +107,19 @@ use crate::{
 
 use super::{build_type_name, try_resolve_signature, BuildFullNameLocater, ResolveAst, ResolverError, TypeLocation};
 
+/// Represents a resolved function parameter with complete type information
+/// 
+/// This structure contains all the information needed for a function parameter
+/// after type resolution has been completed. It includes both the parameter's
+/// metadata and its resolved type location in the type system.
+/// 
+/// # Fields
+/// 
+/// - `name`: The parameter name as it appears in the source code
+/// - `field_type`: The resolved type location in the TIR type system
+/// - `field_type_span`: Source location of the type annotation
+/// - `is_reference`: Whether this parameter uses reference semantics
+/// - `is_nullable`: Whether this parameter can accept null values
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct FunctionArgument<'base> {
@@ -20,6 +130,20 @@ pub struct FunctionArgument<'base> {
     pub is_nullable: bool,
 }
 
+/// Complete function definition with resolved types and metadata
+/// 
+/// This structure represents a fully resolved function definition including
+/// its signature, parameters, return type, and context information. It serves
+/// as the canonical representation of a function in the TIR system.
+/// 
+/// # Fields
+/// 
+/// - `is_public`: Whether the function is publicly accessible from other modules
+/// - `name`: The function name as it appears in source code  
+/// - `arguments`: All function parameters with resolved types
+/// - `return_type`: The resolved return type location
+/// - `signature_path`: Qualified path for the function in the type system
+/// - `ast`: Original AST node for accessing source information
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct FunctionDefinition<'base> {
@@ -49,6 +173,39 @@ pub fn unwrap_for_this<'base>(parent: &Option<TypeLocation>, this: &Span<'base>)
 }
 
 // Search class type location
+/// Finds the containing class type location by traversing the scope hierarchy
+/// 
+/// This function searches up the scope hierarchy to find the nearest enclosing
+/// class scope. It's used primarily for resolving the `this` parameter type
+/// in class methods and ensuring that `this` is only used in appropriate contexts.
+/// 
+/// # Scope Traversal Strategy
+/// 
+/// The function traverses parent scopes looking for:
+/// 1. **Resolved class types**: Classes that have completed type resolution
+/// 2. **Reserved class types**: Classes that are still being resolved
+/// 3. **Scope boundaries**: Points where no further traversal is possible
+/// 
+/// # Arguments
+/// * `context` - The TIR context containing scope and type information
+/// * `scope_location` - The starting scope for the search
+/// 
+/// # Returns
+/// * `Some(TypeLocation)` - The type location of the containing class
+/// * `None` - No containing class found (function is at module level)
+/// 
+/// # Usage
+/// 
+/// This function is called when:
+/// - Processing `this` parameters in method definitions
+/// - Validating that `this` is only used in class/extension contexts
+/// - Determining the correct type for the `this` parameter
+/// 
+/// # Scope Resolution
+/// 
+/// The function handles both completed and in-progress type resolution:
+/// - **Completed types**: Uses the final type information from `context.types`
+/// - **Reserved types**: Uses type shadows from `context.types.get_reserve_from_location()`
 pub fn find_class_location<'base>(context: &TirContext<'base>, scope_location: ScopeLocation) -> Option<TypeLocation> {
     let mut scope_location = scope_location;
 
@@ -319,20 +476,18 @@ mod tests {
     }
 
     #[test]
-    fn dublicated_function_argument() -> Result<(), TirError> {
+    fn duplicated_function_argument() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ".to_string()));
-        let ast = process_code(&state)?;
-        let _error = crate::tir::build(vec![ast.into()]).unwrap_err();
+        let ast: crate::ast::FileAst<'_> = process_code(&state)?;
+        let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
-        /*
-        todo: fix this test
         if let TirError::AlreadyDefined(inner_error) = error
         {
-            assert_eq!(inner_error.new_position, (27..28).into());
+            assert_eq!(inner_error.new_position, (27..28));
         } else {
-            panic!("Expected TirError::AlreadyDefined but got {:?}", error);
+            panic!("Expected TirError::AlreadyDefined but got {error:?}");
         }
-        */
+        
         Ok(())
     }
 

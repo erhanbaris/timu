@@ -1,3 +1,105 @@
+//! Extension definition resolution for the Timu TIR system.
+//!
+//! This module handles the semantic analysis and validation of extension definitions,
+//! which implement interface contracts for existing classes. Extensions allow adding
+//! new functionality to classes by implementing interface requirements, enabling
+//! a form of multiple inheritance and compositional design patterns.
+//!
+//! # Extension Resolution Process
+//!
+//! Extension resolution follows a multi-phase validation approach:
+//!
+//! ## Phase 1: Target Resolution
+//! 1. **Class identification**: Resolve the target class being extended
+//! 2. **Interface resolution**: Resolve all interface contracts to implement
+//! 3. **Scope preparation**: Access the class scope for member addition
+//! 4. **Validation setup**: Prepare tracking structures for requirement validation
+//!
+//! ## Phase 2: Member Implementation
+//! 1. **Field implementation**: Process field requirements from interfaces
+//! 2. **Method implementation**: Process method requirements from interfaces
+//! 3. **Type validation**: Ensure implementation types match interface contracts
+//! 4. **Visibility validation**: Validate accessibility rules for extension fields
+//!
+//! ## Phase 3: Contract Validation
+//! 1. **Requirement checking**: Ensure all interface requirements are satisfied
+//! 2. **Type compatibility**: Validate implementation types match interface signatures
+//! 3. **Completeness validation**: Ensure no interface requirements are missing
+//! 4. **Extra member validation**: Detect and report unsupported extra members
+//!
+//! # Extension Types
+//!
+//! ## Interface Implementation Extensions
+//! - **Single interface**: `extend Class: Interface { ... }`
+//! - **Multiple interfaces**: `extend Class: Interface1, Interface2 { ... }`
+//! - **Hierarchical interfaces**: Support for interfaces that extend other interfaces
+//!
+//! ## Member Types in Extensions
+//! - **Required fields**: Fields specified in interface contracts
+//! - **Required methods**: Methods specified in interface contracts
+//! - **Implementation methods**: Concrete implementations of interface methods
+//! - **Extension fields**: Additional data members (validated as extra/invalid)
+//!
+//! # Validation Rules
+//!
+//! ## Interface Contract Validation
+//! - **Complete implementation**: All interface members must be implemented
+//! - **Type compatibility**: Implementation types must match interface signatures exactly
+//! - **Method signatures**: Parameter counts and types must match interface declarations
+//! - **Return types**: Method return types must match interface specifications
+//!
+//! ## Access Control Rules
+//! - **Extension fields are public**: Fields in extensions are implicitly public
+//! - **Explicit public forbidden**: Using `pub` keyword in extensions is an error
+//! - **Interface visibility**: Interface contracts define the required visibility
+//!
+//! ## Error Conditions
+//! - **Missing implementations**: Interface requirements not satisfied
+//! - **Type mismatches**: Implementation types don't match interface contracts
+//! - **Extra members**: Extension contains members not required by interfaces
+//! - **Invalid accessibility**: Using forbidden access modifiers in extensions
+//! - **Duplicate members**: Attempting to add members that already exist in the class
+//!
+//! # Type System Integration
+//!
+//! ## Class Modification
+//! Extensions modify the target class by:
+//! - **Adding fields**: New fields are added to the class field map
+//! - **Adding methods**: New methods are registered as class members
+//! - **Interface tracking**: Implemented interfaces are recorded in class metadata
+//! - **Scope updates**: Class scope is updated with new member variables
+//!
+//! ## Interface Implementation Tracking
+//! - **Extension set**: Classes track which interfaces they implement
+//! - **Type compatibility**: Interface types become compatible with class types
+//! - **Method resolution**: Interface methods resolve to implementation methods
+//! - **Polymorphism support**: Classes can be used where interfaces are expected
+//!
+//! # Architectural Benefits
+//!
+//! ## Compositional Design
+//! - **Multiple inheritance simulation**: Classes can implement multiple interfaces
+//! - **Contract-based programming**: Interfaces define clear contracts
+//! - **Separation of concerns**: Interface definitions separate from implementations
+//! - **Modular design**: Extensions can be defined in separate modules
+//!
+//! ## Future Extensibility
+//! The extension system supports future enhancements:
+//! - **Default implementations**: Interface methods with default bodies
+//! - **Extension inheritance**: Extensions that build on other extensions
+//! - **Conditional extensions**: Extensions that apply based on type parameters
+//! - **Mixin patterns**: Shared functionality across multiple classes
+//!
+//! # Integration Points
+//!
+//! Extension resolution integrates with:
+//! - **Class system**: For target class modification and member addition
+//! - **Interface system**: For contract validation and requirement checking
+//! - **Type system**: For type compatibility and signature validation
+//! - **Module system**: For cross-module extension and interface resolution
+//! - **Scope system**: For member visibility and access control
+//! - **Error system**: For comprehensive validation error reporting
+
 use core::panic;
 use std::{borrow::Cow, collections::HashSet};
 
@@ -66,7 +168,7 @@ impl<'base> ResolveAst<'base> for ExtendDefinitionAst<'base> {
             .collect::<Vec<_>>()
             .join("-");
 
-        format!("{}-{}", name, interfaces).into()
+        format!("{name}-{interfaces}").into()
     }
 }
 

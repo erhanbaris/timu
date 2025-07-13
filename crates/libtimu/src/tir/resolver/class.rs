@@ -1,3 +1,84 @@
+//! Class definition resolution for the Timu TIR system.
+//!
+//! This module handles the semantic analysis and type registration of class definitions
+//! within the Timu Type Intermediate Representation (TIR). It processes class declarations,
+//! resolves field types, manages method signatures, and integrates classes into the
+//! type system for use by other compilation phases.
+//!
+//! # Class Resolution Process
+//!
+//! Class resolution follows a comprehensive multi-phase approach:
+//!
+//! ## Phase 1: Class Registration
+//! 1. **Name resolution**: Build fully qualified class name
+//! 2. **Type reservation**: Reserve a location in the type system
+//! 3. **Scope creation**: Establish class scope for member resolution
+//! 4. **Signature preparation**: Prepare class signature structure
+//!
+//! ## Phase 2: Member Resolution
+//! 1. **Field processing**: Resolve field types and validate uniqueness
+//! 2. **Method processing**: Resolve method signatures and create function scopes
+//! 3. **Visibility handling**: Process public/private modifiers
+//! 4. **Type validation**: Ensure all referenced types exist
+//!
+//! ## Phase 3: Finalization
+//! 1. **Method completion**: Complete method body analysis in finish phase
+//! 2. **Cross-reference validation**: Validate method calls and field access
+//! 3. **Inheritance preparation**: Prepare for extension and interface implementation
+//!
+//! # Class Components
+//!
+//! ## Fields
+//! - **Instance variables**: Data members that belong to each class instance
+//! - **Type annotations**: All fields must have explicit type declarations
+//! - **Visibility**: Support for public and private field access
+//! - **Initialization**: Fields are initialized during object construction
+//!
+//! ## Methods
+//! - **Instance methods**: Functions that operate on class instances
+//! - **Constructor patterns**: Special handling for initialization methods
+//! - **Parameter validation**: Type checking for method parameters
+//! - **Return types**: All methods must specify return types
+//! - **This parameter**: Support for explicit `this` parameter in methods
+//!
+//! # Type System Integration
+//!
+//! ## Class Registration
+//! Classes are registered in the global type system with:
+//! - **Fully qualified names**: Module-prefixed names for uniqueness
+//! - **Type locations**: Unique identifiers for efficient lookup
+//! - **Signature paths**: Hierarchical path information for resolution
+//! - **Module references**: Association with defining module
+//!
+//! ## Field and Method Storage
+//! - **Field map**: Hash map of field names to type information
+//! - **Method integration**: Methods stored as fields with function types
+//! - **Scope variables**: Class members added to appropriate scopes
+//! - **Extension support**: Foundation for interface implementation
+//!
+//! # Object-Oriented Features
+//!
+//! ## Encapsulation
+//! - **Access control**: Public/private visibility for fields and methods
+//! - **Data hiding**: Private members inaccessible outside class
+//! - **Interface contracts**: Support for implementing interfaces
+//!
+//! ## Future Extensibility
+//! The architecture supports future object-oriented features:
+//! - **Inheritance**: Single inheritance from base classes
+//! - **Polymorphism**: Method overriding and virtual dispatch
+//! - **Abstract classes**: Classes that cannot be instantiated
+//! - **Generic classes**: Parameterized types for code reuse
+//!
+//! # Integration Points
+//!
+//! Class resolution integrates with:
+//! - **Module system**: For qualified name resolution and imports
+//! - **Interface system**: For contract implementation via extend declarations
+//! - **Function system**: For method signature validation and calls
+//! - **Scope system**: For member visibility and access control
+//! - **Error system**: For comprehensive diagnostic reporting
+
 use std::{borrow::Cow, collections::HashSet, rc::Rc};
 
 use crate::{

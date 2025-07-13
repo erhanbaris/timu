@@ -1,3 +1,53 @@
+//! Variable declaration and assignment parsing for the Timu language.
+//!
+//! This module handles parsing of variable declarations and assignments, which are
+//! fundamental constructs for data management in Timu programs. The module supports
+//! both mutable and immutable variable declarations with optional type annotations
+//! and initialization expressions.
+//!
+//! # Variable Declaration Syntax
+//!
+//! ## Variable Declarations (`var`)
+//! ```timu
+//! var name = expression;           // Type inferred from expression
+//! var name: Type = expression;     // Explicit type with initialization
+//! var name: ?Type;                 // Nullable type without initialization
+//! ```
+//!
+//! ## Constant Declarations (`const`)
+//! ```timu
+//! const name = expression;         // Type inferred, must be initialized
+//! const name: Type = expression;   // Explicit type with initialization
+//! ```
+//!
+//! ## Variable Assignments
+//! ```timu
+//! variableName = newValue;         // Assign new value to existing variable
+//! ```
+//!
+//! # Type System Integration
+//!
+//! ## Type Inference
+//! When no explicit type is provided, the compiler infers the type from the
+//! initialization expression. This reduces verbosity while maintaining type safety.
+//!
+//! ## Nullable Types
+//! Variables with nullable types (`?Type`) can be declared without initialization,
+//! and they will have a default value of `null`.
+//!
+//! ## Const Variables
+//! Constants must always be initialized and cannot be reassigned after declaration.
+//! They provide compile-time guarantees about value immutability.
+//!
+//! # Error Handling
+//!
+//! The parser provides detailed error messages for common mistakes:
+//! - Missing variable names
+//! - Missing initialization for non-nullable variables
+//! - Missing initialization for const variables
+//! - Invalid type annotations
+//! - Missing assignment operators
+
 use std::fmt::{Display, Formatter};
 
 use nom::branch::alt;
@@ -15,11 +65,49 @@ use crate::parser::{expected_ident, ident};
 use super::TimuParserError;
 
 impl VariableDefinitionAst<'_> {
+    /// Parses a variable definition for use as a statement
+    /// 
+    /// This parser variant wraps the main variable definition parser for use
+    /// within statement contexts such as function bodies and code blocks.
     pub fn parse_body_statement(input: NomSpan<'_>) -> IResult<NomSpan<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, variable) = Self::parse(input)?;
         Ok((input, BodyStatementAst::VariableDefinition(variable)))
     }
 
+    /// Parses a complete variable definition
+    /// 
+    /// This is the main parser for variable declarations. It handles both `var` and
+    /// `const` declarations with optional type annotations and initialization expressions.
+    /// The parser enforces language rules such as requiring initialization for constants.
+    /// 
+    /// # Parsing Logic
+    /// 1. Parse variable kind (`var` or `const`)
+    /// 2. Parse variable name (identifier)
+    /// 3. Optionally parse type annotation after `:`
+    /// 4. Optionally parse initialization expression after `=`
+    /// 5. Validate combination according to language rules
+    /// 6. Require terminating semicolon
+    /// 
+    /// # Language Rules
+    /// - Constants must have initialization expressions
+    /// - Variables without type annotations must have initialization
+    /// - Nullable types can be declared without initialization
+    /// 
+    /// # Arguments
+    /// * `input` - The input span to parse from
+    /// 
+    /// # Returns
+    /// * `Ok((remaining, ast))` - Successfully parsed variable definition
+    /// * `Err(error)` - Parse error with detailed context
+    /// 
+    /// # Examples
+    /// ```timu
+    /// var counter = 0;                    // Inferred type
+    /// var name: string = "hello";         // Explicit type
+    /// var optional: ?i32;                 // Nullable without init
+    /// const PI = 3.14159;                 // Constant with inference
+    /// const MAX_SIZE: i32 = 1000;         // Constant with explicit type
+    /// ```
     pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, VariableDefinitionAst<'_>, TimuParserError<'_>> {
         let (input, variable_definition_type) = cleanup(alt((
             map(tag("var"), |_| VariableDefinitionType::Var),
@@ -75,21 +163,62 @@ impl Display for VariableDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.variable_definition_type, self.name.text)?;
         if let Some(expected_type) = &self.expected_type {
-            write!(f, ": {}", expected_type)?;
+            write!(f, ": {expected_type}")?;
         }
         if let Some(expression) = &self.expression {
-            write!(f, " = {}", expression)?;
+            write!(f, " = {expression}")?;
         }
         write!(f, ";")
     }
 }
 
 impl VariableAssignAst<'_> {
+    /// Parses a variable assignment for use as a statement
+    /// 
+    /// This parser variant wraps the main variable assignment parser for use
+    /// within statement contexts such as function bodies and code blocks.
     pub fn parse_body_statement(input: NomSpan<'_>) -> IResult<NomSpan<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, variable) = Self::parse(input)?;
         Ok((input, BodyStatementAst::VariableAssign(variable)))
     }
 
+    /// Parses a variable assignment statement
+    /// 
+    /// This parser handles assignment of new values to existing variables. The
+    /// variable must have been previously declared, and the assigned expression
+    /// must be compatible with the variable's type.
+    /// 
+    /// # Syntax
+    /// ```timu
+    /// variableName = expression;
+    /// ```
+    /// 
+    /// # Arguments
+    /// * `input` - The input span to parse from
+    /// 
+    /// # Returns
+    /// * `Ok((remaining, ast))` - Successfully parsed variable assignment
+    /// * `Err(error)` - Parse error with context information
+    /// 
+    /// # Errors
+    /// Returns errors for:
+    /// - Invalid variable name
+    /// - Missing assignment operator (`=`)
+    /// - Invalid expression syntax
+    /// - Missing terminating semicolon
+    /// 
+    /// # Examples
+    /// ```timu
+    /// counter = counter + 1;
+    /// name = "new name";
+    /// result = calculateValue();
+    /// flag = !flag;
+    /// ```
+    /// 
+    /// # Type Checking
+    /// While this parser handles syntax validation, type compatibility between
+    /// the variable and the assigned expression is validated during semantic
+    /// analysis in the TIR phase.
     pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, VariableAssignAst<'_>, TimuParserError<'_>> {
         let (input, name) = ident().parse(input)?;
         let (input, _) = context("Missing '='", cleanup(char('='))).parse(input)?;
@@ -177,12 +306,12 @@ mod tests {
 
         if let nom::Err::Failure(error) = error {
             if let VerboseErrorKind::Context(ctx) = error.errors[error.errors.len() - 1].1 {
-                assert_eq!(ctx, expected, "{}", code);
+                assert_eq!(ctx, expected, "{code}");
             } else {
-                panic!("Expected an error, but got: {:#?}", error);
+                panic!("Expected an error, but got: {error:#?}");
             }
         } else {
-            panic!("Expected an error, but got: {:#?}", error);
+            panic!("Expected an error, but got: {error:#?}");
         }
     }
 }

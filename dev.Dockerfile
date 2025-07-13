@@ -18,7 +18,7 @@ ENV RUSTUP_HOME=/opt/rust/rustup \
 
 # Install Rust
 RUN mkdir -p /opt/rust/rustup /opt/rust/cargo && \
-   curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.87.0 --profile default --no-modify-path -y
+   curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain 1.88.0 --profile default --no-modify-path -y
 
 # Install rust tools
 RUN rustup component add llvm-tools-preview && cargo install grcov
@@ -32,6 +32,7 @@ RUN git clone https://github.com/zsh-users/zsh-autosuggestions /root/.oh-my-zsh/
 RUN git clone https://github.com/zsh-users/zsh-syntax-highlighting.git /root/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting
 RUN git clone https://github.com/MichaelAquilina/zsh-you-should-use.git /root/.oh-my-zsh/custom/plugins/you-should-use
 
+RUN npm install -g @anthropic-ai/claude-code
 
 # zsh configuration
 RUN printf "export RUSTUP_HOME=/opt/rust/rustup\n\

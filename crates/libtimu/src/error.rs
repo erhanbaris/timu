@@ -1,3 +1,11 @@
+//! Error handling and reporting for the Timu language compiler.
+//!
+//! This module provides comprehensive error handling infrastructure including:
+//! - Type aliases for parse and TIR results
+//! - Error reporting using `codespan-reporting` for rich diagnostics
+//! - Parser error conversion utilities
+//! - Integration with the Timu error trait system
+
 use codespan_reporting::{diagnostic::{Diagnostic, Label}, files::SimpleFiles, term::{self, termcolor::StandardStream}};
 use libtimu_macros_core::traits::TimuErrorTrait;
 use nom_language::error::VerboseErrorKind;
@@ -8,23 +16,31 @@ use crate::{
     tir::{error::SyntaxErrorItem, TirContext, TirError},
 };
 
-
+/// File extension for Timu language source files
 pub static TIMU_LANG_EXT: &str = "tim";
 
+/// Error type for parsing operations using nom combinators
 pub type ParseError<'base> = nom_language::error::VerboseError<nom_locate::LocatedSpan<&'base str, State>>;
+
+/// Result type for parsing operations that returns the remaining input and parsed AST
 pub type ParseResult<'base> = Result<(nom_locate::LocatedSpan<&'base str, State>, FileAst<'base>), ParseError<'base>>;
 
+/// Result type for TIR (Type Intermediate Representation) operations
 pub type TirResult<'base> = Result<TirContext<'base>, TirError>;
 
 
 
+/// Trait for generating error reports from TIR errors
 pub trait ReportGenerator {
+    /// Generate a formatted error report for the given TIR error
     fn generate(error: TirError);
 }
 
+/// Error report generator using the `codespan-reporting` library for rich diagnostics
 pub struct CodeSpanReportGenerator;
 
 impl CodeSpanReportGenerator {
+    /// Internal helper to recursively generate diagnostics for errors and their references
     fn inner_generate(files: &mut SimpleFiles<String, String>, diagnostics: &mut Vec<Diagnostic<usize>>, error: &dyn TimuErrorTrait) {
         let mut diagnostic: Diagnostic<usize> = Diagnostic::error().with_message(error.to_string());
 
@@ -73,6 +89,10 @@ impl ReportGenerator for CodeSpanReportGenerator {
     }
 }
 
+/// Converts parser results into TIR-compatible results, handling parser errors
+/// 
+/// Takes a parser result and either returns the parsed AST or converts
+/// parser errors into TIR syntax errors with proper source location information.
 #[allow(clippy::result_unit_err)]
 pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, TirError> {
     match result {

@@ -1,3 +1,54 @@
+//! Type Intermediate Representation (TIR) for the Timu language compiler.
+//!
+//! The TIR module implements the semantic analysis phase of the Timu compiler,
+//! transforming the Abstract Syntax Tree (AST) into a type-checked intermediate
+//! representation with full semantic information.
+//!
+//! # Architecture Overview
+//!
+//! The TIR system operates in two main phases:
+//!
+//! ## 1. Resolve Phase
+//! - **Signature Building**: Collect all type signatures, function signatures, and module declarations
+//! - **Symbol Tables**: Build lookup tables for efficient name resolution
+//! - **Forward Declarations**: Handle forward references and circular dependencies
+//! - **Module System**: Process `use` statements and build module hierarchy
+//!
+//! ## 2. Finish Phase  
+//! - **Type Checking**: Verify all type relationships and constraints
+//! - **Implementation Validation**: Ensure interface implementations are complete
+//! - **Cross-References**: Validate references between modules and types
+//! - **Error Collection**: Gather and report semantic errors
+//!
+//! # Key Components
+//!
+//! - [`TirContext`] - Global compilation state and symbol tables
+//! - [`signature`] - Type and function signature management
+//! - [`resolver`] - Two-phase semantic analysis implementation
+//! - [`object_signature`] - Type system and primitive type definitions
+//! - [`scope`] - Hierarchical scope management for variables and types
+//! - [`module`] - Module system and import/export handling
+//! - [`error`] - Rich error reporting with source locations
+//!
+//! # Type System
+//!
+//! The type system supports:
+//! - **Primitive types**: Integers, floats, booleans, strings
+//! - **Nullable types**: Optional values with `?` syntax
+//! - **Reference types**: Memory references with `ref` keyword  
+//! - **Classes and interfaces**: Object-oriented programming constructs
+//! - **Generic types**: Parameterized types (planned)
+//!
+//! # Usage
+//!
+//! The main entry point is the [`build`] function which takes parsed AST files
+//! and produces a fully type-checked [`TirContext`]:
+//!
+//! ```ignore
+//! let files: Vec<Rc<FileAst>> = // ... parsed files
+//! let tir_context = tir::build(files)?;
+//! ```
+
 use std::rc::Rc;
 
 use ast_signature::{build_module, AstSignatureValue};
@@ -22,15 +73,44 @@ mod signature;
 mod scope;
 
 
+/// Type alias for AST-based signatures used during the resolve phase
+/// 
+/// These signatures represent function and class declarations as they appear
+/// in the AST, before full type resolution has occurred.
 pub type AstSignature<'base> = Signature<AstSignatureValue<'base>, ModuleRef<'base>>;
+
+/// Type alias for AST signature holders that manage signature collections
+/// 
+/// Provides efficient lookup and storage for AST signatures during compilation.
 pub type AstSignatureHolder<'base> = SignatureHolder<'base, AstSignatureValue<'base>, AstSignatureValueDiscriminants, AstSignatureLocation, ModuleRef<'base>>;
 
+/// Type alias for fully resolved type signatures
+/// 
+/// These signatures represent complete type information after semantic analysis,
+/// including resolved references and validated type relationships.
 pub type TypeSignature<'base> = Signature<TypeValue<'base>, TypeLocation>;
+
+/// Type alias for type signature holders that manage type collections
+/// 
+/// Provides efficient lookup and storage for resolved type signatures.
 pub type TypeSignatureHolder<'base> = SignatureHolder<'base, TypeValue<'base>, TypeValueDiscriminants, TypeLocation, TypeLocation>;
 
+/// Object location constant for the boolean `false` literal
+/// 
+/// This provides a stable reference to the false value in the type system.
 pub static BOOL_FALSE_LOCATION: ObjectLocation = ObjectLocation(0);
+
+/// Object location constant for the boolean `true` literal
+/// 
+/// This provides a stable reference to the true value in the type system.
 pub static BOOL_TRUE_LOCATION: ObjectLocation = ObjectLocation(1);
 
+/// Initializes the built-in primitive types in the TIR context
+/// 
+/// This function registers all primitive types (i8, u8, i16, u16, i32, u32, i64, u64,
+/// float, bool, string, void) in the type signature table so they can be referenced
+/// during type resolution. These types are considered part of the language's
+/// standard library and are always available.
 fn build_primitive_types(context: &mut TirContext<'_>) {
     context.types.add_signature(SignaturePath::borrowed("i8"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::I8), SourceFile::new(vec!["<standart>".into()], "<native-code>".to_string()), 0..0, None)).unwrap();
     context.types.add_signature(SignaturePath::borrowed("u8"), TypeSignature::new(TypeValue::PrimitiveType(object_signature::PrimitiveType::U8), SourceFile::new(vec!["<standart>".into()], "<native-code>".to_string()), 0..0, None)).unwrap();
@@ -78,6 +158,34 @@ impl<'base> ResolveAst<'base> for FileStatementAst<'base> {
     }
 }
 
+/// Builds the Type Intermediate Representation from parsed AST files
+/// 
+/// This is the main entry point for semantic analysis. It processes all source files
+/// through the two-phase TIR compilation process:
+/// 
+/// 1. **Resolve Phase**: Builds signatures and symbol tables for all declarations
+/// 2. **Finish Phase**: Performs type checking and validates all references
+/// 
+/// # Arguments
+/// * `files` - Vector of parsed AST files to process
+/// 
+/// # Returns
+/// * `Ok(TirContext)` - Complete type-checked compilation context
+/// * `Err(TirError)` - Semantic analysis errors with source locations
+/// 
+/// # Process
+/// 1. Initialize primitive types in the context
+/// 2. Build module structure from file paths
+/// 3. Resolve all signatures (classes, functions, interfaces)
+/// 4. Finish phase validation and type checking
+/// 5. Return completed context or collected errors
+/// 
+/// # Examples
+/// ```ignore
+/// let files = vec![ast_file1, ast_file2];
+/// let tir_context = tir::build(files)?;
+/// // tir_context now contains complete semantic information
+/// ```
 pub fn build(files: Vec<Rc<FileAst<'_>>>) -> Result<TirContext<'_>, TirError> {
     //let mut has_error = false;
     let mut context: TirContext<'_> = TirContext::default();
@@ -242,42 +350,38 @@ mod tests {
     fn missing_module() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source1".into()], "use missing;".to_string()));
         let ast = process_code(&state)?;
-        let _error = crate::tir::build(vec![ast.into()]).unwrap_err();
+        let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
-        // todo: fix this test
-        /*if let TirError::ImportNotFound(error) = error
+        if let TirError::ImportNotFound(error) = error
         {
             assert_eq!(error.module, "missing");
         } else {
-            panic!("Expected TirError::ImportNotFound {}", error);
-        }*/
+            panic!("Expected TirError::ImportNotFound {error}");
+        }
 
         Ok(())
     }
 
     #[test]
-    fn dublicated_module() -> Result<(), TirError> {
+    fn duplicated_module() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass; use source.testclass;".to_string()));
         
         let ast_1 = process_code(&state_1)?;
         let ast_2 = process_code(&state_2)?;
-        let _error = crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap_err();
+        let error = crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap_err();
 
-        /*
-        todo: fix this test
-        if let TirError::ModuleAlreadyImported(error) = error
-        {
-            assert_eq!(error.old_position, SourceSpan::from(7..16));
-            assert_eq!(error.new_position, SourceSpan::from(26..42));
+        if let TirError::ModuleAlreadyImported(error) = error {
+            assert_eq!(error.old_position, 7..16);
+            assert_eq!(error.new_position, 26..51);
         } else {
-            panic!("Expected TirError::AstModuleAlreadyDefined");
-        } */
+            panic!("Expected TirError::ModuleAlreadyImported");
+        }
         Ok(())
     }
 
     #[test]
-    fn no_dublicated_module() -> Result<(), TirError> {
+    fn no_duplicated_module() -> Result<(), TirError> {
         let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass as t1; use source.testclass as t2;".to_string()));
 

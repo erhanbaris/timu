@@ -1,3 +1,48 @@
+//! Function call parsing for the Timu language.
+//!
+//! This module handles parsing of function call expressions and statements in Timu.
+//! Function calls can appear in multiple contexts: as expressions within other expressions,
+//! as standalone statements, or as method calls on objects.
+//!
+//! # Function Call Syntax
+//!
+//! Timu supports several types of function calls:
+//!
+//! ## Direct Function Calls
+//! ```timu
+//! functionName()
+//! functionName(arg1, arg2, arg3)
+//! module.function(args)
+//! nested.module.function(args)
+//! ```
+//!
+//! ## Method Calls (This Context)
+//! ```timu
+//! this.method()
+//! this.method(args)
+//! this.field.method(args)
+//! ```
+//!
+//! ## Nested Function Calls
+//! ```timu
+//! outer(inner(arg))
+//! complex(func1(a), func2(b, c), func3())
+//! ```
+//!
+//! # Parsing Architecture
+//!
+//! The parser handles function calls in different contexts:
+//! - **Expression context**: Function calls that return values used in expressions
+//! - **Statement context**: Function calls that stand alone as statements (with semicolon)
+//! - **Path resolution**: Support for qualified names and method call syntax
+//!
+//! # Error Handling
+//!
+//! The parser provides detailed error messages for common issues:
+//! - Missing closing parentheses
+//! - Invalid argument syntax
+//! - Malformed qualified paths
+
 use std::fmt::{Display, Formatter};
 
 use nom::bytes::complete::tag;
@@ -17,6 +62,31 @@ use crate::parser::ident;
 use super::TimuParserError;
 
 impl FunctionCallAst<'_> {
+    /// Parses a function call expression with optional method call syntax
+    /// 
+    /// This is the main parsing function for function calls. It handles both direct
+    /// function calls (`function()`) and method calls (`this.method()`). The parser
+    /// uses lookahead to ensure it only consumes valid function call syntax.
+    /// 
+    /// # Syntax Patterns
+    /// - `functionName(args)` - Direct function call
+    /// - `module.function(args)` - Qualified function call
+    /// - `this.method(args)` - Method call on current object
+    /// - `this.field.method(args)` - Method call on field
+    /// 
+    /// # Arguments
+    /// * `input` - The input span to parse from
+    /// 
+    /// # Returns
+    /// * `Ok((remaining, ast))` - Successfully parsed function call
+    /// * `Err(error)` - Parse error with context information
+    /// 
+    /// # Errors
+    /// Returns errors for:
+    /// - Missing opening parenthesis
+    /// - Missing closing parenthesis  
+    /// - Invalid argument expressions
+    /// - Malformed path components
     pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FunctionCallAst<'_>, TimuParserError<'_>> {
         let (input, this) = match opt(tag("this")).parse(input)? {
             (input, Some(this)) => {
@@ -50,17 +120,60 @@ impl FunctionCallAst<'_> {
         ))
     }
 
+    /// Parses a function call as a statement (with required semicolon)
+    /// 
+    /// This parser variant handles function calls that appear as standalone statements
+    /// in a code block. Unlike expression function calls, these must be terminated
+    /// with a semicolon and don't return a value to be used elsewhere.
+    /// 
+    /// # Arguments
+    /// * `input` - The input span to parse from
+    /// 
+    /// # Returns
+    /// * `Ok((remaining, statement))` - Successfully parsed function call statement
+    /// * `Err(error)` - Parse error, often due to missing semicolon
+    /// 
+    /// # Examples
+    /// ```timu
+    /// functionName();
+    /// this.method(arg1, arg2);
+    /// module.utility.function();
+    /// ```
     pub fn parse_body_statement(input: NomSpan<'_>) -> IResult<NomSpan<'_>, BodyStatementAst<'_>, TimuParserError<'_>> {
         let (input, function_call) = Self::parse(input)?;
         let (input, _) = context("Missing ';'", cut(cleanup(char(';')))).parse(input)?;
         Ok((input, BodyStatementAst::FunctionCall(function_call)))
     }
 
+    /// Parses a function call for use within expressions
+    /// 
+    /// This parser variant handles function calls that appear within larger expressions,
+    /// such as as arguments to other functions, operands in arithmetic, or conditions
+    /// in control flow. No semicolon is expected.
+    /// 
+    /// # Arguments
+    /// * `input` - The input span to parse from
+    /// 
+    /// # Returns
+    /// * `Ok((remaining, expression))` - Successfully parsed function call expression
+    /// * `Err(error)` - Parse error from the underlying function call parser
+    /// 
+    /// # Examples
+    /// ```timu
+    /// result = calculate(getValue(), getMultiplier());
+    /// if (isValid(input)) { ... }
+    /// array[getIndex()]
+    /// ```
     pub fn parse_for_expression(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
         let (input, function_call) = Self::parse(input)?;
         Ok((input, ExpressionAst::FunctionCall(function_call)))
     }
 
+    /// Helper function to parse identifiers for function path components
+    /// 
+    /// This is an internal utility function that converts parsed identifiers
+    /// into function call path AST nodes. Currently unused but maintained
+    /// for potential future path resolution enhancements.
     #[allow(dead_code)]
     fn ident_for_function_path(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FunctionCallPathAst<'_>, TimuParserError<'_>> {
         let (input, path) = ident().parse(input)?;
@@ -90,13 +203,13 @@ impl Display for FunctionCallAst<'_> {
             }
             FunctionCallType::Direct(paths) => paths.iter().map(|p| p.text).collect::<Vec<_>>().join("."),
         };
-        write!(f, "{}", call_path)?;
+        write!(f, "{call_path}")?;
         write!(f, "(")?;
         for (i, arg) in self.arguments.iter().enumerate() {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}", arg)?;
+            write!(f, "{arg}")?;
         }
         write!(f, ")")?;
         Ok(())
@@ -107,7 +220,7 @@ impl Display for FunctionCallPathAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FunctionCallPathAst::Ident(ident) => write!(f, "{}", ident.text),
-            FunctionCallPathAst::TypeName(type_name) => write!(f, "{}", type_name),
+            FunctionCallPathAst::TypeName(type_name) => write!(f, "{type_name}"),
         }
     }
 }
@@ -136,6 +249,6 @@ mod tests {
 
         let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = FunctionCallAst::parse(input).unwrap();
-        assert_eq!(response.to_string(), expected, "{}", code);
+        assert_eq!(response.to_string(), expected, "{code}");
     }
 }

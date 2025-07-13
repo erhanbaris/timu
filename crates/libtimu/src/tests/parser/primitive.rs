@@ -60,9 +60,9 @@ fn invalid_primitive_test<'base>(#[case] code: &'base str, #[case] expected: &'b
         if let VerboseErrorKind::Context(ctx) = error.errors[0].1 {
             assert_eq!(ctx, expected, "{}", code);
         } else {
-            panic!("Expected an error, but got: {:?}", error);
+            panic!("Expected an error, but got: {error:?}");
         }
     } else {
-        panic!("Expected an error, but got: {:?}", error);
+        panic!("Expected an error, but got: {error:?}");
     }
 }

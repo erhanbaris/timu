@@ -1,3 +1,94 @@
+//! Two-phase type resolution system for the TIR (Type Intermediate Representation).
+//!
+//! This module implements the core resolution engine that transforms parsed AST nodes into
+//! a fully typed intermediate representation. The resolver operates in two distinct phases
+//! to handle complex type dependencies, forward references, and circular dependencies that
+//! are common in sophisticated programming languages.
+//!
+//! # Two-Phase Resolution Architecture
+//!
+//! The resolver uses a two-phase approach to handle complex interdependencies:
+//!
+//! ## Phase 1: Resolve Phase
+//! ```ignore
+//! resolve() -> TypeLocation
+//! ```
+//! - **Purpose**: Establish type signatures and basic structure
+//! - **Creates**: Type locations, scope hierarchies, symbol tables
+//! - **Registers**: Type names, function signatures, class declarations
+//! - **Builds**: Forward reference tables for later resolution
+//! - **Order**: Uses, Interfaces, Extensions, Classes, Functions
+//!
+//! ## Phase 2: Finish Phase  
+//! ```ignore
+//! finish() -> Result<(), TirError>
+//! ```
+//! - **Purpose**: Complete type checking and cross-reference validation
+//! - **Validates**: Function implementations, interface compliance, inheritance
+//! - **Resolves**: Method calls, field access, type compatibility
+//! - **Ensures**: All references are valid and type-safe
+//!
+//! # Resolution Process Flow
+//!
+//! ```text
+//! Module AST → build_file() → {
+//!     1. Collect statements by type
+//!     2. Phase 1 Resolution:
+//!        ├── Uses (imports)
+//!        ├── Interfaces (type contracts)
+//!        ├── Extensions (type augmentations)
+//!        ├── Classes (concrete types)
+//!        └── Functions (procedures)
+//!     3. Phase 2 Finishing:
+//!        ├── Validate implementations
+//!        ├── Check type compatibility
+//!        └── Resolve cross-references
+//! }
+//! ```
+//!
+//! # Key Components
+//!
+//! ## Type Locations
+//! - **TypeLocation**: Unique identifiers for types in the type system
+//! - **ObjectLocation**: References to object instances and values
+//! - **AstSignatureLocation**: References to AST-based type signatures
+//!
+//! ## Resolution Utilities
+//! - **`try_resolve_signature()`**: Finds types in module hierarchies
+//! - **`build_signature_path()`**: Creates qualified type names
+//! - **`get_object_location_or_resolve()`**: Resolves or creates type references
+//!
+//! ## Module Navigation
+//! - **`find_module()`**: Locates modules in import hierarchies
+//! - **`try_resolve_moduled_signature()`**: Resolves qualified type names
+//! - **`try_resolve_direct_signature()`**: Resolves local type names
+//!
+//! # Error Handling
+//!
+//! The resolver provides comprehensive error reporting with:
+//! - **Source locations**: Precise error positioning in source code
+//! - **Context information**: Detailed error messages with suggestions
+//! - **Type information**: Clear explanations of type mismatches
+//! - **Resolution chains**: Traces showing how types were resolved
+//!
+//! # Integration with Language Features
+//!
+//! ## Module System
+//! - Hierarchical module organization with dotted paths
+//! - Import resolution with aliasing support
+//! - Phantom modules for intermediate path segments
+//!
+//! ## Object-Oriented Features
+//! - Class inheritance with method resolution
+//! - Interface implementation checking
+//! - Extension method integration
+//!
+//! ## Type System
+//! - Forward reference resolution
+//! - Generic type handling (planned)
+//! - Nullable type checking
+//! - Reference type validation
+
 use std::{borrow::Cow, fmt::Debug};
 
 use function::FunctionResolveError;
@@ -18,10 +109,27 @@ pub mod module;
 pub mod module_use;
 pub mod statement;
 
+/// Unique identifier for types within the TIR type system
+/// 
+/// `TypeLocation` provides a compact, efficient way to reference types throughout
+/// the compilation process. It uses a simple numeric index into the global type
+/// table, enabling fast lookups and comparisons while maintaining type safety.
+/// 
+/// # Usage
+/// 
+/// Type locations are created during the resolve phase and used throughout
+/// the compilation pipeline for type checking, method resolution, and code
+/// generation. They provide a stable reference that remains valid across
+/// compilation phases.
+/// 
+/// # Special Values
+/// 
+/// - `UNDEFINED`: Sentinel value indicating an unresolved or invalid type
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TypeLocation(#[allow(dead_code)]pub usize);
 
 impl TypeLocation {
+    /// Sentinel value representing an undefined or unresolved type location
     pub const UNDEFINED: Self = TypeLocation(usize::MAX);
 }
 
@@ -123,6 +231,52 @@ pub fn build_signature_path<'base>(context: &TirContext<'base>, name: &str, modu
     SignaturePath::owned(format!("{}.{}", module.path, name))
 }
 
+/// Builds and resolves all types within a module using two-phase resolution
+/// 
+/// This is the main entry point for the TIR resolution process. It processes
+/// a module's AST through both resolution phases, ensuring all types are
+/// properly registered and validated. The function handles the complex
+/// dependencies between different language constructs by processing them
+/// in a carefully ordered sequence.
+/// 
+/// # Two-Phase Process
+/// 
+/// ## Phase 1: Resolution
+/// 1. **Uses**: Import statements and module dependencies
+/// 2. **Interfaces**: Type contracts and abstract method signatures  
+/// 3. **Extensions**: Type augmentations and interface implementations
+/// 4. **Classes**: Concrete type definitions and inheritance
+/// 5. **Functions**: Procedure signatures and method definitions
+/// 
+/// ## Phase 2: Finishing
+/// 1. **Validation**: Check implementations against interfaces
+/// 2. **Type checking**: Verify type compatibility and constraints
+/// 3. **Cross-references**: Resolve method calls and field access
+/// 
+/// # Arguments
+/// * `context` - The TIR context containing type information
+/// * `module_ref` - Reference to the module being processed
+/// 
+/// # Returns
+/// * `Ok(())` - If the module was successfully processed
+/// * `Err(TirError)` - If resolution or validation fails
+/// 
+/// # Errors
+/// 
+/// This function can fail if:
+/// - Type definitions are invalid or malformed
+/// - Interface implementations are incomplete
+/// - Circular dependencies cannot be resolved
+/// - Cross-module references are invalid
+/// - Function signatures don't match their implementations
+/// 
+/// # Resolution Order
+/// 
+/// The order of resolution is critical for handling forward references:
+/// - Uses must be resolved first to establish module dependencies
+/// - Interfaces must be resolved before classes that implement them
+/// - Extensions require their target types to exist first
+/// - Functions are resolved last as they may reference all other types
 pub fn build_file<'base>(context: &mut TirContext<'base>, module_ref: ModuleRef<'base>) -> Result<(), TirError> {
     simplelog::debug!("<on-red>Building file: {:?}</>", module_ref.as_ref());
     
@@ -316,6 +470,59 @@ pub fn find_ast_signature<'base>(context: &mut TirContext<'base>, module: &Modul
     }
 }
 
+/// Attempts to resolve a type name to its location in the type system
+/// 
+/// This is the primary type resolution function that handles both qualified and
+/// unqualified type names. It provides a unified interface for looking up types
+/// across module boundaries and within local scopes.
+/// 
+/// # Resolution Strategy
+/// 
+/// The function uses different resolution strategies based on the type name format:
+/// 
+/// ## Qualified Names (containing '.')
+/// ```timu
+/// std.collections.HashMap  // Module-qualified type
+/// ui.Button               // Simple module qualification
+/// ```
+/// Uses `try_resolve_moduled_signature()` to traverse module hierarchies.
+/// 
+/// ## Unqualified Names
+/// ```timu
+/// String    // Local or imported type
+/// MyClass   // Type in current module
+/// ```
+/// Uses `try_resolve_direct_signature()` for local and imported type lookup.
+/// 
+/// # Arguments
+/// * `context` - The TIR context containing type and module information
+/// * `module` - The module from which to start resolution
+/// * `scope_location` - The scope context for resolution
+/// * `key` - The type name to resolve (qualified or unqualified)
+/// 
+/// # Returns
+/// * `Ok(Some(TypeLocation))` - Successfully resolved type
+/// * `Ok(None)` - Type not found (not an error condition)
+/// * `Err(TirError)` - Resolution failed due to an error
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// // Resolve a local class
+/// let location = try_resolve_signature(context, module, scope, "MyClass")?;
+/// 
+/// // Resolve a qualified type from another module
+/// let location = try_resolve_signature(context, module, scope, "std.String")?;
+/// ```
+/// 
+/// # Integration
+/// 
+/// This function is used throughout the resolver for:
+/// - Field type resolution in class definitions
+/// - Parameter type resolution in function signatures
+/// - Return type resolution for methods
+/// - Interface implementation validation
+/// - Extension target type resolution
 pub fn try_resolve_signature<'base, K: AsRef<str>>(
     context: &mut TirContext<'base>, module: &ModuleRef<'base>, scope_location: ScopeLocation, key: K,
 ) -> Result<Option<TypeLocation>, TirError> {

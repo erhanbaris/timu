@@ -3,3 +3,7 @@ mod interface_definition;
 mod function_definition;
 mod primitive;
 mod variable_assign;
+mod expression;
+mod module_use;
+mod type_info;
+mod edge_cases;
