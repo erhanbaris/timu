@@ -1,3 +1,62 @@
+//! Statement resolution and validation for the Timu TIR system.
+//!
+//! This module provides the core infrastructure for resolving and validating
+//! statements within function bodies during semantic analysis. It implements
+//! the `ResolveAst` trait for body statements and provides utilities for
+//! primitive type resolution and function signature management.
+//!
+//! # Statement Types
+//!
+//! The module handles resolution of various statement types that can appear
+//! within function bodies:
+//!
+//! ## Function Calls
+//! - **Direct function calls**: `functionName(args)`
+//! - **Method calls**: `object.method(args)`
+//! - **Module function calls**: `module.function(args)`
+//!
+//! ## Future Statement Types
+//! The architecture supports expansion for additional statement types:
+//! - Variable assignments
+//! - Control flow statements (if, while, for)
+//! - Return statements
+//! - Expression statements
+//!
+//! # Resolution Process
+//!
+//! Statement resolution follows a two-phase approach:
+//!
+//! ## Phase 1: Resolve
+//! - **Type determination**: Determine the result type of the statement
+//! - **Scope validation**: Ensure all referenced identifiers are in scope
+//! - **Signature matching**: For function calls, validate against signatures
+//! - **Type checking**: Ensure type compatibility and correctness
+//!
+//! ## Phase 2: Finish
+//! - **Finalization**: Complete any deferred resolution tasks
+//! - **Cross-references**: Resolve any remaining type dependencies
+//! - **Validation**: Final validation of resolved statements
+//!
+//! # Function Signature Support
+//!
+//! The module provides data structures for managing function signatures:
+//! - **`FunctionArgument`**: Represents function parameters with names and types
+//! - **`ClassFunctionSignature`**: Complete signature information for class methods
+//!
+//! # Primitive Type Resolution
+//!
+//! The `try_resolve_primitive` function handles resolution of primitive values
+//! (strings, numbers, booleans) to their corresponding type representations
+//! in the type system.
+//!
+//! # Integration
+//!
+//! This module integrates with:
+//! - **Type system**: For type lookup and validation
+//! - **Scope system**: For identifier resolution
+//! - **Function call resolver**: For detailed function call analysis
+//! - **Error system**: For comprehensive error reporting
+
 use core::panic;
 use std::borrow::Cow;
 
@@ -10,6 +69,10 @@ mod function_call;
 
 pub use function_call::FunctionCallError;
 
+/// Represents a function parameter with its name and type information
+/// 
+/// This structure stores the essential information about a function parameter
+/// including its identifier name and resolved type location within the type system.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct FunctionArgument<'base> {
@@ -17,6 +80,10 @@ pub struct FunctionArgument<'base> {
     pub field_type: TypeLocation,
 }
 
+/// Complete signature information for class method functions
+/// 
+/// This structure contains all the metadata necessary to represent a class method
+/// including visibility, parameters, return type, and signature path for resolution.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct ClassFunctionSignature<'base> {
@@ -44,6 +111,24 @@ impl<'base> ResolveAst<'base> for BodyStatementAst<'base> {
     }
 }
 
+/// Resolves a primitive value to its corresponding type location in the type system
+/// 
+/// This function takes a primitive value (string, number, boolean) and finds its
+/// corresponding type representation in the TIR type system. It's used during
+/// expression resolution to determine the types of literal values.
+/// 
+/// # Arguments
+/// * `context` - Mutable TIR context for type system access
+/// * `primitive` - The primitive value to resolve
+/// * `span` - Source location information for error reporting
+/// 
+/// # Returns
+/// * `Ok(TypeLocation)` - Location of the primitive's type in the type system
+/// * `Err(TirError)` - Error if the primitive type is not found
+/// 
+/// # Errors
+/// Returns `TirError::type_not_found` if the primitive type is not registered
+/// in the type system, which typically indicates a compiler setup issue.
 pub fn try_resolve_primitive<'base>(context: &mut TirContext<'base>, primitive: &PrimitiveValue<'base>, span: &Span<'base>) -> Result<TypeLocation, TirError> {
     let location = context.types.find_by_value(&TypeValue::PrimitiveType(primitive.to_type()));
     match location {
@@ -65,19 +150,16 @@ mod tests {
     }
 
     #[test]
-    fn dublicated_function_argument() -> Result<(), TirError> {
+    fn duplicated_function_argument() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ".to_string()));
         let ast = process_code(&state)?;
-        let _error = crate::tir::build(vec![ast.into()]).unwrap_err();
+        let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
-        /*
-        todo: fix this test
-        if let TirError::AlreadyDefined(error) = error
-        {
-            assert_eq!(error.new_position, (27..28).into());
+        if let TirError::AlreadyDefined(error) = error {
+            assert_eq!(error.new_position, 27..28);
         } else {
-            panic!("Expected TirError::AlreadyDefined but got {:?}", error);
-        } */
+            panic!("Expected TirError::AlreadyDefined but got {error:?}");
+        }
 
         Ok(())
     }

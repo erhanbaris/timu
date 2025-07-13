@@ -1,3 +1,55 @@
+//! Signature management system for the Timu compiler's type resolution.
+//!
+//! This module provides the core infrastructure for managing type signatures, function
+//! signatures, and other symbol definitions throughout the compilation process. It
+//! implements a sophisticated signature table system that supports:
+//!
+//! # Key Features
+//!
+//! - **Hierarchical namespaces**: Support for qualified names like `module.Type`
+//! - **Forward declarations**: Allow references before full definition
+//! - **Signature reservations**: Reserve names during resolve phase
+//! - **Location tracking**: Maintain source locations for error reporting
+//! - **Efficient lookup**: Fast O(1) signature resolution by name
+//! - **Type safety**: Generic over signature content and location types
+//!
+//! # Architecture
+//!
+//! The signature system is built around several key types:
+//!
+//! - [`Signature`] - Individual signature with value, source location, and metadata
+//! - [`SignatureHolder`] - Collection of signatures with efficient lookup
+//! - [`SignaturePath`] - Qualified name path for signature identification
+//! - [`SignatureReservation`] - Placeholder for forward declarations
+//!
+//! # Two-Phase Resolution
+//!
+//! The system supports a two-phase resolution process:
+//!
+//! 1. **Reserve Phase**: Create placeholder entries for all signatures
+//! 2. **Resolve Phase**: Fill in the actual signature values and validate references
+//!
+//! This approach enables handling of circular dependencies and forward references
+//! that are common in object-oriented code with inheritance and interfaces.
+//!
+//! # Usage
+//!
+//! ```ignore
+//! let mut holder = SignatureHolder::new();
+//! 
+//! // Reserve a signature during first pass
+//! let location = holder.reserve_signature(
+//!     SignaturePath::borrowed("MyClass"),
+//!     reservation_info
+//! )?;
+//! 
+//! // Add the actual signature during second pass
+//! holder.add_signature(
+//!     SignaturePath::borrowed("MyClass"),
+//!     actual_signature
+//! )?;
+//! ```
+
 use std::{borrow::{Borrow, Cow}, fmt::Debug, hash::Hash, ops::Range};
 
 use indexmap::IndexMap;
@@ -7,17 +59,35 @@ use crate::file::SourceFile;
 
 use super::TirError;
 
+/// Trait for location identifiers used in signature management
+/// 
+/// Location traits provide a way to create unique identifiers for signatures
+/// and convert between raw indices and typed location wrappers.
 pub trait LocationTrait: Debug + From<usize> + Clone {
+    /// Extracts the raw index from this location
     fn get(&self) -> usize;
 }
 
+/// A signature containing type or function information with source location
+/// 
+/// Signatures represent fully resolved declarations (types, functions, etc.) with
+/// complete metadata including source location for error reporting and optional
+/// extra information for specialized signature types.
+/// 
+/// # Type Parameters
+/// * `T` - The signature value type (e.g., TypeValue, FunctionSignature)
+/// * `E` - Optional extra information type (e.g., module references)
 #[derive(Debug, Clone)]
 pub struct Signature<T: Debug + Clone + AsRef<T> + AsMut<T>, E: Debug + Clone> {
+    /// The actual signature value (type information, function signature, etc.)
     #[allow(dead_code)]
     pub value: T,
+    /// Source file where this signature was defined
     pub file: SourceFile,
+    /// Position within the source file where this signature appears
     #[allow(dead_code)]
     pub position: Range<usize>,
+    /// Optional extra information specific to the signature type
     pub extra: Option<E>,
 }
 
@@ -26,6 +96,7 @@ where
     T: Debug + Clone + AsRef<T> + AsMut<T>,
     E: Debug + Clone,
 {
+    /// Creates a new signature with optional extra information
     pub fn new(value: T, file: SourceFile, position: Range<usize>, extra: Option<E>) -> Self {
         Self {
             value,
@@ -35,6 +106,7 @@ where
         }
     }
 
+    /// Creates a new signature with extra information
     pub fn new_with_extra(value: T, file: SourceFile, position: Range<usize>, extra: E) -> Self {
         Self {
             value,
@@ -45,24 +117,64 @@ where
     }
 }
 
+/// Enumeration representing the state of a signature entry
+/// 
+/// During two-phase resolution, signatures can be in one of two states:
+/// either reserved (placeholder) or fully resolved with a complete value.
+/// 
+/// # Type Parameters
+/// * `T` - The signature value type when fully resolved
+/// * `U` - The type shadow/placeholder type during reservation
+/// * `E` - Optional extra information for resolved signatures
 #[derive(Debug)]
 pub enum SignatureInfo<'base, T: Debug + Clone + AsRef<T> + AsMut<T>, U: Clone + Debug, E: Debug + Clone = ()> {
+    /// A reserved placeholder for a signature not yet fully resolved
     Reserved(SignatureReservation<'base, U>),
+    /// A fully resolved signature with complete type information
     Value(Signature<T, E>),
 }
 
+/// A placeholder reservation for a signature during the resolve phase
+/// 
+/// Reservations are used to claim a name in the signature table before
+/// the full signature information is available. This enables forward
+/// references and circular dependencies to be resolved properly.
 #[derive(Debug, Clone)]
 pub struct SignatureReservation<'base, U: Clone + Debug> {
+    /// The name being reserved
     pub name: Cow<'base, str>,
+    /// Source file where the reservation was made
     pub file: SourceFile,
+    /// Position within the source file
     pub position: Range<usize>,
+    /// Type shadow/placeholder information for this reservation
     pub type_shadow: U
 }
 
+/// A collection that manages signatures with efficient lookup and reservation support
+/// 
+/// The signature holder provides the main storage and lookup mechanism for all
+/// signatures in a compilation unit. It supports both reserved and resolved signatures,
+/// enabling two-phase resolution of types and functions.
+/// 
+/// # Type Parameters
+/// * `T` - The resolved signature value type
+/// * `U` - The reservation placeholder type
+/// * `L` - The location type used for signature references
+/// * `E` - Optional extra information for signatures
+/// 
+/// # Features
+/// - **Fast lookup**: O(1) signature lookup by qualified name
+/// - **Reservation support**: Reserve names before full resolution
+/// - **Location tracking**: Maintain source locations for error reporting
+/// - **Type safety**: Strongly typed location references
 #[derive(Debug)]
 pub struct SignatureHolder<'base, T: Debug + Clone + PartialEq + AsRef<T> + AsMut<T>, U: Clone + Debug, L: LocationTrait, E: Debug + Clone = ()> {
+    /// Map from qualified names to signature indices
     locations: IndexMap<SignaturePath<'base>, usize>,
+    /// Storage for signature information (reserved or resolved)
     signatures: Vec<Option<SignatureInfo<'base, T, U, E>>>,
+    /// Phantom data for location type parameter
     _marker: std::marker::PhantomData<L>,
 }
 

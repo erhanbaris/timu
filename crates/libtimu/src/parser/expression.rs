@@ -1,3 +1,37 @@
+//! Expression parsing with operator precedence for the Timu language.
+//!
+//! This module implements a recursive descent parser for Timu expressions using operator
+//! precedence climbing. It handles all expression types including:
+//!
+//! - Arithmetic operations: `+`, `-`, `*`, `/`, `%`
+//! - Logical operations: `&&`, `||`, `!`
+//! - Bitwise operations: `&`, `|`, `^`, `<<`, `>>`
+//! - Comparison operations: `==`, `!=`, `<`, `>`, `<=`, `>=`
+//! - Function calls and method invocations
+//! - Variable references and field access
+//! - Parenthesized expressions
+//!
+//! # Operator Precedence
+//!
+//! The parser implements the following precedence levels (highest to lowest):
+//! 1. **Primary expressions**: literals, identifiers, parentheses, function calls
+//! 2. **Multiplicative**: `*`, `/`, `%`
+//! 3. **Additive**: `+`, `-`
+//! 4. **Bitwise shift**: `<<`, `>>`
+//! 5. **Relational**: `<`, `>`, `<=`, `>=`
+//! 6. **Equality**: `==`, `!=`
+//! 7. **Bitwise AND**: `&`
+//! 8. **Bitwise XOR**: `^`
+//! 9. **Bitwise OR**: `|`
+//! 10. **Logical AND**: `&&`
+//! 11. **Logical OR**: `||`
+//!
+//! # Architecture
+//!
+//! The module uses a trait-based approach where each precedence level is implemented
+//! as a separate parser struct implementing `TimuExpressionParser`. This provides
+//! clean separation of concerns and makes the precedence hierarchy explicit.
+
 use std::fmt::{Display, Formatter};
 
 use nom::{branch::alt, bytes::complete::tag, character::complete::char, combinator::{cut, not, value}, error::context, multi::many, sequence::{delimited, pair, preceded}, IResult, Parser};
@@ -6,22 +40,54 @@ use crate::{ast::{ExpressionAst, ExpressionOperatorType, FunctionCallAst, Primit
 
 use super::{ident, TimuParserError};
 
+/// Type alias for expression generator functions used in operator parsing
+/// 
+/// This function type is used to create binary expression AST nodes from
+/// left operand, operator, and right operand.
 pub type ControlExpressionGeneratorFn<'base, T> = fn(ExpressionAst<'base>, T, ExpressionAst<'base>) -> ExpressionAst<'base>;
 
+/// Trait for expression parsers at different precedence levels
+/// 
+/// Each precedence level implements this trait to provide a uniform
+/// interface for parsing expressions at that level.
 pub trait TimuExpressionParser {
+    /// Parse an expression at this precedence level
     fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>>;
 }
 
+// Precedence level parsers (listed from lowest to highest precedence)
+
+/// Parser for logical OR expressions (`||`) - lowest precedence
 struct OrParser;
+
+/// Parser for logical AND expressions (`&&`)
 struct AndParser;
+
+/// Parser for bitwise XOR expressions (`^`)
 struct BitwiseXorParser;
+
+/// Parser for bitwise OR expressions (`|`)
 struct BitwiseOrParser;
+
+/// Parser for bitwise AND expressions (`&`)
 struct BitwiseAndParser;
+
+/// Parser for equality expressions (`==`, `!=`)
 struct EqualParser;
+
+/// Parser for relational expressions (`<`, `>`, `<=`, `>=`)
 struct LessEqualParser;
+
+/// Parser for bitwise shift expressions (`<<`, `>>`)
 struct BitwiseShiftParser;
+
+/// Parser for additive expressions (`+`, `-`)
 struct AddSubParser;
+
+/// Parser for multiplicative expressions (`*`, `/`, `%`) - highest binary precedence
 struct MulDivModParser;
+
+/// Parser for primary expressions (literals, identifiers, function calls, parentheses)
 struct InnerParser;
 
 impl TimuExpressionParser for OrParser {
@@ -133,7 +199,7 @@ impl ExpressionAst<'_> {
 
     pub fn not(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst, TimuParserError<'_>> {
         let (input, _) = cleanup(char('!')).parse(input)?;
-        let (input, expression) = context("Expression missinh", cut(Self::inner)).parse(input)?;
+        let (input, expression) = context("Expression missing", cut(Self::inner)).parse(input)?;
         Ok((
             input,
             ExpressionAst::Not(Box::new(expression)),
@@ -188,17 +254,17 @@ impl ExpressionAst<'_> {
 impl Display for ExpressionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExpressionAst::Primitive { value, .. } => write!(f, "{}", value),
-            ExpressionAst::Ident(ident) => write!(f, "{}", ident),
-            ExpressionAst::FunctionCall(function_call) => write!(f, "{}", function_call),
+            ExpressionAst::Primitive { value, .. } => write!(f, "{value}"),
+            ExpressionAst::Ident(ident) => write!(f, "{ident}"),
+            ExpressionAst::FunctionCall(function_call) => write!(f, "{function_call}"),
             ExpressionAst::Operation { left, operator, right } => {
-                write!(f, "({} {} {})", left, operator, right)
+                write!(f, "({left} {operator} {right})")
             },
             ExpressionAst::Ref(ref_expr) => {
-                write!(f, "{}", ref_expr)
+                write!(f, "{ref_expr}")
             },
             ExpressionAst::Not(expression) => {
-                write!(f, "!{}", expression)
+                write!(f, "!{expression}")
             },
         }
     }
@@ -255,7 +321,7 @@ mod tests {
 
         let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
-        assert_eq!(response.to_string(), expected, "{}", code);
+        assert_eq!(response.to_string(), expected, "{code}");
     }
 
     #[rstest]
@@ -275,7 +341,7 @@ mod tests {
 
         let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
-        assert_eq!(response.to_string(), expected, "{}", code);
+        assert_eq!(response.to_string(), expected, "{code}");
     }
 
     #[rstest]
@@ -301,6 +367,6 @@ mod tests {
 
         let input = NomSpan::new_extra(source_file.code().as_str(), state);
         let (_, response) = ExpressionAst::parse(input).unwrap();
-        assert_eq!(response.to_string(), expected, "{}", code);
+        assert_eq!(response.to_string(), expected, "{code}");
     }
 }

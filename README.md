@@ -1,293 +1,264 @@
-# timu
+# Timu Programming Language Compiler
 
 [![codecov](https://codecov.io/gh/erhanbaris/timu/graph/badge.svg?token=Q8RBT56K07)](https://codecov.io/gh/erhanbaris/timu)
 
-This is the language for what I would like to work on in the future. It will have many missing features but will add them when needed. My goal is to design a programming language that can solve many problems at compile time. 
+A modern programming language designed for compile-time problem solving with nullable types, object-oriented features, and interface-based extensions.
 
-### General design
-At sign (@) used for compiler macros. There are many inbuild macros defined and user can create it is own macro.
-Question mark (?) used for nulltypes.
-<type> used for type interferance. It is available on compile time.
+## 🚧 Project Status
 
-### Nullable type
-The nullable types starts with question mark (?). The variable may have a value or empty. The compiler gives guarantee about variable has value or not.
-@is_some macro check for value and return true if has it, otherwise return false
-@is_none macro check for value and return false if has it, otherwise return true
+**Early Development Stage** - The Timu compiler is currently in active development. Core parsing and type checking are implemented, but many language features are still being developed.
 
-### Macros
-## #value and #empty
-It is used for nullable type. It checks for is value available or not.
-Example:
+### ✅ **Currently Implemented**
+- **Parser & AST**: Complete parsing infrastructure using nom combinators
+- **Type System**: Two-phase resolution with comprehensive type checking
+- **Classes & Interfaces**: Object-oriented programming with inheritance
+- **Module System**: Import/export functionality with qualified names
+- **Error Reporting**: Rich error messages with source location information
+- **Nullable Types**: Compile-time null safety with `?Type` syntax
 
+### 🚧 **In Development**
+- Code generation backend
+- Control flow statements (loops, match expressions)
+- Macro system (`@` symbols)
+- Standard library
+
+### 📋 **Planned Features**
+- Array/list types and operations
+- Generic type system
+- Memory management with compile-time guarantees
+- Concurrent programming features
+- Advanced macro system
+
+## 🏗️ **Architecture**
+
+The Timu compiler consists of several key components:
+
+```
+Source Code → Parser → AST → TIR (Type Resolution) → [Code Generation - TBD]
+```
+
+### **Core Components**
+- **`libtimu`**: Core compiler library with parser, AST, and TIR
+- **`libtimu-macros`**: Procedural macros for error handling
+- **`timuc`**: Main compiler executable
+
+## 🚀 **Getting Started**
+
+### **Prerequisites**
+- Rust 1.70+ with Cargo
+- LLVM (for future code generation)
+
+### **Building**
+```bash
+# Clone the repository
+git clone https://github.com/erhanbaris/timu
+cd timu
+
+# Build the compiler
+cargo build
+
+# Run tests
+cargo test
+
+# Generate documentation
+cargo doc --open
+```
+
+### **Running the Compiler**
+```bash
+# Current state - runs type checking on example code
+cargo run
+
+# Note: Code generation is not yet implemented
+```
+
+## 📖 **Language Features**
+
+### **Basic Syntax**
+
+#### **Classes and Objects**
 ```timu
-func main () {
-    var a: ?int = Empty;
-    var a: ?int;
-    var b: ?int = 1024;
-    var c: ?int = Value(1024);
-    var d: bool = HasValue(1024);
-
-    if Value(1024) == c {
-
-    } else {
-
+class Person {
+    name: string;
+    age: i32;
+    
+    func init(this, name: string, age: i32): Person {
+        this.name = name;
+        this.age = age;
+    }
+    
+    func greet(this): string {
+        // Function implementation
     }
 }
 ```
 
-
-### Type
-The types are 
-
+#### **Interfaces and Extensions**
 ```timu
-class MyType {
-    a: i32 = 100, # with default value
-    pub b: string, # public accessible
-    c: ?string, # nullable string
-
-    func init(): MyType { # constructor
-        return MyType {
-            a: 100,
-            b: "erhan",
-            c: None
-        }
-    }
-
-    func hello(this): MyType { # constructor
-        this.a = 100;
-        return MyType {
-            a: 100,
-            b: "erhan",
-            c: None
-        }
-    }
+interface Greeter {
+    func greet(): string;
 }
 
-# Type interface
-interface IData: Cloneable {
-    a: i32 = 100;
-    func hello();
-    func world();
-}
-
-# Implement the interface
-extend MyType: IData {
-    func hello() {
-        return "hello"
-    }
-
-    func world() {
-        return "world"
+extend Person: Greeter {
+    func greet(): string {
+        // Implementation of interface requirement
     }
 }
-
-func func_a(a: i32): i32 {
-    return a * 2
-}
-
-func func_b(a: i32): i32 {
-    return a * 3
-}
-
-func main() {
-    var d = MyType {
-        a: 100,
-        b: "erhan",
-        c: None
-    }
-
-    var v = MyType()
-
-    d.print()
-    MyType.hello()
-    MyType.world()
-
-    var a = func_a(2) => func_b() ## a will be 12
-
-    match d.b {
-        "a": {
-            return 100
-        }
-        "b": {
-            return 200
-        }
-        _ => {
-            return 300
-        }
-    }
-}
-
 ```
 
-### Module import
-
-
-### Example code
-
-use std  as s;
-use std ;
-use std.array;
-use std.integer;
-use std.*;
-
-@mut static ada = false;
-
-static ada = 1024.1;
-@mut static DATA = "erhan";
-static DATA = "";
-static DATA = "
-";
-
-static my_list = [1,2,3,4,5];
-static my_list_2: [i32; 2] = [1,2];
-
-@clone
-@compare
-type data {
-    a: i32 = 100,
-    b: string,
-    c: ?string,
-
-    func init(): data {
-        !data
+#### **Nullable Types**
+```timu
+class Example {
+    func process(this, data: ?string): string {
+        // Compiler enforces null checking
+        // Implementation here
     }
-};
+}
+```
 
-@on_change(data, (item: i32) {
-    
-});
-
-@on_drop(data, (item: i32) {
-    
-})
-
-
-// Import library
-
-@use(*); // Supported but not recommended
-@use(std);
-@use(std.math);
-@use(std.*);
-
-@use(std.math) as math; // Alias for library
-
-// Static variable. Al statis variables are immutable
-STRING_DATA = ""; // Type can be detected via compiler
-INTEGER_DATA: i32 = 1024; // Type is assigned as i32
-
-
-// Make atomic static variable. So, developer can change variable if need it
-@atomic BOOL_DATA: bool = false;
-
-
-// Function definition (private)
-func calculate(data: int32): int32 {
-	// return type is int32
+#### **Module System**
+```timu
+// In lib.tim
+interface IProcessor {
+    func process(data: string): string;
 }
 
-// Function definition (public)
-pub func calculate(data: int32): int32 {
-	// return type is int32
+func utility_function(input: string): string {
+    // Implementation
 }
 
+// In main.tim
+use lib.IProcessor;
+use lib.utility_function;
 
-func datas() {
-	var string_data = "";
-	var multiplinestring_data = "
-";
-	var bool_data = true;
-	var int_data = 1024;
-	var float_data = 1024.0;
-	var array_value = [1,2,3,4,5];
-	
-	var nullable_data: ?bool = None;
-	
-	var nullable_data = @get(nullable_data) or 10;
-	var has_value = @is_empty(nullable_data);
-    @defer {
-        std.console.write("out of scope");
+class DataProcessor {
+    func init(this): string {
+        utility_function("test");
     }
 }
 
-// Integer types
-@clone type i256;
-@clone type u256;
-@clone type i128;
-@clone type u128;
-@clone type i64;
-@clone type u64;
-@clone type i32;
-@clone type u32;
-@clone type i16;
-@clone type u16;
-@clone type i8;
-@clone type u8;
-@clone type char;
-@clone type bool;
-
-
-type Data {
-	var data: i32
-};
-
-
-@clone // all objects will be default non-clone. Only primitive types are cloneable.
-@atomic // set variable to atomic type
-@get // get information from variable
-@is_empty // check the variable to none
-@on_change // when the variable changed invoke the function
-@on_delete // when the variable deleted invoke the function
-@defer // when out of scope execute the code
-@error_defer // when throw the exception
-
-@new // allocate memory
-@new_ptr // allocate pointer
-@free // free up the memory
-
-var data = @new(u32); // All types must have default parameters
-var data = @new_ptr(u32; 1);
-
-
-// Checked pointer and unchecked pointer
-All pointers news to be checked agains to null.
-
-@new_ptr will return nullable pointer
-
-
-var new_pointer = @new_ptr(str);
-is equal to 
-
-var new_pointer: !*string = @new_ptr(string); //unchecked pointer
-var new_pointer: *string  = @get_ptr(new_pointer); // checked pointer and if the pointer is none, it will throw exception
-
-secure_ptr
-unsecure_ptr
-
-
-// Error result
-func return_error() -> Result(Nil, i32) {
-    return Err(1024)
+extend DataProcessor: IProcessor {
+    func process(data: string): string {
+        // Implementation
+    }
 }
+```
 
-func handle_error() {
-    var val = try return_error(1024) catch (val: i32) {
-        return 1024;
-    };
+### **Type System**
+
+#### **Primitive Types**
+- **Integers**: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`
+- **Floating Point**: `float` (single precision), `double` (double precision)
+- **Other**: `bool`, `string`, `void`
+
+#### **Nullable Types**
+Any type can be made nullable with the `?` prefix:
+```timu
+var maybe_text: ?string;  // Can be string or null
+var definitely_number: i32;  // Cannot be null
+```
+
+#### **Reference Types**
+```timu
+func example(data: ref string): void {
+    // data is passed by reference
 }
+```
 
-func custom_thread() {
+## 🧪 **Testing**
 
-}
+```bash
+# Run all tests
+cargo test
 
-func spawn_thread() {
-    var my_thread = thread custom_thread()
-    var my_coroutine = go custom_thread()
-}
+# Run specific test categories
+cargo test parser::  # Parser tests
+cargo test tir::     # Type resolution tests
 
+# Run with output
+cargo test -- --nocapture
 
+# Generate test coverage
+grcov . --binary-path ./target/debug/deps/ --source-dir . \
+  --excl-start 'mod test* \{' --ignore '*test*' --ignore "*test.rs" \
+  --ignore "*main.rs" --ignore "*tests.rs" --ignore "*github.com*" \
+  --ignore "*libcore*" --ignore "*rustc*" --ignore "*liballoc*" \
+  --ignore "*cargo*" -t html -o ./coverage
+```
 
-// Null result
+## 📚 **Documentation**
 
+Comprehensive documentation is available for all components:
 
-### Code coverage
-grcov .  --binary-path ./target/debug/deps/ --source-dir . --excl-start 'mod test* \{' --ignore '*test*'  --ignore "*test.rs" --ignore "*main.rs" --ignore "*tests.rs" --ignore "*github.com*" --ignore "*libcore*" --ignore "*rustc*" --ignore "*liballoc*" --ignore "*cargo*" -t html  -o ./coverage
+```bash
+# Generate and open documentation
+cargo doc --open
+
+# View specific module documentation
+cargo doc --open --package libtimu
+```
+
+## 🔧 **Development**
+
+### **Project Structure**
+```
+timu/
+├── crates/
+│   ├── libtimu/           # Core compiler library
+│   │   ├── src/
+│   │   │   ├── parser/    # Parsing logic
+│   │   │   ├── ast/       # Abstract syntax tree
+│   │   │   ├── tir/       # Type intermediate representation
+│   │   │   └── error/     # Error handling
+│   │   └── tests/         # Integration tests
+│   ├── libtimu-macros/    # Procedural macros
+│   ├── libtimu-macros-core/ # Macro core utilities
+│   └── timuc/             # Compiler executable
+├── CLAUDE.md              # Development notes
+└── README.md              # This file
+```
+
+### **Key Commands**
+```bash
+# Development workflow
+cargo check              # Quick syntax check
+cargo test               # Run test suite
+cargo clippy             # Linting
+cargo fmt                # Code formatting
+cargo doc                # Generate documentation
+```
+
+### **Known Issues**
+- Code generation backend not yet implemented
+- Some language features from original design not yet available
+- LLVM integration temporarily disabled
+
+## 🤝 **Contributing**
+
+Contributions are welcome! The project is in active development and there are many opportunities to contribute:
+
+1. **Language Features**: Implement missing constructs (loops, arrays, etc.)
+2. **Code Generation**: Help build the backend compiler
+3. **Standard Library**: Create built-in functions and types
+4. **Testing**: Add more comprehensive test cases
+5. **Documentation**: Improve user and developer documentation
+
+### **Development Notes**
+- The `CLAUDE.md` file contains detailed development guidance
+- All major modules have comprehensive documentation
+- The type system is the most mature part of the compiler
+- Parser infrastructure is solid and extensible
+
+## 📄 **License**
+
+[License information to be added]
+
+## 🔗 **Links**
+
+- **Repository**: https://github.com/erhanbaris/timu
+- **Issues**: https://github.com/erhanbaris/timu/issues
+- **Documentation**: [Generated docs via cargo doc]
+
+---
+
+**Note**: This is an ambitious programming language project in early development. The foundations are solid with excellent parsing and type checking, but many advanced features are still being implemented. Contributions and feedback are highly valued!

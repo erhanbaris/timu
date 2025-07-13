@@ -1,3 +1,87 @@
+//! Field declaration parsing for the Timu language.
+//!
+//! This module handles parsing of field declarations that appear within classes,
+//! interfaces, and extensions. Fields represent data members with typed declarations
+//! and optional visibility modifiers. The parser handles the various contexts where
+//! fields can appear and enforces context-specific rules.
+//!
+//! # Field Declaration Syntax
+//!
+//! Fields in Timu follow a consistent syntax pattern across different contexts:
+//!
+//! ## Basic Field Syntax
+//! ```timu
+//! fieldName: FieldType;
+//! pub publicField: Type;
+//! ```
+//!
+//! ## Class Fields
+//! ```timu
+//! class MyClass {
+//!     privateField: string;
+//!     pub publicField: i32;
+//!     optionalField: ?string;
+//! }
+//! ```
+//!
+//! ## Interface Fields
+//! ```timu
+//! interface MyInterface {
+//!     requiredField: string;
+//!     value: i32;
+//! }
+//! ```
+//!
+//! ## Extension Fields
+//! ```timu
+//! extend ExistingType : Interface {
+//!     additionalField: string;  // Implicitly public
+//!     // pub additionalField: string;  // Error: redundant 'pub'
+//! }
+//! ```
+//!
+//! # Field Components
+//!
+//! ## Visibility Modifiers
+//! - **Default (private)**: Fields accessible only within the declaring type
+//! - **`pub` (public)**: Fields accessible from outside the declaring type
+//! - **Extension fields**: Always implicitly public (explicit `pub` is an error)
+//!
+//! ## Type Annotations
+//! - **Required**: All fields must have explicit type declarations
+//! - **Type modifiers**: Supports nullable (`?Type`) and reference (`ref Type`) types
+//! - **Qualified types**: Supports module-qualified type names (`module.Type`)
+//!
+//! ## Field Names
+//! - **Identifier rules**: Must follow standard identifier syntax
+//! - **Scope**: Field names must be unique within their declaring type
+//! - **Access patterns**: Used for dot notation access (`object.field`)
+//!
+//! # Context-Specific Rules
+//!
+//! ## Class Context
+//! - Fields can be public or private
+//! - Support for all type modifiers
+//! - Used for object instance data
+//!
+//! ## Interface Context
+//! - Fields define requirements for implementing types
+//! - Visibility modifiers are allowed but have different semantics
+//! - Part of the interface contract
+//!
+//! ## Extension Context
+//! - Fields are implicitly public (cannot use explicit `pub`)
+//! - Add new data members to existing types
+//! - Must be provided when implementing the extended interface
+//!
+//! # Integration with Type System
+//!
+//! Field declarations integrate with the TIR system for:
+//! - **Type resolution**: Field types are resolved during semantic analysis
+//! - **Access checking**: Visibility rules are enforced during compilation
+//! - **Memory layout**: Field declarations inform object layout decisions
+//! - **Interface compliance**: Field requirements are checked during implementation
+
 use std::fmt::{Display, Formatter};
 
 use nom::character::complete::char;
