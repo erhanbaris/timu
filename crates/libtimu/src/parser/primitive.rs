@@ -48,24 +48,24 @@ use super::TimuParserError;
 // Numeric type range constants for automatic type inference
 
 /// Range for 8-bit signed integers
-static I8_RANGE: std::ops::Range<i128> = (i8::MIN as i128)..(i8::MAX as i128);
+static I8_RANGE: std::ops::Range<i128> = (i8::MIN as i128)..((i8::MAX as i128) + 1);
 /// Range for 8-bit unsigned integers
-static U8_RANGE: std::ops::Range<i128> = (u8::MIN as i128)..(u8::MAX as i128);
+static U8_RANGE: std::ops::Range<i128> = (u8::MIN as i128)..((u8::MAX as i128) + 1);
 
 /// Range for 16-bit signed integers
-static I16_RANGE: std::ops::Range<i128> = (i16::MIN as i128)..(i16::MAX as i128);
+static I16_RANGE: std::ops::Range<i128> = (i16::MIN as i128)..((i16::MAX as i128) + 1);
 /// Range for 16-bit unsigned integers
-static U16_RANGE: std::ops::Range<i128> = (u16::MIN as i128)..(u16::MAX as i128);
+static U16_RANGE: std::ops::Range<i128> = (u16::MIN as i128)..((u16::MAX as i128) + 1);
 
 /// Range for 32-bit signed integers
-static I32_RANGE: std::ops::Range<i128> = (i32::MIN as i128)..(i32::MAX as i128);
+static I32_RANGE: std::ops::Range<i128> = (i32::MIN as i128)..((i32::MAX as i128) + 1);
 /// Range for 32-bit unsigned integers
-static U32_RANGE: std::ops::Range<i128> = (u32::MIN as i128)..(u32::MAX as i128);
+static U32_RANGE: std::ops::Range<i128> = (u32::MIN as i128)..((u32::MAX as i128) + 1);
 
 /// Range for 64-bit signed integers
-static I64_RANGE: std::ops::Range<i128> = (i64::MIN as i128)..(i64::MAX as i128);
+static I64_RANGE: std::ops::Range<i128> = (i64::MIN as i128)..((i64::MAX as i128) + 1);
 /// Range for 64-bit unsigned integers
-static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..(u64::MAX as i128);
+static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..((u64::MAX as i128) + 1);
 
 /// Range for 32-bit floating-point numbers
 static FLOAT_RANGE: std::ops::Range<f64> = (f32::MIN as f64)..(f32::MAX as f64);

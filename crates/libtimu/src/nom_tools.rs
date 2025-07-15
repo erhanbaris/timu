@@ -162,7 +162,7 @@ pub trait Between<T: PartialOrd> {
 
 impl<T: PartialOrd> Between<T> for std::ops::Range<T> {
     fn between(&self, t: T) -> bool {
-        self.start <= t && t <= self.end
+        self.start <= t && t < self.end
     }
 }
 
