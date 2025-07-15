@@ -272,7 +272,7 @@ fn test_duplicate_module_import() {
     let state1 = State::new(SourceFile::new(
         vec!["lib".into()],
         r#"
-class SharedClass {
+pub class SharedClass {
     func init(this): void {
     }
 }
@@ -317,7 +317,7 @@ interface IProcessor {
     func process(data: string): string;
 }
 
-func utility(input: string): string {
+pub func utility(input: string): string {
 }
 "#.to_string(),
     ));

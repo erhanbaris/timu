@@ -135,23 +135,25 @@ impl<'base> ResolveAst<'base> for ClassDefinitionAst<'base> {
             match field {
                 ClassDefinitionFieldAst::Field(field) => {
                     let field_type = get_object_location_or_resolve(context, &field.field_type, &module_ref, scope_location)?;
+                    let is_public = field.is_public.is_some();
 
-                    let variable = TypeVariableInformation::basic(field.name.clone(), field_type);
+                    let variable = TypeVariableInformation::new_with_visibility(field.name.clone(), field_type, false, false, false, is_public);
                     fields.validate_insert(Cow::Borrowed(field.name.text), variable)?;
-                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(VariableInformation::basic(field.name.clone(), field_type))?;
+                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(VariableInformation::new_with_visibility(field.name.clone(), field_type, false, false, false, is_public))?;
                 }
                 ClassDefinitionFieldAst::Function(function) => {
                     let type_name = function.build_full_name(context, BuildFullNameLocater::Module(&module_ref), None);
 
                     let function_scope_location = context.create_child_scope(type_name.into(), scope_location, None);
                     let function_type_location = function.resolve(context, function_scope_location)?;
+                    let is_public = function.is_public.is_some();
                     
                     // Set scope type information
                     context.get_mut_scope(function_scope_location).expect("Scope not found, it is a bug").set_current_type(function_type_location);
 
-                    let variable = TypeVariableInformation::basic(function.name.clone(), function_type_location);
+                    let variable = TypeVariableInformation::new_with_visibility(function.name.clone(), function_type_location, false, false, false, is_public);
                     fields.validate_insert((*function.name.text).into(), variable)?;
-                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(VariableInformation::basic(function.name.clone(), function_type_location))?;
+                    context.get_mut_scope(scope_location).expect("Scope not found, it is a bug").add_variable(VariableInformation::new_with_visibility(function.name.clone(), function_type_location, false, false, false, is_public))?;
                     function_signatures.push((function_type_location, function));
                 }
             };

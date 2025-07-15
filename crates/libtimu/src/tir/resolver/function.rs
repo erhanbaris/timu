@@ -493,7 +493,7 @@ mod tests {
 
     #[test]
     fn valid_types() -> Result<(), TirError> {
-        let state_1 = State::new(SourceFile::new(vec!["lib".into()], " class testclass1 {} ".to_string()));
+        let state_1 = State::new(SourceFile::new(vec!["lib".into()], " pub class testclass1 {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["main".into()],
             r#"use lib.testclass1 as test;
     func main(a: test): test {}"#.to_string()));

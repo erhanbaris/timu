@@ -410,6 +410,8 @@ impl<'base> UseAst<'base> {
 /// - `index`: Unique identifier for this class within the compilation unit
 #[derive(Debug, PartialEq)]
 pub struct ClassDefinitionAst<'base> {
+    /// Optional public visibility modifier
+    pub is_public: Option<Span<'base>>,
     /// Class name identifier
     pub name: Span<'base>,
     /// All class members (fields and methods)

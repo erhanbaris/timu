@@ -57,7 +57,7 @@ use nom::{IResult, Parser, sequence::delimited};
 use crate::ast::{AstIndex, ClassDefinitionFieldAst, FieldAst, FunctionDefinitionAst};
 use crate::{ast::{ClassDefinitionAst, FileStatementAst}, nom_tools::{cleanup, NomSpan}};
 
-use super::{expected_ident, TimuParserError};
+use super::{expected_ident, is_public, TimuParserError};
 
 impl ClassDefinitionAst<'_> {
     /// Parses a complete class definition
@@ -95,6 +95,7 @@ impl ClassDefinitionAst<'_> {
     /// - **Mixed content**: Supports any combination of fields and methods
     /// - **Error recovery**: Provides meaningful error messages for common mistakes
     pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, FileStatementAst<'_>, TimuParserError<'_>> {
+        let (input, is_public) = is_public(input)?;
         let (input, _) = cleanup(tag("class")).parse(input)?;
         let (input, name) = expected_ident("Missing class name", input)?;
         let (input, _) = context("Class's opening '{' missing", cut(peek(cleanup(char('{'))))).parse(input)?;
@@ -114,6 +115,7 @@ impl ClassDefinitionAst<'_> {
         Ok((
             input,
             FileStatementAst::Class(ClassDefinitionAst {
+                is_public: is_public.map(|item| item.into()),
                 name: name.into(),
                 fields,
                 index
@@ -124,7 +126,9 @@ impl ClassDefinitionAst<'_> {
 
 impl Display for ClassDefinitionAst<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "class {} {{", self.name.text)?;
+        write!(f, "{}class {} {{", 
+               if self.is_public.is_some() { "pub " } else { "" }, 
+               self.name.text)?;
         for field in self.fields.iter() {
             write!(f, "{field}")?;
         }

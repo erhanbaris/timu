@@ -312,7 +312,7 @@ mod tests {
         let input = NomSpan::new_extra(code, state);
         
         let result = string(input);
-        assert!(result.is_err(), "Expected string '{}' to fail parsing but it succeeded", code);
+        assert!(result.is_err(), "Expected string '{code}' to fail parsing but it succeeded");
     }
 
     // ============================================================================
@@ -339,7 +339,7 @@ mod tests {
             }
             Err(_) => {
                 // If whitespace handling isn't working, that's documented behavior
-                println!("String whitespace test '{}' failed to parse (cleanup may not handle this case)", code);
+                println!("String whitespace test '{code}' failed to parse (cleanup may not handle this case)");
             }
         }
     }
@@ -697,16 +697,16 @@ mod tests {
         match number {
             PrimitiveValue::Double(value, dot_place) => {
                 assert_eq!(dot_place, expected_dot_place, "Double dot place failed for {}", code);
-                assert!(value.is_finite(), "Double value should be finite for {}", code);
-                assert!(!value.is_nan(), "Double value should not be NaN for {}", code);
+                assert!(value.is_finite(), "Double value should be finite for {code}");
+                assert!(!value.is_nan(), "Double value should not be NaN for {code}");
             }
             PrimitiveValue::Float(value, dot_place) => {
                 // Some values we expected to be Double might be classified as Float
                 // This is OK - document the actual behavior
-                println!("Note: '{}' was classified as Float instead of Double (value: {}, dot_place: {})", code, value, dot_place);
+                println!("Note: '{code}' was classified as Float instead of Double (value: {value}, dot_place: {dot_place})");
                 assert_eq!(dot_place, expected_dot_place, "Float dot place failed for {}", code);
             }
-            _ => panic!("Expected Double or Float type for '{}' but got different type", code),
+            _ => panic!("Expected Double or Float type for '{code}' but got different type"),
         }
     }
 
@@ -749,7 +749,7 @@ mod tests {
                 assert_eq!(parsed_number, PrimitiveValue::Float(expected, dot_place), "Edge case failed for {}", code);
             }
             Err(_) => {
-                panic!("Expected edge case '{}' to parse successfully", code);
+                panic!("Expected edge case '{code}' to parse successfully");
             }
         }
     }
@@ -781,7 +781,7 @@ mod tests {
         let input = NomSpan::new_extra(code, state);
         
         let result = number(input);
-        assert!(result.is_err(), "Expected '{}' to fail parsing but it succeeded", code);
+        assert!(result.is_err(), "Expected '{code}' to fail parsing but it succeeded");
     }
 
     // ============================================================================
@@ -800,7 +800,7 @@ mod tests {
         let result = number(input);
         // These should either fail to parse or get caught in the "Invalid number length" error
         match result {
-            Ok(_) => panic!("Expected overflow for '{}' but parsing succeeded", code),
+            Ok(_) => panic!("Expected overflow for '{code}' but parsing succeeded"),
             Err(_) => {
                 // Expected - overflow should cause parsing failure
             }
@@ -833,7 +833,7 @@ mod tests {
             Err(_) => {
                 // If cleanup isn't handling whitespace, this is expected to fail
                 // The test documents the current behavior
-                println!("Whitespace test '{}' failed to parse (cleanup may not handle this case)", code);
+                println!("Whitespace test '{code}' failed to parse (cleanup may not handle this case)");
             }
         }
     }

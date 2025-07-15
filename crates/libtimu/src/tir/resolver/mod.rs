@@ -569,7 +569,7 @@ mod tests {
 
     #[test]
     fn cross_reference1() -> Result<(), TirError> {
-        let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
+        let state_1 = State::new(SourceFile::new(vec!["source1".into()], " pub class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use source1.testclass1;
@@ -686,7 +686,7 @@ mod tests {
 
     #[test]
     fn import_alias3() -> Result<(), TirError> {
-        let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " class testclass1 {} ".to_string()));
+        let state_1 = State::new(SourceFile::new(vec!["base1".into(), "test1".into(), "source1".into()], " pub class testclass1 {} ".to_string()));
         let state_9 = State::new(SourceFile::new(
             vec!["sub".into(), "source9".into()],
             r#"use base1.test1.source1.testclass1 as test;

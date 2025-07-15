@@ -63,14 +63,14 @@ use simplelog::{
 
 /// Main entry point for the Timu compiler.
 ///
-/// Sets up logging, processes sample Timu code, and demonstrates the
+/// Processes Timu source files from command line arguments and demonstrates the
 /// complete compilation pipeline from source code to type-checked TIR.
 ///
 /// # Process Flow
 ///
 /// 1. **Logging Setup**: Configure error-level logging with color output
-/// 2. **Sample Code**: Create two modules with interface and class definitions
-/// 3. **Parsing**: Convert source code to ASTs for both modules
+/// 2. **Argument Processing**: Read source files from command line arguments
+/// 3. **Parsing**: Convert source code to ASTs for all modules
 /// 4. **Type Checking**: Build TIR with cross-module type resolution
 /// 5. **Error Handling**: Display rich diagnostics for any compilation errors
 ///
@@ -78,6 +78,12 @@ use simplelog::{
 ///
 /// The compiler exits with status code 1 if any compilation errors occur.
 /// All errors are displayed with detailed source location information.
+///
+/// # Usage
+///
+/// ```
+/// timuc file1.tim file2.tim ...
+/// ```
 ///
 /// # Returns
 ///
@@ -98,56 +104,59 @@ fn main() -> Result<(), TirError> {
         ColorChoice::Auto
     )]).unwrap();
 
-    // Create the first module (lib) with interface and function definitions
-    let state1 = State::new(SourceFile::new(vec!["lib".into()], r#"
-    interface ITest {
-        func test(a: string): string;
-        a: main.TestClass;
-    }
-    func abc(a:string): string {
-    }
-
-    "#.to_string()));
-
-    // Create the second module (main) that uses the lib module
-    let state2 = State::new(SourceFile::new(vec!["main".into()], r#"
-    use lib.ITest;
-
-    extend TestClass: ITest {
-        func test(a: string): string { }
-        a: main.TestClass;
+    // Get command line arguments
+    let args: Vec<String> = std::env::args().collect();
+    
+    if args.len() < 2 {
+        eprintln!("Usage: {} file1.tim file2.tim ...", args[0]);
+        exit(1);
     }
 
-    class TestClass {
-        func init(this): string {
-            lib.abc();
-        }
+    let mut asts = Vec::new();
+    let mut states = Vec::new();
+
+    // Process each source file
+    for file_path in &args[1..] {
+        // Read the file content
+        let content = match std::fs::read_to_string(file_path) {
+            Ok(content) => content,
+            Err(error) => {
+                eprintln!("Error reading file {file_path}: {error}");
+                exit(1);
+            }
+        };
+
+        // Extract module name from file path (remove .tim extension)
+        let module_name = file_path.strip_suffix(".tim")
+            .or_else(|| file_path.strip_suffix("/"))
+            .unwrap_or(file_path)
+            .split('/')
+            .next_back()
+            .unwrap_or(file_path)
+            .to_string();
+
+        // Create state and parse the file
+        let state = State::new(SourceFile::new(vec![module_name], content));
+        states.push(state);
     }
 
-    "#.to_string()));
+    // Parse all states into ASTs
+    for state in &states {
+        let ast = match process_code(state) {
+            Ok(ast) => ast,
+            Err(error) => {
+                CodeSpanReportGenerator::generate(error);
+                exit(1);
+            }
+        };
 
-    // Parse the first module into an AST
-    let ast1 = match process_code(&state1) {
-        Ok(ast) => ast,
-        Err(error) => {
-            CodeSpanReportGenerator::generate(error);
-            exit(1);
-        }
-    };
+        asts.push(ast.into());
+    }
 
-    // Parse the second module into an AST
-    let ast2 = match process_code(&state2) {
-        Ok(ast) => ast,
-        Err(error) => {
-            CodeSpanReportGenerator::generate(error);
-            exit(1);
-        }
-    };
-
-    // Perform type checking on both modules together
-    match process_ast(vec![ast1.into(), ast2.into()]) {
+    // Perform type checking on all modules together
+    match process_ast(asts) {
         Ok(_tir_context) => {
-            // Type checking succeeded - TIR context contains all type information
+            println!("Compilation successful!");
         },
         Err(error) => {
             // Type checking failed - display diagnostic information

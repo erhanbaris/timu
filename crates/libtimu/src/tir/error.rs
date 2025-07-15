@@ -335,6 +335,45 @@ pub struct ExtraFieldInExtend {
     pub code: SourceCode,
 }
 
+/// Error for when trying to import a private item from another module.
+///
+/// This error occurs when a `use` statement attempts to import an item
+/// that is marked as private (without `pub` keyword) from another module.
+/// Private items are only accessible within their own module.
+///
+/// # Example
+///
+/// ```timu
+/// // In module lib.tim:
+/// class PrivateClass {}  // Not marked as pub
+/// 
+/// // In main.tim:
+/// use lib.PrivateClass;  // Error: Private item not accessible
+/// ```
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("'{item_name}' is private and cannot be imported")]
+#[diagnostic(code("timu::error::accessibility_violation"), help("mark the item as 'pub' in its definition module or remove the import"))]
+pub struct AccessibilityViolation {
+    /// Name of the private item being imported
+    pub item_name: String,
+    
+    /// Location of the import attempt
+    #[label("trying to import private item")]
+    pub import_position: Range<usize>,
+    
+    /// Source code context for the import
+    #[source_code]
+    pub import_code: SourceCode,
+    
+    /// Location of the private item definition
+    #[label("private item cannot be imported")]
+    pub item_position: Range<usize>,
+    
+    /// Source code context for the private item
+    #[source_code]
+    pub item_code: SourceCode,
+}
+
 #[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
 pub enum TirError {
     #[error("Temporary error")]
@@ -376,6 +415,10 @@ pub enum TirError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     ExtraFieldInExtend(Box<ExtraFieldInExtend>),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    AccessibilityViolation(Box<AccessibilityViolation>),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -428,6 +471,22 @@ impl TirError {
         TirError::ExtraFieldInExtend(ExtraFieldInExtend {
             position,
             code: source.into(),
+        }.into())
+    }
+
+    pub fn accessibility_violation(
+        item_name: String, 
+        import_position: Range<usize>, 
+        import_source: SourceFile,
+        item_position: Range<usize>,
+        item_source: SourceFile
+    ) -> Self {
+        TirError::AccessibilityViolation(AccessibilityViolation {
+            item_name,
+            import_position,
+            import_code: import_source.into(),
+            item_position,
+            item_code: item_source.into(),
         }.into())
     }
 

@@ -691,7 +691,7 @@ func abc(a:string): string {
             func test(a: string): string;
             a: main.TestClass;
         }
-        func abc(a:string): string {
+        pub func abc(a:string): string {
         }
 
         "#.to_string()));
@@ -965,7 +965,7 @@ class TestClass {
     #[test]
     fn func_call_cross_module_with_alias() {
         let state1 = State::new(SourceFile::new(vec!["utilities".into()], r#"
-func format(text: string): string {
+pub func format(text: string): string {
 }
 "#.to_string()));
 

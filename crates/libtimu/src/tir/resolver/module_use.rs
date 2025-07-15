@@ -24,6 +24,7 @@ use std::borrow::Cow;
 use crate::{
     ast::UseAst, 
     tir::{
+        accessibility::check_import_accessibility, 
         context::TirContext, 
         error::{ImportNotFound, ModuleAlreadyImported}, 
         scope::ScopeLocation, 
@@ -64,6 +65,7 @@ impl<'base> ResolveAst<'base> for UseAst<'base> {
     /// ```timu
     /// use lib.Calculator;        // Imports Calculator class from lib module
     /// use utils.sort as mysort;  // Imports sort function with alias 'mysort'
+    /// use utils;                 // Imports utils module
     /// ```
     fn resolve(&self, context: &mut TirContext<'base>, scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         // Step 1: Attempt to find the imported item in the AST signature registry
@@ -89,6 +91,17 @@ impl<'base> ResolveAst<'base> for UseAst<'base> {
                     code: self.ast_name().state.file.clone().into(),
                 }.into()));
             }
+
+            // Step 4.5: Check accessibility of the imported item
+            let ast_signature = context.ast_signatures.get_from_location(signature_location)
+                .unwrap_or_else(|| panic!("Signature not found for location: {signature_location:?}"));
+            
+            // Use the dedicated accessibility module to check import permissions
+            check_import_accessibility(
+                ast_signature,
+                self.import.paths.last().unwrap(),
+                self.import.paths.last().unwrap().state.file.clone()
+            )?;
         } else {
             // Step 1 failed: The imported item doesn't exist in the signature registry
             return Err(TirError::ImportNotFound(ImportNotFound {
@@ -360,6 +373,65 @@ mod tests {
         assert_eq!(name, "Class");
     }
 
+    /// Tests accessibility control for private class imports.
+    ///
+    /// Verifies that importing a private class from another module
+    /// results in an AccessibilityViolation error.
+    #[test]
+    fn use_ast_accessibility_violation_private_class() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create library module with private class
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], "class PrivateClass {}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that tries to import private class
+        let main_state = State::new(SourceFile::new(vec!["main".into()], "use lib.PrivateClass;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should fail with accessibility violation
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(error) => {
+                assert!(error.item_name.contains("PrivateClass"));
+            },
+            _ => panic!("Expected AccessibilityViolation error"),
+        }
+    }
+
+    /// Tests accessibility control allows public class imports.
+    ///
+    /// Verifies that importing a public class from another module
+    /// works without accessibility violations.
+    #[test]
+    fn use_ast_accessibility_allows_public_class() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::build
+        };
+        
+        // Create library module with public class
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], "pub class PublicClass {}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that imports public class
+        let main_state = State::new(SourceFile::new(vec!["main".into()], "use lib.PublicClass;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should succeed
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_ok());
+    }
+
     /// Tests that aliases take precedence over original names in `name()` method.
     /// 
     /// Verifies that:
@@ -386,5 +458,393 @@ mod tests {
         // but name() returns the alias
         let name = use_ast.name();
         assert_eq!(name, "Short");
+    }
+
+    /// Tests accessibility control for private function imports.
+    ///
+    /// Verifies that importing a private function from another module
+    /// results in an AccessibilityViolation error.
+    #[test]
+    fn use_ast_accessibility_violation_private_function() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create library module with private function
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], "func privateFunction(): void {}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that tries to import private function
+        let main_state = State::new(SourceFile::new(vec!["main".into()], "use lib.privateFunction;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should fail with accessibility violation
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(error) => {
+                assert!(error.item_name.contains("privateFunction"));
+            },
+            _ => panic!("Expected AccessibilityViolation error"),
+        }
+    }
+
+    /// Tests accessibility control allows public function imports.
+    ///
+    /// Verifies that importing a public function from another module
+    /// works without accessibility violations.
+    #[test]
+    fn use_ast_accessibility_allows_public_function() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::build
+        };
+        
+        // Create library module with public function
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], "pub func publicFunction(): void {}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that imports public function
+        let main_state = State::new(SourceFile::new(vec!["main".into()], "use lib.publicFunction;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should succeed
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_ok());
+    }
+
+    /// Tests accessibility control for interface imports.
+    ///
+    /// Interfaces should always be importable since they define public contracts.
+    #[test]
+    fn use_ast_accessibility_allows_interface_imports() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::build
+        };
+        
+        // Create library module with interface
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], "interface TestInterface { func test(): void; }".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that imports interface
+        let main_state = State::new(SourceFile::new(vec!["main".into()], "use lib.TestInterface;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should succeed (interfaces are always public)
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_ok());
+    }
+
+    /// Tests accessibility control for module imports.
+    ///
+    /// Module imports should always be allowed regardless of content accessibility.
+    #[test]
+    fn use_ast_accessibility_allows_module_imports() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::build
+        };
+        
+        // Create library module with mixed public/private content
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], 
+            "pub class PublicClass {} class PrivateClass {}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that imports the module itself
+        let main_state = State::new(SourceFile::new(vec!["main".into()], "use lib;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should succeed (module imports are always allowed)
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_ok());
+    }
+
+    /// Tests accessibility with nested module imports.
+    ///
+    /// Tests that accessibility control works correctly with nested module structures.
+    #[test]
+    fn use_ast_accessibility_nested_modules() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create nested module with private class
+        let nested_state = State::new(SourceFile::new(vec!["parent".into(), "child".into()], 
+            "class NestedPrivateClass {}".to_string()));
+        let nested_ast = process_code(&nested_state).unwrap();
+        
+        // Create main module that tries to import from nested module
+        let main_state = State::new(SourceFile::new(vec!["main".into()], 
+            "use parent.child.NestedPrivateClass;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should fail with accessibility violation
+        let result = build(vec![main_ast.into(), nested_ast.into()]);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(error) => {
+                assert!(error.item_name.contains("NestedPrivateClass"));
+            },
+            _ => panic!("Expected AccessibilityViolation error"),
+        }
+    }
+
+    /// Tests accessibility with aliased imports.
+    ///
+    /// Verifies that accessibility control works the same whether imports use aliases or not.
+    #[test]
+    fn use_ast_accessibility_with_aliases() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create library module with private class
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], "class PrivateClass {}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that tries to import private class with alias
+        let main_state = State::new(SourceFile::new(vec!["main".into()], 
+            "use lib.PrivateClass as MyClass;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should fail with accessibility violation even with alias
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(error) => {
+                assert!(error.item_name.contains("PrivateClass"));
+            },
+            _ => panic!("Expected AccessibilityViolation error"),
+        }
+    }
+
+    /// Tests multiple accessibility violations in a single module.
+    ///
+    /// When multiple private items are imported, the first violation should be reported.
+    #[test] 
+    fn use_ast_accessibility_multiple_violations() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create library module with multiple private items
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], 
+            "class PrivateClass1 {} class PrivateClass2 {} func privateFunc(): void {}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that imports multiple private items
+        let main_state = State::new(SourceFile::new(vec!["main".into()], 
+            "use lib.PrivateClass1; use lib.PrivateClass2; use lib.privateFunc;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should fail with accessibility violation
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(_) => {
+                // Should get accessibility violation for one of the private items
+            },
+            TirError::ErrorCollection(errors) => {
+                // Multiple errors might be collected
+                assert!(!errors.errors.is_empty());
+            },
+            _ => panic!("Expected AccessibilityViolation or ErrorCollection"),
+        }
+    }
+
+    /// Tests accessibility error message contains correct source locations.
+    ///
+    /// Verifies that the error properly identifies both the import location
+    /// and the private item definition location.
+    #[test]
+    fn use_ast_accessibility_error_source_locations() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create library module with private class
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], 
+            "\nclass PrivateClass {\n    func init(this): void {}\n}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that imports private class
+        let main_state = State::new(SourceFile::new(vec!["main".into()], 
+            "\nuse lib.PrivateClass;\n".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should fail with accessibility violation
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(error) => {
+                // Verify error contains both source locations
+                assert!(error.import_position.start < error.import_position.end);
+                assert!(error.item_position.start < error.item_position.end);
+                assert!(error.item_name.contains("PrivateClass"));
+                
+                // Verify source codes are present
+                assert!(!error.import_code.source.is_empty());
+                assert!(!error.item_code.source.is_empty());
+            },
+            _ => panic!("Expected AccessibilityViolation error"),
+        }
+    }
+
+    /// Tests accessibility with mixed public and private imports.
+    ///
+    /// When importing both public and private items, only the private ones should fail.
+    #[test]
+    fn use_ast_accessibility_mixed_imports() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create library module with mixed accessibility
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], 
+            "pub class PublicClass {} class PrivateClass {}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create main module that imports both
+        let main_state = State::new(SourceFile::new(vec!["main".into()], 
+            "use lib.PublicClass; use lib.PrivateClass;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Try to build - should fail due to private import
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(error) => {
+                assert!(error.item_name.contains("PrivateClass"));
+            },
+            _ => panic!("Expected AccessibilityViolation error"),
+        }
+    }
+
+    /// Tests accessibility control with class inheritance.
+    ///
+    /// Private base classes should not be importable even if extended by public classes.
+    #[test]
+    fn use_ast_accessibility_inheritance_scenarios() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create library module with private class
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], 
+            "class BaseClass {} pub class PublicDerived {}".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Try to import the private base class
+        let main_state = State::new(SourceFile::new(vec!["main".into()], 
+            "use lib.BaseClass;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Should fail with accessibility violation
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(error) => {
+                assert!(error.item_name.contains("BaseClass"));
+            },
+            _ => panic!("Expected AccessibilityViolation error"),
+        }
+    }
+
+    /// Tests that extend definitions cannot be imported directly.
+    ///
+    /// Extend statements are implementation details and should not be importable.
+    #[test]
+    fn use_ast_accessibility_extend_not_importable() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::build
+        };
+        
+        // Create library module with public class that can be safely imported
+        let lib_state = State::new(SourceFile::new(vec!["lib".into()], 
+            "pub class TestClass {} interface TestInterface { func test(): void; } extend TestClass: TestInterface { func test(): void {} }".to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Import the public class (this should work)
+        let main_state = State::new(SourceFile::new(vec!["main".into()], 
+            "use lib.TestClass;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Should succeed since TestClass is public
+        let result = build(vec![main_ast.into(), lib_ast.into()]);
+        assert!(result.is_ok());
+    }
+
+    /// Tests cross-module accessibility with deep nested paths.
+    ///
+    /// Verifies accessibility works with complex dotted import paths.
+    #[test]
+    fn use_ast_accessibility_deep_nested_paths() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create deeply nested module with private class
+        let nested_state = State::new(SourceFile::new(
+            vec!["level1".into(), "level2".into(), "level3".into()], 
+            "class DeepPrivateClass {}".to_string()
+        ));
+        let nested_ast = process_code(&nested_state).unwrap();
+        
+        // Try to import from deep path
+        let main_state = State::new(SourceFile::new(vec!["main".into()], 
+            "use level1.level2.level3.DeepPrivateClass;".to_string()));
+        let main_ast = process_code(&main_state).unwrap();
+        
+        // Should fail with accessibility violation
+        let result = build(vec![main_ast.into(), nested_ast.into()]);
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(error) => {
+                assert!(error.item_name.contains("DeepPrivateClass"));
+            },
+            _ => panic!("Expected AccessibilityViolation error"),
+        }
     }
 }

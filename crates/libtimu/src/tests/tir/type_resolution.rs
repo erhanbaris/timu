@@ -156,7 +156,7 @@ fn test_cross_module_type_resolution() {
     let state1 = State::new(SourceFile::new(
         vec!["types".into()],
         r#"
-class Point {
+pub class Point {
     x: i32;
     y: i32;
     

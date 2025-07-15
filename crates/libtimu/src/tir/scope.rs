@@ -127,6 +127,8 @@ pub struct VariableInformation<'base, L: Debug + Clone + PartialEq> {
     pub reference: bool,
     /// Whether this variable is read-only after initialization
     pub readonly: bool,
+    /// Whether this variable is publicly accessible
+    pub is_public: bool,
 }
 
 impl<'base, L> ValueTrait<'base> for VariableInformation<'base, L>
@@ -166,6 +168,37 @@ where L: Debug + Clone + PartialEq
             nullable,
             reference,
             readonly,
+            is_public: false,
+        }
+    }
+
+    /// Creates a new VariableInformation with full control including public visibility
+    /// 
+    /// This constructor allows specification of all variable properties including
+    /// public accessibility, which is used for class fields and method visibility.
+    /// 
+    /// # Arguments
+    /// * `span` - Source location span for the variable declaration
+    /// * `location` - Type location or other identifier for the variable's type
+    /// * `nullable` - Whether the variable can hold null/None values
+    /// * `reference` - Whether the variable is a reference type
+    /// * `readonly` - Whether the variable is immutable after initialization
+    /// * `is_public` - Whether the variable is publicly accessible
+    /// 
+    /// # Returns
+    /// A new VariableInformation instance with the specified properties
+    /// 
+    /// # Usage
+    /// This constructor is used when processing class fields and methods where
+    /// visibility modifiers need to be tracked and enforced.
+    pub fn new_with_visibility(span: Span<'base>, location: L, nullable: bool, reference: bool, readonly: bool, is_public: bool) -> Self {
+        Self {
+            span,
+            location,
+            nullable,
+            reference,
+            readonly,
+            is_public,
         }
     }
 

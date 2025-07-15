@@ -512,7 +512,7 @@ mod tests {
 
     #[test]
     fn signature_generation() -> Result<(), TirError> {
-        let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} func testfunction(): testclass {} interface testinterface {}".to_string()));
+        let state_1 = State::new(SourceFile::new(vec!["source".into()], " pub class testclass {} pub func testfunction(): testclass {} interface testinterface {}".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source; use source.testclass; use source.testfunction; use source.testinterface;".to_string()));
         
         let ast_1 = process_code(&state_1)?;

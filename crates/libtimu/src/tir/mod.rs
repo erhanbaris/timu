@@ -62,6 +62,7 @@ use signature::{Signature, SignatureHolder, SignaturePath};
 
 use crate::{ast::{FileAst, FileStatementAst}, file::SourceFile, tir::{ast_signature::AstSignatureValueDiscriminants, object_signature::TypeValueDiscriminants}};
 
+pub mod accessibility;
 mod ast_signature;
 mod context;
 //pub mod error;
@@ -321,14 +322,14 @@ mod tests {
 
     #[test]
     fn module_test() -> Result<(), TirError> {
-        let state_1 = State::new(SourceFile::new(vec!["source1".into()], " class testclass1 {} ".to_string()));
+        let state_1 = State::new(SourceFile::new(vec!["source1".into()], " pub class testclass1 {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["source2".into()], "use source1; use source1.testclass1;".to_string()));
-        let state_3 = State::new(SourceFile::new(vec!["sub".into(), "source3".into()], "class testclass2 {}".to_string()));
+        let state_3 = State::new(SourceFile::new(vec!["sub".into(), "source3".into()], "pub class testclass2 {}".to_string()));
         let state_4 = State::new(SourceFile::new(vec!["sub".into(), "source4".into()], "use source1; use source1.testclass1;".to_string()));
         let state_5 = State::new(SourceFile::new(vec!["sub".into(), "source5".into()], "use source1; use source1.testclass1;".to_string()));
         let state_6 = State::new(SourceFile::new(vec!["sub".into(), "source6".into()], "use sub.source3; use sub.source3.testclass2;".to_string()));
         let state_7 = State::new(SourceFile::new(vec!["sub".into(), "source7".into()], "use source1; use source1.testclass1; use sub.source3; use sub.source3.testclass2;".to_string()));
-        let state_8 = State::new(SourceFile::new(vec!["sub".into(), "source8".into()], "class testclass1 {}".to_string()));
+        let state_8 = State::new(SourceFile::new(vec!["sub".into(), "source8".into()], "pub class testclass1 {}".to_string()));
         let state_9 = State::new(SourceFile::new(vec!["sub".into(), "source9".into()], "use source1; use source1.testclass1; use sub.source3; use sub.source3.testclass2; use sub.source8; use sub.source8.testclass1 as newtestclass1;".to_string()));
 
         let ast_1 = process_code(&state_1)?;
@@ -364,7 +365,7 @@ mod tests {
 
     #[test]
     fn duplicated_module() -> Result<(), TirError> {
-        let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} ".to_string()));
+        let state_1 = State::new(SourceFile::new(vec!["source".into()], " pub class testclass {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass; use source.testclass;".to_string()));
         
         let ast_1 = process_code(&state_1)?;
@@ -372,7 +373,7 @@ mod tests {
         let error = crate::tir::build(vec![ast_1.into(), ast_2.into()]).unwrap_err();
 
         if let TirError::ModuleAlreadyImported(error) = error {
-            assert_eq!(error.old_position, 7..16);
+            assert_eq!(error.old_position, 11..20);
             assert_eq!(error.new_position, 26..51);
         } else {
             panic!("Expected TirError::ModuleAlreadyImported");
@@ -382,7 +383,7 @@ mod tests {
 
     #[test]
     fn no_duplicated_module() -> Result<(), TirError> {
-        let state_1 = State::new(SourceFile::new(vec!["source".into()], " class testclass {} ".to_string()));
+        let state_1 = State::new(SourceFile::new(vec!["source".into()], " pub class testclass {} ".to_string()));
         let state_2 = State::new(SourceFile::new(vec!["lib".into()], "use source.testclass as t1; use source.testclass as t2;".to_string()));
 
         let ast_1 = process_code(&state_1)?;
