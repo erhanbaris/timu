@@ -217,7 +217,7 @@ impl<'base> BodyStatementAst<'base> {
             _ => {
                 return Err(FunctionCallError::UnsupportedArgumentType(UnsupportedArgumentType {
                     position: function_call.call_span.to_range(),
-                    code: function_call.call_span.state.file.clone().into()
+                    code: (&function_call.call_span.state.file).into()
                 }.into()).into());
             }
         };
@@ -305,7 +305,7 @@ impl<'base> BodyStatementAst<'base> {
                     _ => return Err(FunctionCallError::CallPathNotValid(CallPathNotValid {
                         path: path.to_string(),
                         position: span.to_range(),
-                        code: span.state.file.clone().into()
+                        code: (&span.state.file).into()
                     }.into()).into()),
                 }
             }
@@ -343,7 +343,7 @@ impl<'base> BodyStatementAst<'base> {
                 expected: TypeWithSpan {
                         ty: format!("this function expects {} argument{}", callee.arguments.len(), expected_plural),
                         at: callee.ast.arguments_span.to_range(),
-                        source_code: callee.ast.arguments_span.state.file.clone().into()
+                        source_code: (&callee.ast.arguments_span.state.file).into()
                     },
                 got: TypeWithSpan {
                     ty: if arguments.is_empty() {
@@ -352,7 +352,7 @@ impl<'base> BodyStatementAst<'base> {
                         format!("{}() has {} argument{}", function_call_path, arguments.len(), if arguments.len() == 1 { "" } else { "s" })
                     },
                     at: function_call.arguments_span.position.clone(),
-                    source_code: function_call.arguments_span.state.file.clone().into()
+                    source_code: (&function_call.arguments_span.state.file).into()
                 }
 
             }.into()).into());
@@ -367,12 +367,12 @@ impl<'base> BodyStatementAst<'base> {
                     expected: TypeWithSpan {
                         ty: callee_arg.field_type_span.text.to_string(),
                         at: callee_arg.field_type_span.to_range(),
-                        source_code: callee_arg.field_type_span.state.file.clone().into()
+                        source_code: (&callee_arg.field_type_span.state.file).into()
                     },
                     got: TypeWithSpan {
                         ty: call_argument_signature.value.get_name().to_string(),
                         at: call_information_type.span.position.clone(),
-                        source_code: call_information_type.span.state.file.clone().into()
+                        source_code: (&call_information_type.span.state.file).into()
                     }
                 }.into()).into());
             }

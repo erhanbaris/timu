@@ -88,7 +88,7 @@ use super::module::ModuleRef;
 pub fn check_import_accessibility<'base>(
     ast_signature: &Signature<AstSignatureValue<'base>, ModuleRef<'base>>,
     import_span: &Span<'base>,
-    import_source: SourceFile
+    import_source: &SourceFile
 ) -> Result<(), TirError> {
     // Determine if the imported item is accessible from another module
     let is_accessible = match ast_signature.value.as_ref() {
@@ -122,7 +122,7 @@ pub fn check_import_accessibility<'base>(
         return Err(TirError::accessibility_violation(
             import_span.text.to_string(),
             import_span.to_range(),
-            import_source,
+            import_source.clone(),
             item_position,
             item_source
         ));

@@ -1,0 +1,19 @@
+pub class PublicClass {
+    pub publicField: string;
+}
+
+class PrivateClass {
+    pub someField: string;
+}
+
+pub func publicFunction(): string {
+    
+}
+
+func privateFunction(): string {
+    
+}
+
+interface TestInterface {
+    func test(): string;
+}

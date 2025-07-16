@@ -1,0 +1,5 @@
+use comprehensive_lib.PrivateClass;
+use comprehensive_lib.privateFunction;
+
+class Test {
+}

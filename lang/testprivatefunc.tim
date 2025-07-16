@@ -1,0 +1,4 @@
+use testlib.privateFunction;
+
+class Test {
+}

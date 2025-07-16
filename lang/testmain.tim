@@ -1,0 +1,6 @@
+use testlib.PublicClass;
+use testlib.publicFunction;
+use testlib.TestInterface;
+
+class Test {
+}

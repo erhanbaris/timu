@@ -72,7 +72,7 @@ where
         let span = value.get_span();
 
         match self.map.insert(key, Value { value, position: span.to_range(), marker: PhantomData }) {
-            Some(old) => Err(TirError::already_defined(span.to_range(), old.position, span.state.file.clone())),
+            Some(old) => Err(TirError::already_defined_ref(span.to_range(), old.position, &span.state.file)),
             None => Ok(())
         }
     }

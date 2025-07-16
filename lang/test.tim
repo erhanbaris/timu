@@ -12,10 +12,10 @@ extend TestClass: ITest {
 }
 
 class TestClass {
-    func init(this): string {
+    pub func init(this): string {
         this.test("erhanbaris");
         this.a.test("baris");
-        abc(abc("erhan"));
+        abc(abc(""));
     }
 }
 

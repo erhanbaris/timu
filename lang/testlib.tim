@@ -1,0 +1,17 @@
+pub class PublicClass {
+}
+
+class PrivateClass {
+}
+
+pub func publicFunction(): string {
+    
+}
+
+func privateFunction(): string {
+    
+}
+
+interface TestInterface {
+    func test(): string;
+}

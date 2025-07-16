@@ -1,0 +1,7 @@
+use test_lib.PublicClass;
+use test_lib.publicFunction;
+use test_lib.TestInterface;
+
+func main(): string {
+    
+}

@@ -31,6 +31,18 @@ impl From<SourceFile> for SourceCode {
     }
 }
 
+impl From<&SourceFile> for SourceCode {
+    fn from(file: &SourceFile) -> Self {
+        let pathbuffer = PathBuf::from_iter(file.path.iter());
+        let path = pathbuffer.to_string_lossy();
+        
+        SourceCode {
+            source: file.code.to_string(),
+            name: path.to_string()   
+        }
+    }
+}
+
 impl Error for SourceFile {}
 
 impl std::fmt::Display for SourceFile {

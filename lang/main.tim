@@ -1,0 +1,4 @@
+use lib.PrivateClass;
+
+class Test {
+}

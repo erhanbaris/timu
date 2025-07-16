@@ -103,7 +103,7 @@ pub fn handle_parser(result: ParseResult<'_>) -> Result<FileAst<'_>, TirError> {
                 if let VerboseErrorKind::Context(error_message) = error_kind {
                     errors.push(SyntaxErrorItem {
                         position: span.to_range(),
-                        code: span.extra.file.clone().into(),
+                        code: (&span.extra.file).into(),
                         message: error_message
                     });
                 }

@@ -100,7 +100,7 @@ impl<'base> ResolveAst<'base> for UseAst<'base> {
             check_import_accessibility(
                 ast_signature,
                 self.import.paths.last().unwrap(),
-                self.import.paths.last().unwrap().state.file.clone()
+                &self.import.paths.last().unwrap().state.file
             )?;
         } else {
             // Step 1 failed: The imported item doesn't exist in the signature registry

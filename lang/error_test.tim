@@ -1,0 +1,4 @@
+use nonexistent.Class;
+
+class Test {
+}

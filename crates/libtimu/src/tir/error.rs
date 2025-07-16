@@ -470,6 +470,14 @@ impl TirError {
         }.into())
     }
 
+    pub fn already_defined_ref(new_position: Range<usize>, old_position: Range<usize>, source: &SourceFile) -> Self {
+        TirError::AlreadyDefined(AlreadyDefined {
+            new_position,
+            old_position,
+            code: source.into(),
+        }.into())
+    }
+
     pub fn interface_field_not_defined(position: Range<usize>, source: SourceFile) -> Self {
         TirError::InterfaceFieldNotDefined(InterfaceFieldNotDefined {
             position,

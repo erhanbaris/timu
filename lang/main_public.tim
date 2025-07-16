@@ -1,0 +1,4 @@
+use lib.PublicClass;
+
+class Test {
+}
