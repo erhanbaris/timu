@@ -12,14 +12,17 @@
                 "args": [
                     "build",
                     "--bin=timuc",
-                    "--package=timuc"
+                    "--package=timuc",
                 ],
                 "filter": {
                     "name": "timuc",
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": [
+                "lang/accessibility_test.tim",
+                "lang/simple_lib.tim"
+            ],
             "cwd": "${workspaceFolder}",
             "env": {
                 "LLVM_SYS_150_PREFIX": "C:\\llvm"

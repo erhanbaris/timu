@@ -198,6 +198,10 @@ cargo doc --open
 cargo doc --open --package libtimu
 ```
 
+### **Internal Documentation**
+
+- **[Error Handling](internals/error_handling.md)**: Comprehensive guide to using the TimuError macro system for rich error reporting
+
 ## 🔧 **Development**
 
 ### **Project Structure**

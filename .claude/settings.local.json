@@ -11,7 +11,9 @@
       "Bash(sed:*)",
       "Bash(cargo clippy:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "Bash(mkdir:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   }

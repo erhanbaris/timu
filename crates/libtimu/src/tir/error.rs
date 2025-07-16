@@ -335,6 +335,38 @@ pub struct ExtraFieldInExtend {
     pub code: SourceCode,
 }
 
+/// Information about an item definition in an accessibility violation.
+///
+/// This struct contains the location and source code context for a private
+/// item that cannot be imported from another module.
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("private item")]
+pub struct PrivateItemInfo {
+    /// Location of the private item definition
+    #[label("private item cannot be imported")]
+    pub position: Range<usize>,
+    
+    /// Source code context for the private item
+    #[source_code]
+    pub code: SourceCode,
+}
+
+/// Information about an import attempt in an accessibility violation.
+///
+/// This struct contains the location and source code context for the
+/// import statement that tries to access a private item.
+#[derive(Clone, Debug, TimuError, thiserror::Error)]
+#[error("import attempt")]
+pub struct ImportAttemptInfo {
+    /// Location of the import attempt
+    #[label("trying to import private item")]
+    pub position: Range<usize>,
+    
+    /// Source code context for the import
+    #[source_code]
+    pub code: SourceCode,
+}
+
 /// Error for when trying to import a private item from another module.
 ///
 /// This error occurs when a `use` statement attempts to import an item
@@ -357,21 +389,13 @@ pub struct AccessibilityViolation {
     /// Name of the private item being imported
     pub item_name: String,
     
-    /// Location of the import attempt
-    #[label("trying to import private item")]
-    pub import_position: Range<usize>,
+    /// Information about the private item definition
+    #[reference]
+    pub item_info: PrivateItemInfo,
     
-    /// Source code context for the import
-    #[source_code]
-    pub import_code: SourceCode,
-    
-    /// Location of the private item definition
-    #[label("private item cannot be imported")]
-    pub item_position: Range<usize>,
-    
-    /// Source code context for the private item
-    #[source_code]
-    pub item_code: SourceCode,
+    /// Information about the import attempt
+    #[reference]
+    pub import_info: ImportAttemptInfo,
 }
 
 #[derive(Clone, Debug, TimuError, thiserror::Error, EnumDiscriminants, EnumProperty)]
@@ -483,10 +507,14 @@ impl TirError {
     ) -> Self {
         TirError::AccessibilityViolation(AccessibilityViolation {
             item_name,
-            import_position,
-            import_code: import_source.into(),
-            item_position,
-            item_code: item_source.into(),
+            item_info: PrivateItemInfo {
+                position: item_position,
+                code: item_source.into(),
+            },
+            import_info: ImportAttemptInfo {
+                position: import_position,
+                code: import_source.into(),
+            },
         }.into())
     }
 

@@ -705,13 +705,13 @@ mod tests {
         match result.unwrap_err() {
             TirError::AccessibilityViolation(error) => {
                 // Verify error contains both source locations
-                assert!(error.import_position.start < error.import_position.end);
-                assert!(error.item_position.start < error.item_position.end);
+                assert!(error.import_info.position.start < error.import_info.position.end);
+                assert!(error.item_info.position.start < error.item_info.position.end);
                 assert!(error.item_name.contains("PrivateClass"));
                 
                 // Verify source codes are present
-                assert!(!error.import_code.source.is_empty());
-                assert!(!error.item_code.source.is_empty());
+                assert!(!error.import_info.code.source.is_empty());
+                assert!(!error.item_info.code.source.is_empty());
             },
             _ => panic!("Expected AccessibilityViolation error"),
         }
