@@ -847,4 +847,69 @@ mod tests {
             _ => panic!("Expected AccessibilityViolation error"),
         }
     }
+
+    /// Tests that accessibility violation error correctly highlights only the specific identifier.
+    ///
+    /// This test verifies that when compiling multiple files with accessibility violations,
+    /// the error correctly highlights only the private class name (e.g., "PrivateClass")
+    /// and not the entire import statement or module path.
+    #[test]
+    fn use_ast_accessibility_precise_highlighting() {
+        use crate::{
+            file::SourceFile, 
+            nom_tools::State, 
+            process_code,
+            tir::{build, TirError}
+        };
+        
+        // Create simple_lib.tim with PrivateClass
+        let lib_content = r#"pub class PublicClass {
+}
+
+class PrivateClass {
+}"#;
+        let lib_state = State::new(SourceFile::new(vec!["simple_lib".into()], lib_content.to_string()));
+        let lib_ast = process_code(&lib_state).unwrap();
+        
+        // Create accessibility_test.tim that imports PrivateClass
+        let test_content = "use simple_lib.PrivateClass;\n\nclass Test {\n}";
+        let test_state = State::new(SourceFile::new(vec!["accessibility_test".into()], test_content.to_string()));
+        let test_ast = process_code(&test_state).unwrap();
+        
+        // Should fail with accessibility violation
+        let result = build(vec![lib_ast.into(), test_ast.into()]);
+        assert!(result.is_err(), "Expected accessibility violation");
+        
+        match result.unwrap_err() {
+            TirError::AccessibilityViolation(error) => {
+                // Verify error message contains the correct item name
+                assert_eq!(error.item_name, "PrivateClass");
+                
+                // Verify import location highlighting - should point to "PrivateClass" only
+                let import_position = &error.import_info.position;
+                let import_source = &error.import_info.code.source;
+                let highlighted_import = &import_source[import_position.start..import_position.end];
+                assert_eq!(highlighted_import, "PrivateClass", 
+                    "Import error should highlight only 'PrivateClass', got: '{}'", highlighted_import);
+                
+                // Verify item definition location highlighting - should point to "PrivateClass" only
+                let item_position = &error.item_info.position;
+                let item_source = &error.item_info.code.source;
+                let highlighted_item = &item_source[item_position.start..item_position.end];
+                assert_eq!(highlighted_item, "PrivateClass",
+                    "Item error should highlight only 'PrivateClass', got: '{}'", highlighted_item);
+                
+                // Verify both source codes are present
+                assert!(!error.import_info.code.source.is_empty());
+                assert!(!error.item_info.code.source.is_empty());
+                
+                // Verify the import source contains the full import statement
+                assert!(error.import_info.code.source.contains("use simple_lib.PrivateClass;"));
+                
+                // Verify the item source contains the class definition
+                assert!(error.item_info.code.source.contains("class PrivateClass"));
+            },
+            other => panic!("Expected AccessibilityViolation error, got: {:?}", other),
+        }
+    }
 }

@@ -374,7 +374,7 @@ mod tests {
 
         if let TirError::ModuleAlreadyImported(error) = error {
             assert_eq!(error.old_position, 11..20);
-            assert_eq!(error.new_position, 26..51);
+            assert_eq!(error.new_position, 26..42);
         } else {
             panic!("Expected TirError::ModuleAlreadyImported");
         }
