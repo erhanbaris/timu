@@ -59,7 +59,9 @@ impl<'base> TirContext<'base> {
 
     pub fn resolve_from_location(&mut self, signature_location: AstSignatureLocation, module_ref: &ModuleRef<'base>, parent_scope_location: ScopeLocation) -> Result<TypeLocation, TirError> {
         let signature = self.ast_signatures.get_from_location(signature_location).map(|signature| signature.value.clone()).unwrap();
-        let type_name = format!("{}.{}", module_ref.as_ref(), signature.name()); // todo: maybe it will not work with class function
+        // The type_name format correctly handles both top-level functions ("module.function")
+        // and class methods ("module.ClassName::method") via the signature.name() implementation.
+        let type_name = format!("{}.{}", module_ref.as_ref(), signature.name());
         let type_location = self.types.location(&type_name);
         let scope_location = self.create_child_scope(type_name.into(), parent_scope_location, type_location);
         self.resolve(&signature, scope_location)

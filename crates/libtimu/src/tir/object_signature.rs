@@ -151,11 +151,10 @@ impl TypeValue<'_> {
 
     fn compare_interface_and_class(context: &TirContext<'_>, interface: &InterfaceDefinition, class: &ClassDefinition) -> bool {
         for type_location in class.extends.iter() {
-            if let Some(TypeValue::Interface(class_interface)) = context.types.get_from_location(*type_location).map(|signature| signature.value.as_ref()) {
-                if class_interface.full_name == interface.full_name {
+            if let Some(TypeValue::Interface(class_interface)) = context.types.get_from_location(*type_location).map(|signature| signature.value.as_ref())
+                && class_interface.full_name == interface.full_name {
                     return true;
                 }
-            }
         }
         
         false

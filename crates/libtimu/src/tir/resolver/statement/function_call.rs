@@ -117,7 +117,7 @@ impl<'base> BodyStatementAst<'base> {
                     }
                     false => {
                         let scope = context.get_scope(function_scope_location).unwrap();
-                        match scope.get_variable(context, ident.text) {
+                        match scope.get_variable(context, ident.clone()) {
                             Some(variable) => variable,
                             None => return Err(FunctionResolveError::variable_not_found(ident.into()))
                         }
@@ -150,7 +150,7 @@ impl<'base> BodyStatementAst<'base> {
             let path = span.text;
 
             if index == 0 {
-                if let Some(argument) = scope.get_variable(context, path) {
+                if let Some(argument) = scope.get_variable(context, span.clone()) {
                     callee_object_location = argument.location;
                 } else {
                     panic!("Function argument or object not found: '{}'", path);

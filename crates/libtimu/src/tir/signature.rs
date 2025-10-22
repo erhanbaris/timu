@@ -132,11 +132,10 @@ where
 
     pub fn find_by_value(&self, value: &T) -> Option<L> {
         for (index, signature) in self.signatures.iter().enumerate() {
-            if let Some(SignatureInfo::Value(signature)) = signature {
-                if &signature.value == value {
+            if let Some(SignatureInfo::Value(signature)) = signature
+                && &signature.value == value {
                     return Some(index.into())
                 }
-            }
         }
 
         None

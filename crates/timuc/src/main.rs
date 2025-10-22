@@ -34,7 +34,7 @@ fn main() -> Result<(), TirError> {
 
     class TestClass {
         func init(this): string {
-            lib.abc();
+            lib.abc("abc");
         }
     }
 

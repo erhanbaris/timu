@@ -30,7 +30,7 @@ static U64_RANGE: std::ops::Range<i128> = (u64::MIN as i128)..(u64::MAX as i128)
 static FLOAT_RANGE: std::ops::Range<f64> = (f32::MIN as f64)..(f32::MAX as f64);
 
 
-fn character(input: NomSpan<'_>) -> IResult<NomSpan<'_>, char, TimuParserError<'_>> {
+fn character(input: NomSpan) -> IResult<NomSpan, char, TimuParserError> {
     let (input, c) = none_of("\"")(input)?;
     if c == '\\' {
         alt((value('\n', char('n')), value('\r', char('r')), value('\t', char('t')), value('\\', char('\\')), value('"', char('"')), value('/', char('/'))))
@@ -40,7 +40,7 @@ fn character(input: NomSpan<'_>) -> IResult<NomSpan<'_>, char, TimuParserError<'
     }
 }
 
-pub fn string(input: NomSpan<'_>) -> IResult<NomSpan<'_>, PrimitiveValue, TimuParserError<'_>> {
+pub fn string(input: NomSpan) -> IResult<NomSpan, PrimitiveValue, TimuParserError> {
     let (input, string) = delimited(
         char('"'),
         fold(0.., character, String::new, |mut string, c| {
@@ -145,7 +145,7 @@ pub fn number<'base>(input: NomSpan<'base>) -> IResult<NomSpan<'base>, Primitive
 }
 
 impl PrimitiveValue<'_> {
-    pub fn parse(input: NomSpan<'_>) -> IResult<NomSpan<'_>, (NomSpan<'_>, PrimitiveValue), TimuParserError<'_>> {
+    pub fn parse(input: NomSpan) -> IResult<NomSpan, (NomSpan, PrimitiveValue), TimuParserError> {
         let (input, value) =
             consumed(cleanup(alt((
                 number, 
@@ -157,7 +157,7 @@ impl PrimitiveValue<'_> {
         Ok((input, value))
     }
 
-    pub fn parse_for_expression(input: NomSpan<'_>) -> IResult<NomSpan<'_>, ExpressionAst<'_>, TimuParserError<'_>> {
+    pub fn parse_for_expression(input: NomSpan) -> IResult<NomSpan, ExpressionAst, TimuParserError> {
         let (input, (span, value)) = Self::parse(input)?;
         Ok((
             input,
@@ -167,7 +167,7 @@ impl PrimitiveValue<'_> {
 }
 
 impl Display for PrimitiveValue<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             PrimitiveValue::String(value) => write!(f, "{}", value),
             PrimitiveValue::Bool(value) => write!(f, "{}", value),

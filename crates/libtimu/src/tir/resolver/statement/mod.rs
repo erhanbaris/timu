@@ -68,16 +68,14 @@ mod tests {
     fn dublicated_function_argument() -> Result<(), TirError> {
         let state = State::new(SourceFile::new(vec!["source".into()], "class a {} func test(a: a, a: a): a {} ".to_string()));
         let ast = process_code(&state)?;
-        let _error = crate::tir::build(vec![ast.into()]).unwrap_err();
+        let error = crate::tir::build(vec![ast.into()]).unwrap_err();
 
-        /*
-        todo: fix this test
         if let TirError::AlreadyDefined(error) = error
         {
             assert_eq!(error.new_position, (27..28).into());
         } else {
             panic!("Expected TirError::AlreadyDefined but got {:?}", error);
-        } */
+        }
 
         Ok(())
     }

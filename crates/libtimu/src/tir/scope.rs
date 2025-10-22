@@ -100,65 +100,55 @@ impl<'base> Scope<'base> {
         }
     }
 
-    pub fn get_variable<T: AsRef<str>>(&self, context: &TirContext<'base>, name: T) -> Option<TypeVariableInformation<'base>> {
-        debug!("get_variable: name: {}, scope: {}", name.as_ref(), self.location.0);
+    pub fn get_variable(&self, context: &TirContext<'base>, name: Span<'base>) -> Option<TypeVariableInformation<'base>> {
+        debug!("get_variable: name: {}, scope: {}", name.text, self.location.0);
 
         /* Search in current scope */
-        if let Some(variable) = self.variables.get(name.as_ref()) {
+        if let Some(variable) = self.variables.get(name.text) {
             return Some(variable.clone());
         }
 
         /* Search in parent scope */
-        if let Some(type_location) = self.parent_scope.and_then(|parent_location| context.get_scope(parent_location)).and_then(|parent_scope| parent_scope.get_variable(context, name.as_ref())) {
+        if let Some(type_location) = self.parent_scope.and_then(|parent_location| context.get_scope(parent_location)).and_then(|parent_scope| parent_scope.get_variable(context, name.clone())) {
             return Some(type_location);
         }
 
         /* Search in module level */
         let module = self.module_ref.upgrade(context).unwrap();
-        let module_scope = context.get_scope(module.scope_location).expect(&format!("Module scope not found for module: {}", module.path));
+        let module_scope = context.get_scope(module.scope_location).unwrap_or_else(|| panic!("Module scope not found for module: {}", module.path));
 
-        if module_scope.location != self.location {
-            if let Some(variable_info) = module_scope.get_variable(context, name.as_ref()) {
+        if module_scope.location != self.location
+            && let Some(variable_info) = module_scope.get_variable(context, name.clone()) {
                 return Some(variable_info);
             }
-        }
 
-        if let Some(type_location) = module.types.get(name.as_ref()) {
-            panic!("0 Found type location in module: {:?}", type_location);
-            //return Some(*type_location);
+        if let Some(type_location) = module.types.get(name.text) {
+            return Some(VariableInformation::basic(name.clone(), *type_location));
         }
 
         /* Search as a module name  */
-        if let Some(module_ref) = context.modules.get(name.as_ref()) {
-            if let Some(type_location) = module.types.get(module_ref.path.as_ref()) {
-                panic!("1 Found type location in module: {:?}", type_location);
-                //return Some(*type_location);
+        if let Some(module_ref) = context.modules.get(name.text)
+            && let Some(type_location) = module.types.get(module_ref.path.as_ref()) {
+                return Some(VariableInformation::basic(name.clone(), *type_location));
             }
+
+        if let Some(type_location) = context.types.location(name.text) {
+            return Some(VariableInformation::basic(name.clone(), type_location));
         }
 
-        if let Some(type_location) = context.types.location(name.as_ref()) {
-            panic!("2 Found type location in module: {:?}", type_location);
-            //return Some(type_location);
-        }
-
-        if let Some(ast_location) = module.ast_imported_modules.get(name.as_ref()) {
-            if let Some(signature) = context.ast_signatures.get_from_location(*ast_location) {
+        if let Some(ast_location) = module.ast_imported_modules.get(name.text)
+            && let Some(signature) = context.ast_signatures.get_from_location(*ast_location) {
                 let full_name = signature.value.build_full_name(context, BuildFullNameLocater::Module(signature.extra.as_ref().unwrap()), None);
 
                 if let Some(type_location) = context.types.location(full_name.as_str()) {
-
-                    panic!("3 Found type location: {:?}", type_location);
-                    //return Some(type_location)
+                    return Some(VariableInformation::basic(name.clone(), type_location))
                 }
             }
-        }
 
-        if let Some(module_ref) = context.modules.get(name.as_ref()) {
-            if let Some(type_location) = module.types.get(module_ref.path.as_ref()) {
-                panic!("4 Found type location in module: {:?}", type_location);
-                //return Some(*type_location);
+        if let Some(module_ref) = context.modules.get(name.text)
+            && let Some(type_location) = module.types.get(module_ref.path.as_ref()) {
+                return Some(VariableInformation::basic(name.clone(), *type_location));
             }
-        }
 
         None
     }
