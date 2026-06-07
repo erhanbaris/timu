@@ -85,7 +85,7 @@ jobs:
             -o ./cov_normal.json
 
     - name: Codecov
-      uses: codecov/codecov-action@v5.4.3
+      uses: codecov/codecov-action@v7.0.0
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./cov_normal.json
